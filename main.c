@@ -31,11 +31,14 @@
 #define MAX_RUNAWAY_TIME 5 // sec
 #define MAX_PCALL_TIME  20000000 // usec
 
-#define print_projection_depth() \
+#define print_render_state() \
     {\
-        int depth;\
-        glGetIntegerv(GL_PROJECTION_STACK_DEPTH, &depth);\
-        printf("projection matrix depth is %d\n", depth);\
+        int pd, md, fb, tex;\
+        glGetIntegerv(GL_FRAMEBUFFER_BINDING, &fb);\
+        glGetIntegerv(GL_TEXTURE_BINDING_2D, &tex);\
+        glGetIntegerv(GL_PROJECTION_STACK_DEPTH, &pd);\
+        glGetIntegerv(GL_MODELVIEW_STACK_DEPTH, &md);\
+        printf("=== depth: model: %d, projection %d, fbo: %d, tex: %d\n", md, pd, fb, tex);\
     };
 
 struct node_s {
@@ -249,18 +252,14 @@ static void node_render_to_buffer(node_t *node) {
 
     printf("-> rendering %s into %dx%d\n", node->name, node->width, node->height);
 
+    print_render_state();
+
     glPushAttrib(GL_ALL_ATTRIB_BITS);
 
     int prev_fbo;
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_fbo);
     glBindFramebuffer(GL_FRAMEBUFFER, node->fbo);
-    printf("switched fbo from %d to %d\n", prev_fbo, node->fbo);
 
-    // int tex;
-    // glGetIntegerv(GL_TEXTURE_BINDING_2D, &tex);
-    // printf("Texture is %d\n", tex);
-
-    print_projection_depth();
 
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
@@ -272,23 +271,24 @@ static void node_render_to_buffer(node_t *node) {
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
+    glPushMatrix();
 
     // start with white screen
     glClearColor(1.0, 1.0, 1.0, 1.0);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    print_projection_depth();
-
     lua_execute_format(node, "news.on_render()");
 
     glMatrixMode(GL_PROJECTION);
     glPopMatrix();
-    glPopAttrib();
-
-    print_projection_depth();
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
 
     glBindFramebuffer(GL_FRAMEBUFFER, prev_fbo);
-    printf("fbo is now %d again\n", prev_fbo);
+
+    glPopAttrib();
+
+    print_render_state();
 
     printf("<- done rendering %s\n", node->name);
 }
@@ -297,27 +297,25 @@ static void node_render_to_viewport(node_t *node, int x1, int y1, int x2, int y2
     if (!node_has_framebuffer(node)) return;
 
     printf("-> drawing %s to %d,%d -> %d,%d\n", node->name, x1, y1, x2, y2);
+    printf("   viewport is %dx%d\n", node->width, node->height);
 
     int prev_tex;
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &prev_tex);
     glBindTexture(GL_TEXTURE_2D, node->tex);
-    printf("switching tex from %d to %d\n", prev_tex, node->tex);
 
     glColor4f(1.0, 1.0, 1.0, 1.0);
     glBegin(GL_QUADS);
-        glTexCoord2f(0, 0);
-        glVertex3f(x1, y1, 0);
-        glTexCoord2f(node->width, 0);
-        glVertex3f(x2, y1, 0);
-        glTexCoord2f(node->width, node->height);
-        glVertex3f(x2, y2, 0);
-        glTexCoord2f(0, node->height);
-        glVertex3f(x1, y2, 0);
+        glTexCoord2i(0, 1);
+        glVertex3i(x1, y1, 0);
+        glTexCoord2i(1, 1);
+        glVertex3i(x2, y1, 0);
+        glTexCoord2i(1, 0);
+        glVertex3i(x2, y2, 0);
+        glTexCoord2i(0, 0);
+        glVertex3i(x1, y2, 0);
     glEnd();
 
     glBindTexture(GL_TEXTURE_2D, prev_tex);
-    printf("tex is now %d again\n", prev_tex);
-
     printf("<- done drawing %s\n", node->name);
 }
 
@@ -371,11 +369,12 @@ static int luaClear(lua_State *L) {
 
 static int luaDrawShit(lua_State *L) {
     printf("SHIT\n");
-    glColor4f(1.0, 0.0, 0.0, 1.0);
-    glLineWidth(3000);
+    print_render_state();
+    glColor4f(0.0, 0.0, 0.0, 1.0);
+    glLineWidth(30);
     glBegin(GL_LINES);
-        glVertex3f(0., 0., 0.);
-        glVertex3f(300., 300., 0.);
+        glVertex3f(50, 0, 0);
+        glVertex3f(100, 100, 0);
     glEnd();
     return 0;
 }
