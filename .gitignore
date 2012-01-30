@@ -1,3 +1,5 @@
 *.o
 gpn-info
 data/
+kernel.h
+bin2c
