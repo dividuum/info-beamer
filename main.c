@@ -11,6 +11,9 @@
 #include <sys/inotify.h>
 #include <fcntl.h>
 
+#include <GL/glew.h>
+#include <GL/gl.h>
+#include <GL/glext.h>
 #include <GL/glfw.h>
 #include <event.h>
 #include <lualib.h>
@@ -31,8 +34,8 @@
 struct node_s {
     int wd; // inotify watch descriptor
     int prio;
-    const char *name;
-    const char *path;
+    const char *name; // local node name
+    const char *path; // full path (including node name)
     lua_State *L;
     int enforce_mem;
     UT_hash_handle by_wd;
@@ -40,6 +43,9 @@ struct node_s {
     struct node_s *childs;
 
     struct node_s *prev, *next; // same level
+
+    int width;
+    int height;
 };
 
 typedef struct node_s node_t;
@@ -65,10 +71,9 @@ static void *xmalloc(size_t size) {
     return ptr;
 }
 
-static void node_init(node_t *node, node_t *parent, const char *path, const char *name);
-static void node_free(node_t *node);
+/*======= Lua Sandboxing =======*/
 
-static void *node_alloc(void *ud, void *ptr, size_t osize, size_t nsize) {
+static void *lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize) {
     node_t *node = ud;
     (void)osize;  /* not used */
     if (nsize == 0) {
@@ -132,25 +137,19 @@ static int lua_timed_pcall(node_t *node, int in, int out,
     return ret;
 }
 
-static int node_panic(lua_State *L) {
+static int lua_panic(lua_State *L) {
     die("node panic!");
     return 0;
 }
 
-#define lua_register_node_func(node,name,func) \
-    (lua_pushliteral((node)->L, name), \
-     lua_pushlightuserdata((node)->L, node), \
-     lua_pushcclosure((node)->L, func, 1), \
-     lua_settable((node)->L, LUA_GLOBALSINDEX))
-
-static const char *node_safe_error_message(lua_State *L) {
+static const char *lua_safe_error_message(lua_State *L) {
     const char *message = lua_tostring(L, -1);
     if (!message)
         die("<null> error message");
     return message;
 }
 
-static void node_execute(node_t *node, const char *code, size_t code_size) {
+static void lua_execute(node_t *node, const char *code, size_t code_size) {
     lua_State *L = node->L;
     lua_gc(L, LUA_GCSTEP, 100);
     lua_pushliteral(L, "execute");              // "fun"
@@ -169,13 +168,13 @@ static void node_execute(node_t *node, const char *code, size_t code_size) {
             return;
         // Fehler beim Ausfuehren
         case LUA_ERRRUN:
-            fprintf(stderr, "runtime error: %s\n", node_safe_error_message(L));
+            fprintf(stderr, "runtime error: %s\n", lua_safe_error_message(L));
             break;
         case LUA_ERRMEM:
-            fprintf(stderr, "memory error: %s\n", node_safe_error_message(L));
+            fprintf(stderr, "memory error: %s\n", lua_safe_error_message(L));
             break;
         case LUA_ERRERR:
-            fprintf(stderr, "error handling error: %s\n", node_safe_error_message(L));
+            fprintf(stderr, "error handling error: %s\n", lua_safe_error_message(L));
             break;
         default:
             die("wtf?");
@@ -183,15 +182,32 @@ static void node_execute(node_t *node, const char *code, size_t code_size) {
     lua_pop(L, 2);                              // 
 }
 
+static void lua_execute_format(node_t *node, const char *fmt, ...) {
+    char code[MAX_CODE_SIZE];
+    va_list ap;
+    va_start(ap, fmt);
+    int code_size = vsnprintf(code, sizeof(code), fmt, ap);
+    va_end(ap);
+    lua_execute(node, code, code_size);
+}
+
+/*======= Node =======*/
+
+static void node_init(node_t *node, node_t *parent, const char *path, const char *name);
+static void node_free(node_t *node);
+
+#define lua_register_node_func(node,name,func) \
+    (lua_pushliteral((node)->L, name), \
+     lua_pushlightuserdata((node)->L, node), \
+     lua_pushcclosure((node)->L, func, 1), \
+     lua_settable((node)->L, LUA_GLOBALSINDEX))
+
 static void node_init_sandbox(node_t *node) {
-    node_execute(node, "init_sandbox", 12);
+    lua_execute_format(node, "init_sandbox");
 }
 
 static void node_tree_tick(node_t *node, int delta) {
-    char code[128];
-    size_t code_size = snprintf(code, sizeof(code), "news.on_tick(\"%d\")", delta);
-    node_execute(node, code, code_size);
-
+    lua_execute_format(node, "news.on_tick(\"%d\")", delta);
     node_t *child; DL_FOREACH(node->childs, child) {
         node_tree_tick(child, delta);
     };
@@ -209,13 +225,12 @@ static void node_tree_print(node_t *node, int depth) {
 static void node_add_child(node_t* node, const char *path, const char *name) {
     node_t *child = xmalloc(sizeof(node_t));
     node_init(child, node, path, name);
-
     DL_APPEND(node->childs, child);
 }
 
 static void node_remove_child(node_t* node, node_t* child) {
-    node_free(child);
     DL_DELETE(node->childs, child);
+    node_free(child);
     free(child);
 }
 
@@ -231,29 +246,24 @@ static void node_remove_child_by_name(node_t* node, const char *name) {
     node_remove_child(node, child); 
 }
 
-static void node_update_content(node_t *node, const char *filename) {
-    fprintf(stderr, ">>> content add %s in %s\n", filename, node->path);
-    if (strcmp(filename, "script.lua") == 0) {
+static void node_update_content(node_t *node, const char *path, const char *name) {
+    fprintf(stderr, ">>> content add %s in %s\n", name, node->path);
+    if (strcmp(name, "script.lua") == 0) {
         node_init_sandbox(node);
 
-        char fullname[PATH_MAX];
-        snprintf(fullname, sizeof(fullname), "%s/%s", node->path, filename);
-
         char code[MAX_CODE_SIZE];
-        int fd = open(fullname, O_RDONLY);
+        int fd = open(path, O_RDONLY);
         if (fd == -1) {
-            fprintf(stderr, "cannot open file for reading: %s\n", filename);
+            fprintf(stderr, "cannot open file for reading: %s\n", path);
             return;
         }
 
         size_t code_size = read(fd, code, sizeof(code));
         close(fd);
 
-        node_execute(node, code, code_size);
+        lua_execute(node, code, code_size);
     } else {
-        char code[MAX_CODE_SIZE];
-        size_t code_size = snprintf(code, sizeof(code), "news.on_content_update(\"%s\")", filename);
-        node_execute(node, code, code_size);
+        lua_execute_format(node, "news.on_content_update(\"%s\")", name);
     }
 }
 
@@ -262,15 +272,48 @@ static void node_remove(node_t *node, const char *filename) {
     if (strcmp(filename, "script.lua") == 0) {
         node_init_sandbox(node);
     } else {
-        char code[MAX_CODE_SIZE];
-        size_t code_size = snprintf(code, sizeof(code), "news.on_content_update(\"%s\")", filename);
-        node_execute(node, code, code_size);
+        lua_execute_format(node, "news.on_content_update(\"%s\")", filename);
     }
+}
+
+static void node_recursive_search(node_t *node) {
+    // search for existing script.lua
+    char path[PATH_MAX];
+    snprintf(path, sizeof(path), "%s/script.lua", node->path);
+
+    struct stat stat_buf;
+    if (stat(path, &stat_buf) != -1 && 
+            S_ISREG(stat_buf.st_mode)) {
+        node_update_content(node, path, "script.lua");
+    }
+
+    // recursivly add remaining files (except script.lua) and 
+    // directories
+    DIR *dp = opendir(node->path);
+    if (!dp)
+        die("cannot open directory");
+    struct dirent *ep;
+    while (ep = readdir(dp)) {
+        if (ep->d_name[0] == '.') 
+            continue;
+
+        char path[PATH_MAX];
+        snprintf(path, sizeof(path), "%s/%s", node->path, ep->d_name);
+
+        if (ep->d_type == DT_DIR) {
+            node_add_child(node, path, ep->d_name);
+        } else if (ep->d_type == DT_REG &&
+                strcmp(ep->d_name, "script.lua") != 0) {
+            node_update_content(node, path, ep->d_name);
+        }
+    }
+    closedir(dp);
 }
 
 static void node_init(node_t *node, node_t *parent, const char *path, const char *name) {
     fprintf(stderr, ">>> node add %s in %s\n", name, path);
 
+    // add directory watcher
     node->wd = inotify_add_watch(inotify_fd, path, 
         IN_CLOSE_WRITE|IN_CREATE|IN_DELETE|IN_DELETE_SELF|
         IN_MOVE);
@@ -278,16 +321,18 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
         die("cannot inotify_add_watch on %s", path);
     HASH_ADD(by_wd, nodes, wd, sizeof(int), node);
 
+    // init node structure
     node->parent = parent;
     node->path = strdup(path);
     node->name = strdup(name);
     node->enforce_mem = 0;
-    node->L = lua_newstate(node_alloc, node);
-    lua_atpanic(node->L, node_panic);
 
+    // create lua state
+    node->L = lua_newstate(lua_alloc, node);
     if (!node->L)
         die("cannot create lua");
 
+    lua_atpanic(node->L, lua_panic);
     luaL_openlibs(node->L);
 
    if (luaL_loadbuffer(node->L, kernel, kernel_size, "<kernel>") != 0)
@@ -297,35 +342,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
 
     node_init_sandbox(node);
 
-    // search for existing script.lua
-    char script_path[PATH_MAX];
-    snprintf(script_path, sizeof(script_path), "%s/script.lua", node->path);
-
-    struct stat stat_buf;
-    if (stat(script_path, &stat_buf) != -1 && 
-            S_ISREG(stat_buf.st_mode)) {
-        node_update_content(node, "script.lua");
-    }
-
-    // recursivly add remaining files / directories
-    DIR *dp = opendir(path);
-    if (!dp)
-        die("cannot open directory");
-    struct dirent *ep;
-    while (ep = readdir(dp)) {
-        if (ep->d_name[0] == '.') 
-            continue;
-
-        if (ep->d_type == DT_DIR) {
-            char child_path[PATH_MAX];
-            snprintf(child_path, sizeof(child_path), "%s/%s", node->path, ep->d_name);
-            node_add_child(node, child_path, ep->d_name);
-        } else if (ep->d_type == DT_REG &&
-                strcmp(ep->d_name, "script.lua") != 0) {
-            node_update_content(node, ep->d_name);
-        }
-    }
-    closedir(dp);
+    node_recursive_search(node);
 }
 
 static void node_free(node_t *node) {
@@ -335,10 +352,16 @@ static void node_free(node_t *node) {
     }
     free((void*)node->path);
     free((void*)node->name);
-    inotify_rm_watch(inotify_fd, node->wd);
+    // inotify_rm_watch(inotify_fd, node->wd));
     lua_close(node->L);
     HASH_DELETE(by_wd, nodes, node);
 }
+
+static void node_render(node_t *node) {
+
+}
+
+/*======= inotify ==========*/
 
 static void check_inotify() {
     static char inotify_buffer[sizeof(struct inotify_event) + PATH_MAX + 1];
@@ -356,11 +379,15 @@ static void check_inotify() {
             struct inotify_event *event = (struct inotify_event*)pos;
             pos += sizeof(struct inotify_event) + event->len;
 
-            // printf("%s %08x\n", event->name, event->mask);
+            // printf("%s %08x %d\n", event->name, event->mask, event->wd);
 
+            // ignore dot-files (including parent and current directory)
             if (event->len && event->name[0] == '.')
                 continue; // ignore dot files
 
+            // notifies, that wd was removed from kernel.
+            // can be ignored (since it is handled in 
+            // IN_DELETE_SELF).
             if (event->mask & IN_IGNORED)
                 continue;
 
@@ -369,20 +396,22 @@ static void check_inotify() {
             if (!node) 
                 die("node not found: %s", event->name);
 
-            char child_path[PATH_MAX];
-            snprintf(child_path, sizeof(child_path), "%s/%s", node->path, event->name);
+            char path[PATH_MAX];
+            snprintf(path, sizeof(path), "%s/%s", node->path, event->name);
 
             if (event->mask & IN_CREATE) {
                 struct stat stat_buf;
-                if (stat(child_path, &stat_buf) == -1) {
-                    fprintf(stderr, "cannot stat %s\n", child_path);
+                if (stat(path, &stat_buf) == -1) {
+                    // file/path can be gone (race between inotify and 
+                    // user actions)
+                    fprintf(stderr, "cannot stat %s\n", path);
                     continue;
                 }
 
                 if (S_ISDIR(stat_buf.st_mode))
-                    node_add_child(node, child_path, event->name);
+                    node_add_child(node, path, event->name);
             } else if (event->mask & IN_CLOSE_WRITE) {
-                node_update_content(node, event->name);
+                node_update_content(node, path, event->name);
             } else if (event->mask & IN_DELETE_SELF) {
                 if (!node->parent)
                     die("data deleted. cannot continue");
@@ -397,11 +426,30 @@ static void check_inotify() {
                 }
             } else if (event->mask & IN_MOVED_TO) {
                 if (event->mask & IN_ISDIR) {
-                    node_add_child(node, child_path, event->name);
+                    node_add_child(node, path, event->name);
                 } else {
-                    node_update_content(node, event->name);
+                    node_update_content(node, path, event->name);
                 }
             }
+        }
+    }
+}
+
+/*============ GUI ===========*/
+
+static int win_w, win_h;
+
+static void GLFWCALL reshape(int width, int height) {
+    root.width = width;
+    root.height = height;
+}
+
+static void GLFWCALL keypressed(int key, int action) {
+    if (action == GLFW_PRESS) {
+        switch (key) {
+            case GLFW_KEY_ESC:
+                die("exit!");
+                break;
         }
     }
 }
@@ -409,8 +457,11 @@ static void check_inotify() {
 static void tick(int delta) {
     check_inotify();
     event_loop(EVLOOP_NONBLOCK);
+    glfwPollEvents();
     node_tree_tick(&root, delta);
     node_tree_print(&root, 0);
+    if (!glfwGetWindowParam(GLFW_OPENED))
+        die("window closed");
 }
 
 int main(int argc, char *argv[]) {
@@ -418,13 +469,23 @@ int main(int argc, char *argv[]) {
     if (inotify_fd == -1)
         die("cannot open inotify");
 
-
     event_init();
+
     glfwInit();
+    glfwOpenWindowHint(GLFW_FSAA_SAMPLES, 4);
+    int mode = getenv("FULLSCREEN") ? GLFW_FULLSCREEN : GLFW_WINDOW;
+
+    if(!glfwOpenWindow(1024, 768, 8,8,8,8, 0,0, mode))
+        die("cannot open window");
+
+    glfwSetWindowTitle("GPN Info");
+    glfwSwapInterval(1);
+    glfwSetWindowSizeCallback(reshape);
+    glfwSetKeyCallback(keypressed);
 
     signal(SIGVTALRM, deadline_signal);
 
-    node_init(&root, NULL, "data", "data");
+    node_init(&root, NULL, "news", "news");
 
     double last = glfwGetTime();
     while (1) {

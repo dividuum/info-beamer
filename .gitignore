@@ -1,5 +1,5 @@
 *.o
 gpn-info
-data/
+news/
 kernel.h
 bin2c
