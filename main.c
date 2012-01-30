@@ -192,16 +192,15 @@ static void node_tree_tick(node_t *node, int delta) {
     size_t code_size = snprintf(code, sizeof(code), "news.on_tick(\"%d\")", delta);
     node_execute(node, code, code_size);
 
-    node_t *child;
-    DL_FOREACH(node->childs, child) {
+    node_t *child; DL_FOREACH(node->childs, child) {
         node_tree_tick(child, delta);
     };
 }
 
 static void node_tree_print(node_t *node, int depth) {
     fprintf(stderr, "%4d %*s'- %s\n", lua_gc(node->L, LUA_GCCOUNT, 0), depth*2, "", node->name);
-    node_t *child;
-    DL_FOREACH(node->childs, child) {
+
+    node_t *child; DL_FOREACH(node->childs, child) {
         node_tree_print(child, depth+1);
     };
 }
@@ -331,8 +330,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
 
 static void node_free(node_t *node) {
     fprintf(stderr, "<<< node del %s in %s\n", node->name, node->path);
-    node_t *child;
-    DL_FOREACH(node->childs, child) {
+    node_t *child; DL_FOREACH(node->childs, child) {
         node_remove_child(node, child);
     }
     free((void*)node->path);

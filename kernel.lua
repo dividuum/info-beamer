@@ -180,7 +180,6 @@ function init_sandbox()
             end;
 
             on_tick = function(delta)
-                print("{{{ lua: tick " .. delta)
             end;
         };
     }
