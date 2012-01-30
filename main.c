@@ -27,7 +27,7 @@
 
 #define MAX_CODE_SIZE 16384 // byte
 #define MAX_MEM 2000 // KB
-#define MIN_DELTA 500 // ms
+#define MIN_DELTA 33 // ms
 #define MAX_DELTA 2000 // ms
 
 #define MAX_RUNAWAY_TIME 5 // sec
@@ -371,16 +371,10 @@ static int luaLoadImage(lua_State *L) {
     const char *name = luaL_checkstring(L, 1);
     if (index(name, '/'))
         luaL_error(L, "invalid resource name");
-
-    printf("about to foo: %s\n", node->path);
     char path[PATH_MAX];
     snprintf(path, sizeof(path), "%s/%s", node->path, name);
     return image_new(L, path, name);
 }
-
-
-
-
 
 static int luaNow(lua_State *L) {
     lua_pushnumber(L, now);
@@ -677,11 +671,23 @@ static void tick() {
     node_render_to_buffer(&root);
 
     // Screen background
-    glClearColor(0.4, 0.4, 0.4, 1.0);
+    glClearColor(0.05, 0.05, 0.05, 1.0);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    // Render root on screen
-    node_render_to_viewport(&root, 100, 100, win_w - 100, win_h - 100);
+    // Render root on screen (keep aspect ratio)
+    if (node_has_framebuffer(&root)) {
+        float prop_height = root.height * win_w / root.width;
+        float prop_width  = root.width * win_h / root.height;
+        if (prop_height > win_h) {
+            float x_center = win_w / 2;
+            float half_width = prop_width / 2;
+            node_render_to_viewport(&root, x_center - half_width, 0, x_center + half_width, win_h);
+        } else {
+            float y_center = win_h / 2;
+            float half_height = prop_height / 2;
+            node_render_to_viewport(&root, 0, y_center - half_height, win_w, y_center + half_height);
+        }
+    }
 
     glfwSwapBuffers();
 

@@ -267,18 +267,18 @@ static image_t *push_image(lua_State *L) {
 
 static int image_draw(lua_State *L) {
     image_t *image = checked_image(L, 1);
-    int x1 = (int)luaL_checknumber(L, 2);
-    int y1 = (int)luaL_checknumber(L, 3);
-    int x2 = (int)luaL_checknumber(L, 4);
-    int y2 = (int)luaL_checknumber(L, 5);
+    GLfloat x1 = luaL_checknumber(L, 2);
+    GLfloat y1 = luaL_checknumber(L, 3);
+    GLfloat x2 = luaL_checknumber(L, 4);
+    GLfloat y2 = luaL_checknumber(L, 5);
 
     glBindTexture(GL_TEXTURE_2D, image->tex);
     glColor4f(1.0, 1.0, 1.0, 1.0);
     glBegin(GL_QUADS); 
-        glTexCoord2f(0.0, 1.0); glVertex3i(x1, y1, 0);
-        glTexCoord2f(1.0, 1.0); glVertex3i(x2, y1, 0);
-        glTexCoord2f(1.0, 0.0); glVertex3i(x2, y2, 0);
-        glTexCoord2f(0.0, 0.0); glVertex3i(x1, y2, 0);
+        glTexCoord2f(0.0, 1.0); glVertex3f(x1, y1, 0);
+        glTexCoord2f(1.0, 1.0); glVertex3f(x2, y1, 0);
+        glTexCoord2f(1.0, 0.0); glVertex3f(x2, y2, 0);
+        glTexCoord2f(0.0, 0.0); glVertex3f(x1, y2, 0);
     glEnd();
     return 0;
 }
@@ -339,7 +339,7 @@ int image_new(lua_State *L, const char *path, const char *name) {
     }
 
     if (!tex)
-        luaL_error(L, "cannot identify file format");
+        luaL_error(L, "cannot load image file %s", name);
 
 
     image_t *image = push_image(L);
