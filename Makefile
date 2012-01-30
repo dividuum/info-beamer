@@ -5,7 +5,7 @@ all: gpn-info
 
 main.o: main.c kernel.h
 
-gpn-info: main.o
+gpn-info: main.o image.o
 	$(CC) -o $@ $^ $(LDFLAGS) 
 
 bin2c: bin2c.c

@@ -178,6 +178,10 @@ function init_sandbox()
             shit = shit;
         };
 
+        sys = {
+            now = now;
+        };
+
         news = {
             on_content_update = function(name) 
                 print("}}} lua: content update " .. name)

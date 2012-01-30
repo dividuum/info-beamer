@@ -5,6 +5,7 @@
 #include <signal.h>
 #include <assert.h>
 #include <errno.h>
+#include <time.h>
 #include <dirent.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -22,10 +23,11 @@
 
 #include "uthash.h"
 #include "kernel.h"
+#include "image.h"
 
 #define MAX_CODE_SIZE 16384 // byte
 #define MAX_MEM 2000 // KB
-#define MIN_DELTA 500 // ms
+#define MIN_DELTA 33 // ms
 #define MAX_DELTA 2000 // ms
 
 #define MAX_RUNAWAY_TIME 5 // sec
@@ -66,6 +68,7 @@ static node_t *nodes = NULL;
 
 static node_t root;
 static int inotify_fd;
+static double now;
 
 static void die(const char *fmt, ...) {
     va_list ap;
@@ -163,6 +166,7 @@ static const char *lua_safe_error_message(lua_State *L) {
 
 static void lua_execute(node_t *node, const char *code, size_t code_size) {
     lua_State *L = node->L;
+    int old_top = lua_gettop(L);
     lua_gc(L, LUA_GCSTEP, 100);
     lua_pushliteral(L, "execute");              // "fun"
     lua_rawget(L, LUA_REGISTRYINDEX);           // fun
@@ -175,8 +179,8 @@ static void lua_execute(node_t *node, const char *code, size_t code_size) {
         // Erfolgreich ausgefuehrt
         case 0:                                 // traceback
             lua_remove(L, error_handler_pos);   //
-            if (lua_gettop(L) != 0)
-                die("top is not zero");
+            if (lua_gettop(L) != old_top)
+                die("unbalanced call");
             return;
         // Fehler beim Ausfuehren
         case LUA_ERRRUN:
@@ -192,6 +196,8 @@ static void lua_execute(node_t *node, const char *code, size_t code_size) {
             die("wtf?");
     };                                          // traceback "error"
     lua_pop(L, 2);                              // 
+    if (lua_gettop(L) != old_top)
+        die("unbalanced call");
 }
 
 static void lua_execute_format(node_t *node, const char *fmt, ...) {
@@ -211,7 +217,6 @@ static int node_has_framebuffer(node_t *node) {
 
 static void node_framebuffer_remove(node_t *node) {
     glDeleteTextures(1, &node->tex);
-    // glDeleteRenderbuffers(1, &node->rbo);
     glDeleteFramebuffers(1, &node->fbo);
     node->tex = node->fbo = node->width = node->height = 0;
 }
@@ -225,11 +230,6 @@ static void node_framebuffer_init(node_t *node, int width, int height) {
 
     glGenFramebuffers(1, &node->fbo);
     glBindFramebuffer(GL_FRAMEBUFFER, node->fbo);
-
-    // glGenRenderbuffers(1, &node->rbo);
-    // glBindRenderbuffer(GL_RENDERBUFFER, node->rbo);
-    // glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, node->width, node->height);
-    // glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, node->rbo);
 
     glGenTextures(1, &node->tex);
     glBindTexture(GL_TEXTURE_2D, node->tex);
@@ -259,7 +259,6 @@ static void node_render_to_buffer(node_t *node) {
     int prev_fbo;
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_fbo);
     glBindFramebuffer(GL_FRAMEBUFFER, node->fbo);
-
 
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
@@ -377,6 +376,11 @@ static int luaDrawShit(lua_State *L) {
         glVertex3f(100, 100, 0);
     glEnd();
     return 0;
+}
+
+static int luaNow(lua_State *L) {
+    lua_pushnumber(L, now);
+    return 1;
 }
 
 static void node_init(node_t *node, node_t *parent, const char *path, const char *name);
@@ -510,6 +514,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
 
     lua_atpanic(node->L, lua_panic);
     luaL_openlibs(node->L);
+    image_register(node->L);
 
    if (luaL_loadbuffer(node->L, kernel, kernel_size, "<kernel>") != 0)
        die("kernel load");
@@ -521,6 +526,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "child_render", luaChildRender);
     lua_register(node->L, "clear", luaClear);
     lua_register(node->L, "shit", luaDrawShit);
+    lua_register(node->L, "now", luaNow);
 
     lua_pushstring(node->L, path);
     lua_setglobal(node->L, "PATH");
@@ -638,7 +644,7 @@ static void GLFWCALL keypressed(int key, int action) {
     }
 }
     
-static void tick(int delta) {
+static void tick() {
     check_inotify();
     event_loop(EVLOOP_NONBLOCK);
     glfwPollEvents();
@@ -687,6 +693,7 @@ int main(int argc, char *argv[]) {
     event_init();
 
     glfwInit();
+    glfwSetTime(time(0));
     glfwOpenWindowHint(GLFW_FSAA_SAMPLES, 4);
     int mode = getenv("FULLSCREEN") ? GLFW_FULLSCREEN : GLFW_WINDOW;
 
@@ -708,16 +715,16 @@ int main(int argc, char *argv[]) {
 
     double last = glfwGetTime();
     while (1) {
-        double current = glfwGetTime();
-        int delta = (current - last) * 1000;
+        now = glfwGetTime();
+        int delta = (now - last) * 1000;
         if (delta < MIN_DELTA) {
             glfwSleep((MIN_DELTA-delta)/1000.0);
             continue;
         }
-        last = current;
+        last = now;
         if (delta > MAX_DELTA)
             continue;
-        tick(delta);
+        tick();
     }
     return 0;
 }
