@@ -20,7 +20,6 @@
 #include <lauxlib.h>
 
 #include "uthash.h"
-#include "utlist.h"
 #include "kernel.h"
 
 #define MAX_CODE_SIZE 16384 // byte
@@ -38,7 +37,10 @@ struct node_s {
     const char *path; // full path (including node name)
     lua_State *L;
     int enforce_mem;
+
     UT_hash_handle by_wd;
+    UT_hash_handle by_name;
+
     struct node_s *parent;
     struct node_s *childs;
 
@@ -208,15 +210,14 @@ static void node_init_sandbox(node_t *node) {
 
 static void node_tree_tick(node_t *node, int delta) {
     lua_execute_format(node, "news.on_tick(\"%d\")", delta);
-    node_t *child; DL_FOREACH(node->childs, child) {
+    node_t *child, *tmp; HASH_ITER(by_name, node->childs, child, tmp) {
         node_tree_tick(child, delta);
     };
 }
 
 static void node_tree_print(node_t *node, int depth) {
     fprintf(stderr, "%4d %*s'- %s\n", lua_gc(node->L, LUA_GCCOUNT, 0), depth*2, "", node->name);
-
-    node_t *child; DL_FOREACH(node->childs, child) {
+    node_t *child, *tmp; HASH_ITER(by_name, node->childs, child, tmp) {
         node_tree_print(child, depth+1);
     };
 }
@@ -225,22 +226,18 @@ static void node_tree_print(node_t *node, int depth) {
 static void node_add_child(node_t* node, const char *path, const char *name) {
     node_t *child = xmalloc(sizeof(node_t));
     node_init(child, node, path, name);
-    DL_APPEND(node->childs, child);
+    HASH_ADD(by_name, node->childs, name, strlen(name), child);
 }
 
 static void node_remove_child(node_t* node, node_t* child) {
-    DL_DELETE(node->childs, child);
+    HASH_DELETE(by_name, node->childs, child);
     node_free(child);
     free(child);
 }
 
 static void node_remove_child_by_name(node_t* node, const char *name) {
-    int search(node_t *a, node_t *b) {
-        return strcmp(a->name, b->name);
-    }
-    node_t needle = {.name = name};
     node_t *child;
-    DL_SEARCH(node->childs, child, &needle, search);
+    HASH_FIND(by_name, node->childs, name, strlen(name), child);
     if (!child)
         die("child not found: %s", name);
     node_remove_child(node, child); 
