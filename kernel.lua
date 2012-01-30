@@ -73,7 +73,7 @@ end
 --=============
 
 function init_sandbox()
-    return {
+    local sandbox = {
         error = error;
         assert = assert;
         ipairs = ipairs;
@@ -169,7 +169,23 @@ function init_sandbox()
         };
 
         print = print;
+
+        news = {
+            on_content_update = function(name) 
+                print("}}} lua: content update " .. name)
+            end;
+
+            on_content_remove = function(name)
+                print("{{{ lua: content remove " .. name)
+            end;
+
+            on_tick = function(delta)
+                print("{{{ lua: tick " .. delta)
+            end;
+        };
     }
+    sandbox._G = sandbox
+    return sandbox
 end
 
 -- Einige Funktionen in der registry speichern, 
@@ -180,7 +196,6 @@ do
     registry.traceback = debug.traceback
 
     registry.execute = function(code)
-        print(code)
         if code == "init_sandbox" then
             sandbox = init_sandbox()
         else

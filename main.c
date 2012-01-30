@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <signal.h>
 #include <assert.h>
 #include <errno.h>
 #include <dirent.h>
@@ -179,13 +180,32 @@ static void node_execute(node_t *node, const char *code, size_t code_size) {
         default:
             die("wtf?");
     };                                          // traceback "error"
-    fprintf(stderr, "%s\n", lua_tostring(L, -1));
     lua_pop(L, 2);                              // 
 }
 
 static void node_init_sandbox(node_t *node) {
     node_execute(node, "init_sandbox", 12);
 }
+
+static void node_tree_tick(node_t *node, int delta) {
+    char code[128];
+    size_t code_size = snprintf(code, sizeof(code), "news.on_tick(\"%d\")", delta);
+    node_execute(node, code, code_size);
+
+    node_t *child;
+    DL_FOREACH(node->childs, child) {
+        node_tree_tick(child, delta);
+    };
+}
+
+static void node_tree_print(node_t *node, int depth) {
+    fprintf(stderr, "%4d %*s'- %s\n", lua_gc(node->L, LUA_GCCOUNT, 0), depth*2, "", node->name);
+    node_t *child;
+    DL_FOREACH(node->childs, child) {
+        node_tree_print(child, depth+1);
+    };
+}
+
 
 static void node_add_child(node_t* node, const char *path, const char *name) {
     node_t *child = xmalloc(sizeof(node_t));
@@ -229,7 +249,11 @@ static void node_update_content(node_t *node, const char *filename) {
 
         size_t code_size = read(fd, code, sizeof(code));
         close(fd);
-        
+
+        node_execute(node, code, code_size);
+    } else {
+        char code[MAX_CODE_SIZE];
+        size_t code_size = snprintf(code, sizeof(code), "news.on_content_update(\"%s\")", filename);
         node_execute(node, code, code_size);
     }
 }
@@ -238,9 +262,12 @@ static void node_remove(node_t *node, const char *filename) {
     fprintf(stderr, "<<< content del %s in %s\n", filename, node->path);
     if (strcmp(filename, "script.lua") == 0) {
         node_init_sandbox(node);
+    } else {
+        char code[MAX_CODE_SIZE];
+        size_t code_size = snprintf(code, sizeof(code), "news.on_content_update(\"%s\")", filename);
+        node_execute(node, code, code_size);
     }
 }
-
 
 static void node_init(node_t *node, node_t *parent, const char *path, const char *name) {
     fprintf(stderr, ">>> node add %s in %s\n", name, path);
@@ -269,11 +296,22 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
    if (lua_pcall(node->L, 0, 0, 0) != 0)
        die("kernel run %s", lua_tostring(node->L, 1));
 
+    node_init_sandbox(node);
+
+    // search for existing script.lua
+    char script_path[PATH_MAX];
+    snprintf(script_path, sizeof(script_path), "%s/script.lua", node->path);
+
+    struct stat stat_buf;
+    if (stat(script_path, &stat_buf) != -1 && 
+            S_ISREG(stat_buf.st_mode)) {
+        node_update_content(node, "script.lua");
+    }
+
+    // recursivly add remaining files / directories
     DIR *dp = opendir(path);
     if (!dp)
         die("cannot open directory");
-
-    // recurse into directories
     struct dirent *ep;
     while (ep = readdir(dp)) {
         if (ep->d_name[0] == '.') 
@@ -283,7 +321,8 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
             char child_path[PATH_MAX];
             snprintf(child_path, sizeof(child_path), "%s/%s", node->path, ep->d_name);
             node_add_child(node, child_path, ep->d_name);
-        } else if (ep->d_type == DT_REG) {
+        } else if (ep->d_type == DT_REG &&
+                strcmp(ep->d_name, "script.lua") != 0) {
             node_update_content(node, ep->d_name);
         }
     }
@@ -310,7 +349,7 @@ static void check_inotify() {
         if (size == -1) {
             if (errno == EAGAIN)
                 break;
-            die("error reading from inotfy fd");
+            die("error reading from inotify fd");
         }
 
         char *pos = inotify_buffer;
@@ -372,6 +411,8 @@ static void check_inotify() {
 static void tick(int delta) {
     check_inotify();
     event_loop(EVLOOP_NONBLOCK);
+    node_tree_tick(&root, delta);
+    node_tree_print(&root, 0);
 }
 
 int main(int argc, char *argv[]) {
@@ -379,10 +420,13 @@ int main(int argc, char *argv[]) {
     if (inotify_fd == -1)
         die("cannot open inotify");
 
-    node_init(&root, NULL, "data", "data");
 
     event_init();
     glfwInit();
+
+    signal(SIGVTALRM, deadline_signal);
+
+    node_init(&root, NULL, "data", "data");
 
     double last = glfwGetTime();
     while (1) {
