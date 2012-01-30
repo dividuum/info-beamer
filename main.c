@@ -38,13 +38,11 @@ struct node_s {
     lua_State *L;
     int enforce_mem;
 
-    UT_hash_handle by_wd;
-    UT_hash_handle by_name;
+    UT_hash_handle by_wd;   // global handle for search by watch descriptor
+    UT_hash_handle by_name; // handle for childs by name
 
     struct node_s *parent;
     struct node_s *childs;
-
-    struct node_s *prev, *next; // same level
 
     int width;
     int height;
@@ -216,7 +214,8 @@ static void node_tree_tick(node_t *node, int delta) {
 }
 
 static void node_tree_print(node_t *node, int depth) {
-    fprintf(stderr, "%4d %*s'- %s\n", lua_gc(node->L, LUA_GCCOUNT, 0), depth*2, "", node->name);
+    fprintf(stderr, "%4d %*s'- %s (%d)\n", lua_gc(node->L, LUA_GCCOUNT, 0), 
+        depth*2, "", node->name, HASH_CNT(by_name, node->childs));
     node_t *child, *tmp; HASH_ITER(by_name, node->childs, child, tmp) {
         node_tree_print(child, depth+1);
     };
@@ -344,7 +343,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
 
 static void node_free(node_t *node) {
     fprintf(stderr, "<<< node del %s in %s\n", node->name, node->path);
-    node_t *child; DL_FOREACH(node->childs, child) {
+    node_t *child, *tmp; HASH_ITER(by_name, node->childs, child, tmp) {
         node_remove_child(node, child);
     }
     free((void*)node->path);
