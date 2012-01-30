@@ -27,12 +27,13 @@
 
 #define MAX_CODE_SIZE 16384 // byte
 #define MAX_MEM 2000 // KB
-#define MIN_DELTA 33 // ms
+#define MIN_DELTA 500 // ms
 #define MAX_DELTA 2000 // ms
 
 #define MAX_RUNAWAY_TIME 5 // sec
 #define MAX_PCALL_TIME  20000000 // usec
 
+#if 0
 #define print_render_state() \
     {\
         int pd, md, fb, tex;\
@@ -42,6 +43,9 @@
         glGetIntegerv(GL_MODELVIEW_STACK_DEPTH, &md);\
         printf("=== depth: model: %d, projection %d, fbo: %d, tex: %d\n", md, pd, fb, tex);\
     };
+#else
+#define print_render_state()
+#endif
 
 struct node_s {
     int wd; // inotify watch descriptor
@@ -304,14 +308,10 @@ static void node_render_to_viewport(node_t *node, int x1, int y1, int x2, int y2
 
     glColor4f(1.0, 1.0, 1.0, 1.0);
     glBegin(GL_QUADS);
-        glTexCoord2i(0, 1);
-        glVertex3i(x1, y1, 0);
-        glTexCoord2i(1, 1);
-        glVertex3i(x2, y1, 0);
-        glTexCoord2i(1, 0);
-        glVertex3i(x2, y2, 0);
-        glTexCoord2i(0, 0);
-        glVertex3i(x1, y2, 0);
+        glTexCoord2i(0, 1); glVertex3i(x1, y1, 0);
+        glTexCoord2i(1, 1); glVertex3i(x2, y1, 0);
+        glTexCoord2i(1, 0); glVertex3i(x2, y2, 0);
+        glTexCoord2i(0, 0); glVertex3i(x1, y2, 0);
     glEnd();
 
     glBindTexture(GL_TEXTURE_2D, prev_tex);
@@ -366,17 +366,21 @@ static int luaClear(lua_State *L) {
     return 0;
 }
 
-static int luaDrawShit(lua_State *L) {
-    printf("SHIT\n");
-    print_render_state();
-    glColor4f(0.0, 0.0, 0.0, 1.0);
-    glLineWidth(30);
-    glBegin(GL_LINES);
-        glVertex3f(50, 0, 0);
-        glVertex3f(100, 100, 0);
-    glEnd();
-    return 0;
+static int luaLoadImage(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    const char *name = luaL_checkstring(L, 1);
+    if (index(name, '/'))
+        luaL_error(L, "invalid resource name");
+
+    printf("about to foo: %s\n", node->path);
+    char path[PATH_MAX];
+    snprintf(path, sizeof(path), "%s/%s", node->path, name);
+    return image_new(L, path, name);
 }
+
+
+
+
 
 static int luaNow(lua_State *L) {
     lua_pushnumber(L, now);
@@ -524,8 +528,8 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "setup", luaSetup);
     lua_register_node_func(node, "child_draw", luaChildDraw);
     lua_register_node_func(node, "child_render", luaChildRender);
+    lua_register_node_func(node, "load_image", luaLoadImage);
     lua_register(node->L, "clear", luaClear);
-    lua_register(node->L, "shit", luaDrawShit);
     lua_register(node->L, "now", luaNow);
 
     lua_pushstring(node->L, path);

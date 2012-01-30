@@ -175,7 +175,7 @@ function init_sandbox()
             child_draw = child_draw;
             child_render = child_render;
             clear = clear;
-            shit = shit;
+            load_image = load_image;
         };
 
         sys = {
