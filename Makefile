@@ -1,5 +1,5 @@
-CFLAGS=-I/usr/include/lua5.1
-LDFLAGS=-llua5.1 -levent -lglfw
+CFLAGS=-I/usr/include/lua5.1 -O0 -ggdb
+LDFLAGS=-llua5.1 -levent -lglfw -lGLEW
 
 all: gpn-info
 

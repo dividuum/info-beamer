@@ -15,6 +15,7 @@
 #include <GL/gl.h>
 #include <GL/glext.h>
 #include <GL/glfw.h>
+#include <GL/glew.h>
 #include <event.h>
 #include <lualib.h>
 #include <lauxlib.h>
@@ -26,9 +27,16 @@
 #define MAX_MEM 2000 // KB
 #define MIN_DELTA 500 // ms
 #define MAX_DELTA 2000 // ms
-#define MAX_RUNAWAY_TIME 1 // sec
-#define MAX_PCALL_TIME  20000 // usec
 
+#define MAX_RUNAWAY_TIME 5 // sec
+#define MAX_PCALL_TIME  20000000 // usec
+
+#define print_projection_depth() \
+    {\
+        int depth;\
+        glGetIntegerv(GL_PROJECTION_STACK_DEPTH, &depth);\
+        printf("projection matrix depth is %d\n", depth);\
+    };
 
 struct node_s {
     int wd; // inotify watch descriptor
@@ -46,6 +54,7 @@ struct node_s {
 
     int width;
     int height;
+    GLuint fbo, rbo, tex;
 };
 
 typedef struct node_s node_t;
@@ -193,6 +202,184 @@ static void lua_execute_format(node_t *node, const char *fmt, ...) {
 
 /*======= Node =======*/
 
+static int node_has_framebuffer(node_t *node) {
+    return node->tex != 0;
+}
+
+static void node_framebuffer_remove(node_t *node) {
+    glDeleteTextures(1, &node->tex);
+    // glDeleteRenderbuffers(1, &node->rbo);
+    glDeleteFramebuffers(1, &node->fbo);
+    node->tex = node->fbo = node->width = node->height = 0;
+}
+
+static void node_framebuffer_init(node_t *node, int width, int height) {
+    if (node_has_framebuffer(node))
+        node_framebuffer_remove(node);
+
+    node->width = width;
+    node->height = height;
+
+    glGenFramebuffers(1, &node->fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, node->fbo);
+
+    // glGenRenderbuffers(1, &node->rbo);
+    // glBindRenderbuffer(GL_RENDERBUFFER, node->rbo);
+    // glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, node->width, node->height);
+    // glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, node->rbo);
+
+    glGenTextures(1, &node->tex);
+    glBindTexture(GL_TEXTURE_2D, node->tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, node->width, node->height, 0, GL_RGBA, GL_INT, NULL);
+
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, node->tex, 0);
+    assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+
+static void node_render_to_buffer(node_t *node) {
+    if (!node_has_framebuffer(node)) return;
+
+    printf("-> rendering %s into %dx%d\n", node->name, node->width, node->height);
+
+    glPushAttrib(GL_ALL_ATTRIB_BITS);
+
+    int prev_fbo;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, node->fbo);
+    printf("switched fbo from %d to %d\n", prev_fbo, node->fbo);
+
+    // int tex;
+    // glGetIntegerv(GL_TEXTURE_BINDING_2D, &tex);
+    // printf("Texture is %d\n", tex);
+
+    print_projection_depth();
+
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glViewport(0, 0, node->width, node->height);
+    glOrtho(0, node->width,
+            node->height, 0,
+            -1, 1);
+
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    // start with white screen
+    glClearColor(1.0, 1.0, 1.0, 1.0);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    print_projection_depth();
+
+    lua_execute_format(node, "news.on_render()");
+
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glPopAttrib();
+
+    print_projection_depth();
+
+    glBindFramebuffer(GL_FRAMEBUFFER, prev_fbo);
+    printf("fbo is now %d again\n", prev_fbo);
+
+    printf("<- done rendering %s\n", node->name);
+}
+
+static void node_render_to_viewport(node_t *node, int x1, int y1, int x2, int y2) {
+    if (!node_has_framebuffer(node)) return;
+
+    printf("-> drawing %s to %d,%d -> %d,%d\n", node->name, x1, y1, x2, y2);
+
+    int prev_tex;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &prev_tex);
+    glBindTexture(GL_TEXTURE_2D, node->tex);
+    printf("switching tex from %d to %d\n", prev_tex, node->tex);
+
+    glColor4f(1.0, 1.0, 1.0, 1.0);
+    glBegin(GL_QUADS);
+        glTexCoord2f(0, 0);
+        glVertex3f(x1, y1, 0);
+        glTexCoord2f(node->width, 0);
+        glVertex3f(x2, y1, 0);
+        glTexCoord2f(node->width, node->height);
+        glVertex3f(x2, y2, 0);
+        glTexCoord2f(0, node->height);
+        glVertex3f(x1, y2, 0);
+    glEnd();
+
+    glBindTexture(GL_TEXTURE_2D, prev_tex);
+    printf("tex is now %d again\n", prev_tex);
+
+    printf("<- done drawing %s\n", node->name);
+}
+
+static int luaSetup(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    int width = (int)luaL_checknumber(L, 1);
+    int height = (int)luaL_checknumber(L, 2);
+    node_framebuffer_init(node, width, height);
+    return 0;
+}
+
+static int luaChildRender(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    const char *name = luaL_checkstring(L, 1);
+
+    node_t *child;
+    HASH_FIND(by_name, node->childs, name, strlen(name), child);
+    if (!child)
+        luaL_error(L, "child not found");
+
+    node_render_to_buffer(child);
+    return 0;
+}
+
+static int luaChildDraw(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    const char *name = luaL_checkstring(L, 1);
+    int x1 = (int)luaL_checknumber(L, 2);
+    int y1 = (int)luaL_checknumber(L, 3);
+    int x2 = (int)luaL_checknumber(L, 4);
+    int y2 = (int)luaL_checknumber(L, 5);
+
+    node_t *child;
+    HASH_FIND(by_name, node->childs, name, strlen(name), child);
+    if (!child)
+        luaL_error(L, "child not found");
+
+    node_render_to_viewport(child, x1, y1, x2, y2);
+    return 0;
+}
+
+static int luaClear(lua_State *L) {
+    GLdouble r = luaL_checknumber(L, 1);
+    GLdouble g = luaL_checknumber(L, 2);
+    GLdouble b = luaL_checknumber(L, 3);
+    GLdouble a = luaL_checknumber(L, 4);
+    glClearColor(r, g, b, a);
+    glClear(GL_COLOR_BUFFER_BIT);
+    return 0;
+}
+
+static int luaDrawShit(lua_State *L) {
+    printf("SHIT\n");
+    glColor4f(1.0, 0.0, 0.0, 1.0);
+    glLineWidth(3000);
+    glBegin(GL_LINES);
+        glVertex3f(0., 0., 0.);
+        glVertex3f(300., 300., 0.);
+    glEnd();
+    return 0;
+}
+
 static void node_init(node_t *node, node_t *parent, const char *path, const char *name);
 static void node_free(node_t *node);
 
@@ -202,15 +389,9 @@ static void node_free(node_t *node);
      lua_pushcclosure((node)->L, func, 1), \
      lua_settable((node)->L, LUA_GLOBALSINDEX))
 
+
 static void node_init_sandbox(node_t *node) {
     lua_execute_format(node, "init_sandbox");
-}
-
-static void node_tree_tick(node_t *node, int delta) {
-    lua_execute_format(node, "news.on_tick(\"%d\")", delta);
-    node_t *child, *tmp; HASH_ITER(by_name, node->childs, child, tmp) {
-        node_tree_tick(child, delta);
-    };
 }
 
 static void node_tree_print(node_t *node, int depth) {
@@ -225,7 +406,7 @@ static void node_tree_print(node_t *node, int depth) {
 static void node_add_child(node_t* node, const char *path, const char *name) {
     node_t *child = xmalloc(sizeof(node_t));
     node_init(child, node, path, name);
-    HASH_ADD(by_name, node->childs, name, strlen(name), child);
+    HASH_ADD_KEYPTR(by_name, node->childs, child->name, strlen(child->name), child);
 }
 
 static void node_remove_child(node_t* node, node_t* child) {
@@ -336,6 +517,18 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
    if (lua_pcall(node->L, 0, 0, 0) != 0)
        die("kernel run %s", lua_tostring(node->L, 1));
 
+    lua_register_node_func(node, "setup", luaSetup);
+    lua_register_node_func(node, "child_draw", luaChildDraw);
+    lua_register_node_func(node, "child_render", luaChildRender);
+    lua_register(node->L, "clear", luaClear);
+    lua_register(node->L, "shit", luaDrawShit);
+
+    lua_pushstring(node->L, path);
+    lua_setglobal(node->L, "PATH");
+
+    lua_pushstring(node->L, name);
+    lua_setglobal(node->L, "NAME");
+
     node_init_sandbox(node);
 
     node_recursive_search(node);
@@ -351,10 +544,6 @@ static void node_free(node_t *node) {
     // inotify_rm_watch(inotify_fd, node->wd));
     lua_close(node->L);
     HASH_DELETE(by_wd, nodes, node);
-}
-
-static void node_render(node_t *node) {
-
 }
 
 /*======= inotify ==========*/
@@ -436,8 +625,8 @@ static void check_inotify() {
 static int win_w, win_h;
 
 static void GLFWCALL reshape(int width, int height) {
-    root.width = width;
-    root.height = height;
+    win_w = width;
+    win_h = height;
 }
 
 static void GLFWCALL keypressed(int key, int action) {
@@ -454,8 +643,39 @@ static void tick(int delta) {
     check_inotify();
     event_loop(EVLOOP_NONBLOCK);
     glfwPollEvents();
-    node_tree_tick(&root, delta);
     node_tree_print(&root, 0);
+
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_LIGHTING);
+    glEnable(GL_TEXTURE_2D);
+    glEnable(GL_BLEND);
+
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glViewport(0, 0, win_w, win_h);
+    glOrtho(0, win_w,
+            win_h, 0,
+            -1, 1);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    node_render_to_buffer(&root);
+
+    // Screen background
+    glClearColor(0.4, 0.4, 0.4, 1.0);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Render root on screen
+    node_render_to_viewport(&root, 100, 100, win_w - 100, win_h - 100);
+
+    glfwSwapBuffers();
+
     if (!glfwGetWindowParam(GLFW_OPENED))
         die("window closed");
 }
@@ -473,6 +693,10 @@ int main(int argc, char *argv[]) {
 
     if(!glfwOpenWindow(1024, 768, 8,8,8,8, 0,0, mode))
         die("cannot open window");
+
+    GLenum err = glewInit();
+    if (err != GLEW_OK)
+        die("cannot initialize glew");
 
     glfwSetWindowTitle("GPN Info");
     glfwSwapInterval(1);

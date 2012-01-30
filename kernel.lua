@@ -170,6 +170,14 @@ function init_sandbox()
 
         print = print;
 
+        gfx = {
+            setup = setup;
+            child_draw = child_draw;
+            child_render = child_render;
+            clear = clear;
+            shit = shit;
+        };
+
         news = {
             on_content_update = function(name) 
                 print("}}} lua: content update " .. name)
@@ -179,7 +187,8 @@ function init_sandbox()
                 print("{{{ lua: content remove " .. name)
             end;
 
-            on_tick = function(delta)
+            on_render = function()
+
             end;
         };
     }
@@ -199,7 +208,7 @@ do
             sandbox = init_sandbox()
         else
             setfenv(
-                assert(loadstring(code, "usercode")),
+                assert(loadstring(code, "usercode: " .. PATH)),
                 sandbox
             )()
         end
