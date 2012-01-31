@@ -5,7 +5,6 @@
 #include <GL/gl.h>
 #include <lauxlib.h>
 #include <lualib.h>
-
 #include <png.h>
 #include <jpeglib.h>
 
@@ -290,7 +289,8 @@ static const luaL_reg image_methods[] = {
 
 static int image_gc(lua_State *L) {
     image_t *image = to_image(L, 1);
-    printf("discarding tex: %d\n", image->tex);
+    fprintf(stderr, "discarding tex: %d\n", image->tex);
+    glDeleteTextures(1, &image->tex);
     return 0;
 }
 

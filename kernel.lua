@@ -176,6 +176,7 @@ function init_sandbox()
             child_render = child_render;
             clear = clear;
             load_image = load_image;
+            load_font = load_font;
         };
 
         sys = {

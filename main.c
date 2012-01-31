@@ -27,7 +27,7 @@
 
 #define MAX_CODE_SIZE 16384 // byte
 #define MAX_MEM 2000 // KB
-#define MIN_DELTA 33 // ms
+#define MIN_DELTA 20 // ms
 #define MAX_DELTA 2000 // ms
 
 #define MAX_RUNAWAY_TIME 5 // sec
@@ -254,7 +254,8 @@ static void node_framebuffer_init(node_t *node, int width, int height) {
 static void node_render_to_buffer(node_t *node) {
     if (!node_has_framebuffer(node)) return;
 
-    printf("-> rendering %s into %dx%d\n", node->name, node->width, node->height);
+    // fprintf(stderr, "-> rendering %s into %dx%d\n", 
+    //     node->name, node->width, node->height);
 
     print_render_state();
 
@@ -270,7 +271,7 @@ static void node_render_to_buffer(node_t *node) {
     glViewport(0, 0, node->width, node->height);
     glOrtho(0, node->width,
             node->height, 0,
-            -1, 1);
+            -1000, 1000);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
@@ -293,14 +294,14 @@ static void node_render_to_buffer(node_t *node) {
 
     print_render_state();
 
-    printf("<- done rendering %s\n", node->name);
+    // fprintf(stderr, "<- done rendering %s\n", node->name);
 }
 
 static void node_render_to_viewport(node_t *node, int x1, int y1, int x2, int y2) {
     if (!node_has_framebuffer(node)) return;
 
-    printf("-> drawing %s to %d,%d -> %d,%d\n", node->name, x1, y1, x2, y2);
-    printf("   viewport is %dx%d\n", node->width, node->height);
+    // fprintf(stderr, "-> drawing %s to %d,%d -> %d,%d\n", node->name, x1, y1, x2, y2);
+    // fprintf(stderr, "   viewport is %dx%d\n", node->width, node->height);
 
     int prev_tex;
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &prev_tex);
@@ -315,7 +316,7 @@ static void node_render_to_viewport(node_t *node, int x1, int y1, int x2, int y2
     glEnd();
 
     glBindTexture(GL_TEXTURE_2D, prev_tex);
-    printf("<- done drawing %s\n", node->name);
+    // fprintf(stderr, "<- done drawing %s\n", node->name);
 }
 
 static int luaSetup(lua_State *L) {
@@ -374,6 +375,16 @@ static int luaLoadImage(lua_State *L) {
     char path[PATH_MAX];
     snprintf(path, sizeof(path), "%s/%s", node->path, name);
     return image_new(L, path, name);
+}
+
+static int luaLoadFont(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    const char *name = luaL_checkstring(L, 1);
+    if (index(name, '/'))
+        luaL_error(L, "invalid resource name");
+    char path[PATH_MAX];
+    snprintf(path, sizeof(path), "%s/%s", node->path, name);
+    return font_new(L, path, name);
 }
 
 static int luaNow(lua_State *L) {
@@ -513,6 +524,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_atpanic(node->L, lua_panic);
     luaL_openlibs(node->L);
     image_register(node->L);
+    font_register(node->L);
 
    if (luaL_loadbuffer(node->L, kernel, kernel_size, "<kernel>") != 0)
        die("kernel load");
@@ -523,6 +535,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "child_draw", luaChildDraw);
     lua_register_node_func(node, "child_render", luaChildRender);
     lua_register_node_func(node, "load_image", luaLoadImage);
+    lua_register_node_func(node, "load_font", luaLoadFont);
     lua_register(node->L, "clear", luaClear);
     lua_register(node->L, "now", luaNow);
 
@@ -646,7 +659,7 @@ static void tick() {
     check_inotify();
     event_loop(EVLOOP_NONBLOCK);
     glfwPollEvents();
-    node_tree_print(&root, 0);
+    // node_tree_print(&root, 0);
 
     glDisable(GL_CULL_FACE);
     glDisable(GL_DEPTH_TEST);
@@ -664,7 +677,7 @@ static void tick() {
     glViewport(0, 0, win_w, win_h);
     glOrtho(0, win_w,
             win_h, 0,
-            -1, 1);
+            -1000, 1000);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
@@ -703,7 +716,7 @@ int main(int argc, char *argv[]) {
     event_init();
 
     glfwInit();
-    glfwSetTime(time(0));
+    // glfwSetTime(time(0));
     glfwOpenWindowHint(GLFW_FSAA_SAMPLES, 4);
     int mode = getenv("FULLSCREEN") ? GLFW_FULLSCREEN : GLFW_WINDOW;
 
