@@ -33,6 +33,9 @@
 #define MAX_RUNAWAY_TIME 5 // sec
 #define MAX_PCALL_TIME  20000000 // usec
 
+#define UDP_HOST "0.0.0.0"
+#define UDP_PORT 4444
+
 #if 0
 #define print_render_state() \
     {\
@@ -57,6 +60,7 @@ struct node_s {
 
     UT_hash_handle by_wd;   // global handle for search by watch descriptor
     UT_hash_handle by_name; // handle for childs by name
+    UT_hash_handle by_path; // handle search by path
 
     struct node_s *parent;
     struct node_s *childs;
@@ -68,7 +72,8 @@ struct node_s {
 
 typedef struct node_s node_t;
 
-static node_t *nodes = NULL;
+static node_t *nodes_by_wd = NULL;
+static node_t *nodes_by_path = NULL;
 
 static node_t root;
 static int inotify_fd;
@@ -508,13 +513,16 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
         IN_MOVE);
     if (node->wd == -1)
         die("cannot inotify_add_watch on %s", path);
-    HASH_ADD(by_wd, nodes, wd, sizeof(int), node);
 
     // init node structure
     node->parent = parent;
     node->path = strdup(path);
     node->name = strdup(name);
     node->enforce_mem = 0;
+
+    // link by watch descriptor & path
+    HASH_ADD(by_wd, nodes_by_wd, wd, sizeof(int), node);
+    HASH_ADD_KEYPTR(by_path, nodes_by_path, node->path, strlen(node->path), node);
 
     // create lua state
     node->L = lua_newstate(lua_alloc, node);
@@ -555,11 +563,12 @@ static void node_free(node_t *node) {
     node_t *child, *tmp; HASH_ITER(by_name, node->childs, child, tmp) {
         node_remove_child(node, child);
     }
+    HASH_DELETE(by_wd, nodes_by_wd, node);
+    HASH_DELETE(by_path, nodes_by_path, node);
     free((void*)node->path);
     free((void*)node->name);
     // inotify_rm_watch(inotify_fd, node->wd));
     lua_close(node->L);
-    HASH_DELETE(by_wd, nodes, node);
 }
 
 /*======= inotify ==========*/
@@ -593,7 +602,7 @@ static void check_inotify() {
                 continue;
 
             node_t *node;
-            HASH_FIND(by_wd, nodes, &event->wd, sizeof(int), node);
+            HASH_FIND(by_wd, nodes_by_wd, &event->wd, sizeof(int), node);
             if (!node) 
                 die("node not found: %s", event->name);
 
@@ -653,6 +662,67 @@ static void GLFWCALL keypressed(int key, int action) {
                 break;
         }
     }
+}
+
+
+void udp_read(int fd, short event, void *arg) {
+    char buf[1500];
+    int len;
+    int size = sizeof(struct sockaddr);
+    struct sockaddr_in client_addr;
+ 
+    memset(buf, 0, sizeof(buf));
+    len = recvfrom(fd, buf, sizeof(buf), 0, (struct sockaddr *)&client_addr, &size);
+ 
+    if (len == -1) {
+        die("recvfrom");
+    } else {
+        printf("Read: len [%d] - content [%*s]\n", len, len, buf);
+        char *sep = memchr(buf, ':', len);
+        if (!sep) {
+            sendto(fd, "fmt\n", 4, 0, (struct sockaddr *)&client_addr, size);
+            return;
+        }
+        *sep = '\0';
+        char *path = buf;
+        char *data = sep + 1;
+        int data_len = len - (data - path);
+        fprintf(stderr, "%s -> %*s (%d)\n", path, data_len, data, data_len);
+        
+        node_t *node;
+        HASH_FIND(by_path, nodes_by_path, path, strlen(path), node);
+        if (!node) {
+            sendto(fd, "404\n", 4, 0, (struct sockaddr *)&client_addr, size);
+            return;
+        }
+
+        lua_execute_format(node, "news.on_data(%*s)", data_len, data);
+        sendto(fd, "ok!\n", 4, 0, (struct sockaddr *)&client_addr, size);
+    }
+}
+
+void open_udp(struct event *event) {
+    int sock_fd;
+    int one = 1;
+    struct sockaddr_in sin;
+ 
+    if ((sock_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+        die("socket");
+ 
+    if (setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(int)) < 0)
+        die("setsockopt reuse");
+ 
+    memset(&sin, 0, sizeof(sin));
+    sin.sin_family = AF_INET;
+    sin.sin_addr.s_addr = inet_addr(UDP_HOST);
+    sin.sin_port = htons(UDP_PORT);
+ 
+    if (bind(sock_fd, (struct sockaddr *)&sin, sizeof(struct sockaddr)) < 0)
+        die("bind");
+ 
+    event_set(event, sock_fd, EV_READ | EV_PERSIST, &udp_read, NULL);
+    if (event_add(event, NULL) == -1)
+        die("event_add failed");
 }
     
 static void tick() {
@@ -714,6 +784,9 @@ int main(int argc, char *argv[]) {
         die("cannot open inotify");
 
     event_init();
+
+    struct event udp_event;
+    open_udp(&udp_event);
 
     glfwInit();
     // glfwSetTime(time(0));

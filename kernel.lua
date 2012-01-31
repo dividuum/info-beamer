@@ -195,6 +195,10 @@ function init_sandbox()
             on_render = function()
 
             end;
+
+            on_data = function(data)
+                print(data)
+            end;
         };
     }
     sandbox._G = sandbox
