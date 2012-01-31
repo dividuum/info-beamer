@@ -99,6 +99,8 @@ static int font_write(lua_State *L) {
     glPopMatrix();
     glDisable(GL_LIGHTING);
 
+    glEnable(GL_TEXTURE_2D);
+
     lua_pushnumber(L, ftglGetFontAdvance(font->font, text) * size);
     return 1;
 }

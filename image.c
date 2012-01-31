@@ -328,13 +328,13 @@ int image_new(lua_State *L, const char *path, const char *name) {
 
     char *pos = strstr(name, ".png");
     if (pos && pos == name + strlen(name) - 4) {
-        fprintf(stderr, "loading png\n");
+        fprintf(stderr, "loading png %s\n", path);
         tex = load_png(path, &width, &height);
     }
 
     pos = strstr(name, ".jpg");
     if (pos && pos == name + strlen(name) - 4) {
-        fprintf(stderr, "loading jpg\n");
+        fprintf(stderr, "loading jpg %s\n", path);
         tex = load_jpeg(path, &width, &height);
     }
 

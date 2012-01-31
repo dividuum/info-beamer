@@ -50,6 +50,17 @@
 #define print_render_state()
 #endif
 
+#define print_lua_stack(L) do { \
+    int idx;\
+    for (idx = 0; idx <= lua_gettop(L); idx++) {\
+        printf("%3d - %s '%s'\n", idx, \
+            lua_typename(L, lua_type(L, idx)),\
+            lua_tostring(L, idx)\
+       );\
+    }\
+    printf("\n");\
+} while(0)
+
 struct node_s {
     int wd; // inotify watch descriptor
     int prio;
@@ -173,23 +184,23 @@ static const char *lua_safe_error_message(lua_State *L) {
     return message;
 }
 
-static void lua_execute(node_t *node, const char *code, size_t code_size) {
+static void lua_node_enter(node_t *node, int args) {
     lua_State *L = node->L;
-    int old_top = lua_gettop(L);
+    int old_top = lua_gettop(L) - args;
     lua_gc(L, LUA_GCSTEP, 100);
-    lua_pushliteral(L, "execute");              // "fun"
-    lua_rawget(L, LUA_REGISTRYINDEX);           // fun
-    lua_pushlstring(L, code, code_size);        // fun <arg>
-    lua_pushliteral(L, "traceback");            // fun <arg> "traceback"
-    lua_rawget(L, LUA_REGISTRYINDEX);           // fun <arg> traceback
-    const int error_handler_pos = lua_gettop(L) - 2;
-    lua_insert(L, error_handler_pos);           // traceback fun <arg>
-    switch (lua_timed_pcall(node, 1, 0, error_handler_pos)) {
+    lua_pushliteral(L, "execute");              // [args] "execute"
+    lua_rawget(L, LUA_REGISTRYINDEX);           // [args] execute
+    lua_insert(L, -1 - args);                   // execute [args]
+    lua_pushliteral(L, "traceback");            // execute [args] "traceback"
+    lua_rawget(L, LUA_REGISTRYINDEX);           // execute [args] traceback
+    const int error_handler_pos = lua_gettop(L) - 1 - args;
+    lua_insert(L, error_handler_pos);           // traceback execute [args]
+    switch (lua_timed_pcall(node, args, 0, error_handler_pos)) {
         // Erfolgreich ausgefuehrt
         case 0:                                 // traceback
             lua_remove(L, error_handler_pos);   //
             if (lua_gettop(L) != old_top)
-                die("unbalanced call");
+                die("unbalanced call (success)");
             return;
         // Fehler beim Ausfuehren
         case LUA_ERRRUN:
@@ -209,13 +220,23 @@ static void lua_execute(node_t *node, const char *code, size_t code_size) {
         die("unbalanced call");
 }
 
-static void lua_execute_format(node_t *node, const char *fmt, ...) {
-    char code[MAX_CODE_SIZE];
-    va_list ap;
-    va_start(ap, fmt);
-    int code_size = vsnprintf(code, sizeof(code), fmt, ap);
-    va_end(ap);
-    lua_execute(node, code, code_size);
+static void lua_node_code(node_t *node, const char *code, size_t code_size) {
+    lua_pushliteral(node->L, "code");
+    lua_pushlstring(node->L, code, code_size);
+    lua_node_enter(node, 2);
+}
+
+static void lua_node_callback(node_t *node, const char *name, int args) {
+    lua_pushliteral(node->L, "callback"); // [args] "callback"
+    lua_pushstring(node->L, name);        // [args] "callback" name
+    lua_insert(node->L, -2 - args);       // name [args] "callback"
+    lua_insert(node->L, -2 - args);       // "callback" name [args]
+    lua_node_enter(node, 2 + args);
+}
+
+static void lua_node_initsandbox(node_t *node) {
+    lua_pushliteral(node->L, "init_sandbox");
+    lua_node_enter(node, 1);
 }
 
 /*======= Node =======*/
@@ -286,7 +307,7 @@ static void node_render_to_buffer(node_t *node) {
     glClearColor(1.0, 1.0, 1.0, 1.0);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    lua_execute_format(node, "news.on_render()");
+    lua_node_callback(node, "on_render", 0);
 
     glMatrixMode(GL_PROJECTION);
     glPopMatrix();
@@ -407,10 +428,6 @@ static void node_free(node_t *node);
      lua_settable((node)->L, LUA_GLOBALSINDEX))
 
 
-static void node_init_sandbox(node_t *node) {
-    lua_execute_format(node, "init_sandbox");
-}
-
 static void node_tree_print(node_t *node, int depth) {
     fprintf(stderr, "%4d %*s'- %s (%d)\n", lua_gc(node->L, LUA_GCCOUNT, 0), 
         depth*2, "", node->name, HASH_CNT(by_name, node->childs));
@@ -443,7 +460,7 @@ static void node_remove_child_by_name(node_t* node, const char *name) {
 static void node_update_content(node_t *node, const char *path, const char *name) {
     fprintf(stderr, ">>> content add %s in %s\n", name, node->path);
     if (strcmp(name, "script.lua") == 0) {
-        node_init_sandbox(node);
+        lua_node_initsandbox(node);
 
         char code[MAX_CODE_SIZE];
         int fd = open(path, O_RDONLY);
@@ -455,18 +472,20 @@ static void node_update_content(node_t *node, const char *path, const char *name
         size_t code_size = read(fd, code, sizeof(code));
         close(fd);
 
-        lua_execute(node, code, code_size);
+        lua_node_code(node, code, code_size);
     } else {
-        lua_execute_format(node, "news.on_content_update(\"%s\")", name);
+        lua_pushstring(node->L, name);
+        lua_node_callback(node, "on_content_update", 1);
     }
 }
 
-static void node_remove(node_t *node, const char *filename) {
-    fprintf(stderr, "<<< content del %s in %s\n", filename, node->path);
-    if (strcmp(filename, "script.lua") == 0) {
-        node_init_sandbox(node);
+static void node_remove(node_t *node, const char *name) {
+    fprintf(stderr, "<<< content del %s in %s\n", name, node->path);
+    if (strcmp(name, "script.lua") == 0) {
+        lua_node_initsandbox(node);
     } else {
-        lua_execute_format(node, "news.on_content_update(\"%s\")", filename);
+        lua_pushstring(node->L, name);
+        lua_node_callback(node, "on_content_update", 1);
     }
 }
 
@@ -553,7 +572,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_pushstring(node->L, name);
     lua_setglobal(node->L, "NAME");
 
-    node_init_sandbox(node);
+    lua_node_initsandbox(node);
 
     node_recursive_search(node);
 }
@@ -677,7 +696,6 @@ void udp_read(int fd, short event, void *arg) {
     if (len == -1) {
         die("recvfrom");
     } else {
-        printf("Read: len [%d] - content [%*s]\n", len, len, buf);
         char *sep = memchr(buf, ':', len);
         if (!sep) {
             sendto(fd, "fmt\n", 4, 0, (struct sockaddr *)&client_addr, size);
@@ -696,8 +714,8 @@ void udp_read(int fd, short event, void *arg) {
             return;
         }
 
-        lua_execute_format(node, "news.on_data(%*s)", data_len, data);
-        sendto(fd, "ok!\n", 4, 0, (struct sockaddr *)&client_addr, size);
+        lua_pushlstring(node->L, data, data_len);
+        lua_node_callback(node, "on_data", 1);
     }
 }
 

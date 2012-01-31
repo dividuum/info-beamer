@@ -212,14 +212,21 @@ do
 
     registry.traceback = debug.traceback
 
-    registry.execute = function(code)
-        if code == "init_sandbox" then
-            sandbox = init_sandbox()
-        else
+    registry.execute = function(cmd, ...)
+        if cmd == "code" then
             setfenv(
-                assert(loadstring(code, "usercode: " .. PATH)),
+                assert(loadstring(..., "usercode: " .. PATH)),
                 sandbox
             )()
+        elseif cmd == "callback" then
+            setfenv(
+                function(callback, ...)
+                    news[callback](...)
+                end,
+                sandbox
+            )(...)
+        elseif cmd == "init_sandbox" then
+            sandbox = init_sandbox()
         end
     end
 
