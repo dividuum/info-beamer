@@ -78,7 +78,6 @@ struct node_s {
 
     int width;
     int height;
-    GLuint fbo, rbo, tex;
 };
 
 typedef struct node_s node_t;
@@ -173,6 +172,7 @@ static int lua_timed_pcall(node_t *node, int in, int out,
 }
 
 static int lua_panic(lua_State *L) {
+    assert(0);
     die("node panic!");
     return 0;
 }
@@ -239,57 +239,68 @@ static void lua_node_initsandbox(node_t *node) {
     lua_node_enter(node, 1);
 }
 
+static void lua_node_render_self(node_t *node, int width, int height) {
+    lua_pushliteral(node->L, "render_self");
+    lua_pushnumber(node->L, width);
+    lua_pushnumber(node->L, height);
+    lua_node_enter(node, 3);
+}
+
 /*======= Node =======*/
 
-static int node_has_framebuffer(node_t *node) {
-    return node->tex != 0;
+static int node_is_renderable(node_t *node) {
+    return node->width != 0;
 }
 
-static void node_framebuffer_remove(node_t *node) {
-    glDeleteTextures(1, &node->tex);
-    glDeleteFramebuffers(1, &node->fbo);
-    node->tex = node->fbo = node->width = node->height = 0;
-}
-
-static void node_framebuffer_init(node_t *node, int width, int height) {
-    if (node_has_framebuffer(node))
-        node_framebuffer_remove(node);
-
+static int luaSetup(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    int width = (int)luaL_checknumber(L, 1);
+    int height = (int)luaL_checknumber(L, 2);
     node->width = width;
     node->height = height;
+    return 0;
+}
 
-    glGenFramebuffers(1, &node->fbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, node->fbo);
+static int node_render_in_state(lua_State *L, node_t *node) {
+    /* Neuen Framebuffer und zugehoerige Texture anlegen.
+     * Dort wird dann das Child reingerendert. Das Ergebnis
+     * ist ein Image. 
+     *
+     * Von der Performance duerfte das nicht gerade super sein,
+     * da bei folgendem Code
+     *
+     *   gfx.render_child("child"):draw(10, 10, 300, 400)
+     *
+     * ein Framebuffer, eine Texture angelegt, einmalig verwendet
+     * und dann wieder (durch lua gesteuert) geloescht werden.
+     * Aber nunja...
+     */
+    if (!node_is_renderable(node)) 
+        return 0;
 
-    glGenTextures(1, &node->tex);
-    glBindTexture(GL_TEXTURE_2D, node->tex);
+    print_render_state();
+    int prev_fbo, fbo, tex;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_fbo);
+
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, node->width, node->height, 0, GL_RGBA, GL_INT, NULL);
 
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, node->tex, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
     assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
-
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glBindTexture(GL_TEXTURE_2D, 0);
-}
 
-
-static void node_render_to_buffer(node_t *node) {
-    if (!node_has_framebuffer(node)) return;
-
-    // fprintf(stderr, "-> rendering %s into %dx%d\n", 
-    //     node->name, node->width, node->height);
-
+    /* Render into new Texture */
     print_render_state();
 
     glPushAttrib(GL_ALL_ATTRIB_BITS);
-
-    int prev_fbo;
-    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_fbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, node->fbo);
 
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
@@ -302,10 +313,6 @@ static void node_render_to_buffer(node_t *node) {
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glPushMatrix();
-
-    // start with white screen
-    glClearColor(1.0, 1.0, 1.0, 1.0);
-    glClear(GL_COLOR_BUFFER_BIT);
 
     lua_node_callback(node, "on_render", 0);
 
@@ -320,40 +327,15 @@ static void node_render_to_buffer(node_t *node) {
 
     print_render_state();
 
-    // fprintf(stderr, "<- done rendering %s\n", node->name);
+    return image_create(L, tex, fbo, node->width, node->height);
 }
 
-static void node_render_to_viewport(node_t *node, int x1, int y1, int x2, int y2) {
-    if (!node_has_framebuffer(node)) return;
-
-    // fprintf(stderr, "-> drawing %s to %d,%d -> %d,%d\n", node->name, x1, y1, x2, y2);
-    // fprintf(stderr, "   viewport is %dx%d\n", node->width, node->height);
-
-    int prev_tex;
-    glGetIntegerv(GL_TEXTURE_BINDING_2D, &prev_tex);
-    glBindTexture(GL_TEXTURE_2D, node->tex);
-
-    glColor4f(1.0, 1.0, 1.0, 1.0);
-    glBegin(GL_QUADS);
-        glTexCoord2i(0, 1); glVertex3i(x1, y1, 0);
-        glTexCoord2i(1, 1); glVertex3i(x2, y1, 0);
-        glTexCoord2i(1, 0); glVertex3i(x2, y2, 0);
-        glTexCoord2i(0, 0); glVertex3i(x1, y2, 0);
-    glEnd();
-
-    glBindTexture(GL_TEXTURE_2D, prev_tex);
-    // fprintf(stderr, "<- done drawing %s\n", node->name);
-}
-
-static int luaSetup(lua_State *L) {
+static int luaRenderSelf(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
-    int width = (int)luaL_checknumber(L, 1);
-    int height = (int)luaL_checknumber(L, 2);
-    node_framebuffer_init(node, width, height);
-    return 0;
+    return node_render_in_state(L, node);
 }
 
-static int luaChildRender(lua_State *L) {
+static int luaRenderChild(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
     const char *name = luaL_checkstring(L, 1);
 
@@ -361,26 +343,7 @@ static int luaChildRender(lua_State *L) {
     HASH_FIND(by_name, node->childs, name, strlen(name), child);
     if (!child)
         luaL_error(L, "child not found");
-
-    node_render_to_buffer(child);
-    return 0;
-}
-
-static int luaChildDraw(lua_State *L) {
-    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
-    const char *name = luaL_checkstring(L, 1);
-    int x1 = (int)luaL_checknumber(L, 2);
-    int y1 = (int)luaL_checknumber(L, 3);
-    int x2 = (int)luaL_checknumber(L, 4);
-    int y2 = (int)luaL_checknumber(L, 5);
-
-    node_t *child;
-    HASH_FIND(by_name, node->childs, name, strlen(name), child);
-    if (!child)
-        luaL_error(L, "child not found");
-
-    node_render_to_viewport(child, x1, y1, x2, y2);
-    return 0;
+    return node_render_in_state(L, child);
 }
 
 static int luaClear(lua_State *L) {
@@ -400,7 +363,7 @@ static int luaLoadImage(lua_State *L) {
         luaL_error(L, "invalid resource name");
     char path[PATH_MAX];
     snprintf(path, sizeof(path), "%s/%s", node->path, name);
-    return image_new(L, path, name);
+    return image_load(L, path, name);
 }
 
 static int luaLoadFont(lua_State *L) {
@@ -559,8 +522,8 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
        die("kernel run %s", lua_tostring(node->L, 1));
 
     lua_register_node_func(node, "setup", luaSetup);
-    lua_register_node_func(node, "child_draw", luaChildDraw);
-    lua_register_node_func(node, "child_render", luaChildRender);
+    lua_register_node_func(node, "render_self", luaRenderSelf);
+    lua_register_node_func(node, "render_child", luaRenderChild);
     lua_register_node_func(node, "load_image", luaLoadImage);
     lua_register_node_func(node, "load_font", luaLoadFont);
     lua_register(node->L, "clear", luaClear);
@@ -769,26 +732,7 @@ static void tick() {
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
-    node_render_to_buffer(&root);
-
-    // Screen background
-    glClearColor(0.05, 0.05, 0.05, 1.0);
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    // Render root on screen (keep aspect ratio)
-    if (node_has_framebuffer(&root)) {
-        float prop_height = root.height * win_w / root.width;
-        float prop_width  = root.width * win_h / root.height;
-        if (prop_height > win_h) {
-            float x_center = win_w / 2;
-            float half_width = prop_width / 2;
-            node_render_to_viewport(&root, x_center - half_width, 0, x_center + half_width, win_h);
-        } else {
-            float y_center = win_h / 2;
-            float half_height = prop_height / 2;
-            node_render_to_viewport(&root, 0, y_center - half_height, win_w, y_center + half_height);
-        }
-    }
+    lua_node_render_self(&root, win_w, win_h);
 
     glfwSwapBuffers();
 

@@ -172,8 +172,7 @@ function init_sandbox()
 
         gfx = {
             setup = setup;
-            child_draw = child_draw;
-            child_render = child_render;
+            render_child = render_child;
             clear = clear;
             load_image = load_image;
             load_font = load_font;
@@ -205,6 +204,38 @@ function init_sandbox()
     return sandbox
 end
 
+function render_into_screen(screen_width, screen_height)
+    image = render_self()
+    if not image then
+        print("node cannot render itself. gfx.setup called?")
+        return
+    end
+    root_width, root_height = image:dims()
+
+    clear(0.05, 0.05, 0.05, 1)
+
+    local prop_height = root_height * screen_width / root_width
+    local prop_width  = root_width * screen_height / root_height
+    local x1, y1, x2, y2
+    if prop_height > screen_height then
+        local x_center = screen_width / 2
+        local half_width = prop_width / 2
+        x1 = x_center - half_width
+        y1 = 0
+        x2 = x_center + half_width
+        y2 = screen_height
+    else
+        local y_center = screen_height / 2
+        local half_height = prop_height / 2
+        x1 = 0
+        y1 = y_center - half_height
+        x2 = screen_width
+        y2 = y_center + half_height
+    end
+
+    image:draw(x1, y1, x2, y2)
+end
+
 -- Einige Funktionen in der registry speichern, 
 -- so dass der C Teil dran kommt.
 do
@@ -227,6 +258,9 @@ do
             )(...)
         elseif cmd == "init_sandbox" then
             sandbox = init_sandbox()
+        elseif cmd == "render_self" then
+            local width, height = ...
+            render_into_screen(width, height)
         end
     end
 

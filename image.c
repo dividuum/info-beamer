@@ -12,6 +12,7 @@
 
 typedef struct {
     int tex;
+    int fbo;
     int width;
     int height;
 } image_t;
@@ -264,6 +265,13 @@ static image_t *push_image(lua_State *L) {
     return image;
 }
 
+static int image_dims(lua_State *L) {
+    image_t *image = checked_image(L, 1);
+    lua_pushnumber(L, image->width);
+    lua_pushnumber(L, image->height);
+    return 2;
+}
+
 static int image_draw(lua_State *L) {
     image_t *image = checked_image(L, 1);
     GLfloat x1 = luaL_checknumber(L, 2);
@@ -271,6 +279,8 @@ static int image_draw(lua_State *L) {
     GLfloat x2 = luaL_checknumber(L, 4);
     GLfloat y2 = luaL_checknumber(L, 5);
 
+    int prev_tex;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &prev_tex);
     glBindTexture(GL_TEXTURE_2D, image->tex);
     glColor4f(1.0, 1.0, 1.0, 1.0);
     glBegin(GL_QUADS); 
@@ -279,18 +289,22 @@ static int image_draw(lua_State *L) {
         glTexCoord2f(1.0, 0.0); glVertex3f(x2, y2, 0);
         glTexCoord2f(0.0, 0.0); glVertex3f(x1, y2, 0);
     glEnd();
+    glBindTexture(GL_TEXTURE_2D, prev_tex);
     return 0;
 }
 
 static const luaL_reg image_methods[] = {
   {"draw",          image_draw},
+  {"dims",          image_dims},
   {0,0}
 };
 
 static int image_gc(lua_State *L) {
     image_t *image = to_image(L, 1);
-    fprintf(stderr, "discarding tex: %d\n", image->tex);
+    // fprintf(stderr, "discarding tex: %d\n", image->tex, image->fbo);
     glDeleteTextures(1, &image->tex);
+    if (image->fbo)
+        glDeleteFramebuffers(1, &image->fbo);
     return 0;
 }
 
@@ -306,7 +320,7 @@ static const luaL_reg image_meta[] = {
 };
 
 
-int image_register (lua_State *L) {
+int image_register(lua_State *L) {
     luaL_openlib(L, IMAGE, image_methods, 0);  /* create methods table,
                                                   add it to the globals */
     luaL_newmetatable(L, IMAGE);        /* create metatable for Image,
@@ -323,7 +337,17 @@ int image_register (lua_State *L) {
     return 1;                           /* return methods on the stack */
 }
 
-int image_new(lua_State *L, const char *path, const char *name) {
+int image_create(lua_State *L, int tex, int fbo, int width, int height) {
+    image_t *image = push_image(L);
+    // printf("creating image %d,%d %dx%d\n", tex, fbo, width, height);
+    image->tex = tex;
+    image->fbo = fbo;
+    image->width = width;
+    image->height = height;
+    return 1;
+}
+
+int image_load(lua_State *L, const char *path, const char *name) {
     int tex, width, height;
 
     char *pos = strstr(name, ".png");
@@ -341,9 +365,9 @@ int image_new(lua_State *L, const char *path, const char *name) {
     if (!tex)
         luaL_error(L, "cannot load image file %s", name);
 
-
     image_t *image = push_image(L);
     image->tex = tex;
+    image->fbo = 0;
     image->width = width;
     image->height = height;
     return 1;
