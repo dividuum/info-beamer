@@ -63,9 +63,10 @@
 
 struct node_s {
     int wd; // inotify watch descriptor
-    int prio;
+
     const char *name; // local node name
     const char *path; // full path (including node name)
+
     lua_State *L;
     int enforce_mem;
 
@@ -350,14 +351,15 @@ static int luaSetup(lua_State *L) {
     return 0;
 }
 
-static int luaClear(lua_State *L) {
-    GLdouble r = luaL_checknumber(L, 1);
-    GLdouble g = luaL_checknumber(L, 2);
-    GLdouble b = luaL_checknumber(L, 3);
-    GLdouble a = luaL_checknumber(L, 4);
-    glClearColor(r, g, b, a);
-    glClear(GL_COLOR_BUFFER_BIT);
-    return 0;
+static int luaListChilds(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    int num_childs = HASH_CNT(by_name, node->childs);
+    if (!lua_checkstack(L, num_childs))
+        luaL_error(L, "too many childs");
+    node_t *child, *tmp; HASH_ITER(by_name, node->childs, child, tmp) {
+        lua_pushstring(L, child->name);
+    }
+    return num_childs;
 }
 
 static int luaLoadImage(lua_State *L) {
@@ -378,6 +380,16 @@ static int luaLoadFont(lua_State *L) {
     char path[PATH_MAX];
     snprintf(path, sizeof(path), "%s/%s", node->path, name);
     return font_new(L, path, name);
+}
+
+static int luaClear(lua_State *L) {
+    GLdouble r = luaL_checknumber(L, 1);
+    GLdouble g = luaL_checknumber(L, 2);
+    GLdouble b = luaL_checknumber(L, 3);
+    GLdouble a = luaL_checknumber(L, 4);
+    glClearColor(r, g, b, a);
+    glClear(GL_COLOR_BUFFER_BIT);
+    return 0;
 }
 
 static int luaNow(lua_State *L) {
@@ -528,6 +540,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "setup", luaSetup);
     lua_register_node_func(node, "render_self", luaRenderSelf);
     lua_register_node_func(node, "render_child", luaRenderChild);
+    lua_register_node_func(node, "list_childs", luaListChilds);
     lua_register_node_func(node, "load_image", luaLoadImage);
     lua_register_node_func(node, "load_font", luaLoadFont);
     lua_register(node->L, "clear", luaClear);

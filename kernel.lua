@@ -180,6 +180,7 @@ function init_sandbox()
 
         sys = {
             now = now;
+            list_childs = list_childs;
         };
 
         news = {
@@ -199,6 +200,9 @@ function init_sandbox()
                 print(data)
             end;
         };
+
+        NAME = NAME;
+        PATH = PATH;
     }
     sandbox._G = sandbox
     return sandbox
