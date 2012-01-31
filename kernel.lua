@@ -206,10 +206,7 @@ end
 
 function render_into_screen(screen_width, screen_height)
     image = render_self()
-    if not image then
-        print("node cannot render itself. gfx.setup called?")
-        return
-    end
+
     root_width, root_height = image:dims()
 
     clear(0.05, 0.05, 0.05, 1)

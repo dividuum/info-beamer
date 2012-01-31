@@ -187,7 +187,7 @@ static const char *lua_safe_error_message(lua_State *L) {
 static void lua_node_enter(node_t *node, int args) {
     lua_State *L = node->L;
     int old_top = lua_gettop(L) - args;
-    lua_gc(L, LUA_GCSTEP, 100);
+    lua_gc(L, LUA_GCSTEP, 10);
     lua_pushliteral(L, "execute");              // [args] "execute"
     lua_rawget(L, LUA_REGISTRYINDEX);           // [args] execute
     lua_insert(L, -1 - args);                   // execute [args]
@@ -220,13 +220,15 @@ static void lua_node_enter(node_t *node, int args) {
         die("unbalanced call");
 }
 
-static void lua_node_code(node_t *node, const char *code, size_t code_size) {
+/*======= Node =======*/
+
+static void node_code(node_t *node, const char *code, size_t code_size) {
     lua_pushliteral(node->L, "code");
     lua_pushlstring(node->L, code, code_size);
     lua_node_enter(node, 2);
 }
 
-static void lua_node_callback(node_t *node, const char *name, int args) {
+static void node_callback(node_t *node, const char *name, int args) {
     lua_pushliteral(node->L, "callback"); // [args] "callback"
     lua_pushstring(node->L, name);        // [args] "callback" name
     lua_insert(node->L, -2 - args);       // name [args] "callback"
@@ -234,31 +236,18 @@ static void lua_node_callback(node_t *node, const char *name, int args) {
     lua_node_enter(node, 2 + args);
 }
 
-static void lua_node_initsandbox(node_t *node) {
+static void node_initsandbox(node_t *node) {
     lua_pushliteral(node->L, "init_sandbox");
     lua_node_enter(node, 1);
+    node->width = 0;
+    node->height = 0;
 }
 
-static void lua_node_render_self(node_t *node, int width, int height) {
+static void node_render_self(node_t *node, int width, int height) {
     lua_pushliteral(node->L, "render_self");
     lua_pushnumber(node->L, width);
     lua_pushnumber(node->L, height);
     lua_node_enter(node, 3);
-}
-
-/*======= Node =======*/
-
-static int node_is_renderable(node_t *node) {
-    return node->width != 0;
-}
-
-static int luaSetup(lua_State *L) {
-    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
-    int width = (int)luaL_checknumber(L, 1);
-    int height = (int)luaL_checknumber(L, 2);
-    node->width = width;
-    node->height = height;
-    return 0;
 }
 
 static int node_render_in_state(lua_State *L, node_t *node) {
@@ -275,8 +264,10 @@ static int node_render_in_state(lua_State *L, node_t *node) {
      * und dann wieder (durch lua gesteuert) geloescht werden.
      * Aber nunja...
      */
-    if (!node_is_renderable(node)) 
+    if (!node->width) {
+        luaL_error(L, "child not initialized with gfx.setup()");
         return 0;
+    }
 
     print_render_state();
     int prev_fbo, fbo, tex;
@@ -314,7 +305,7 @@ static int node_render_in_state(lua_State *L, node_t *node) {
     glLoadIdentity();
     glPushMatrix();
 
-    lua_node_callback(node, "on_render", 0);
+    node_callback(node, "on_render", 0);
 
     glMatrixMode(GL_PROJECTION);
     glPopMatrix();
@@ -344,6 +335,19 @@ static int luaRenderChild(lua_State *L) {
     if (!child)
         luaL_error(L, "child not found");
     return node_render_in_state(L, child);
+}
+
+static int luaSetup(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    int width = (int)luaL_checknumber(L, 1);
+    int height = (int)luaL_checknumber(L, 2);
+    if (width < 32 || width > 2048)
+        luaL_error(L, "invalid width [32,2048]");
+    if (height < 32 || height > 2048)
+        luaL_error(L, "invalid height [32,2048]");
+    node->width = width;
+    node->height = height;
+    return 0;
 }
 
 static int luaClear(lua_State *L) {
@@ -423,7 +427,7 @@ static void node_remove_child_by_name(node_t* node, const char *name) {
 static void node_update_content(node_t *node, const char *path, const char *name) {
     fprintf(stderr, ">>> content add %s in %s\n", name, node->path);
     if (strcmp(name, "script.lua") == 0) {
-        lua_node_initsandbox(node);
+        node_initsandbox(node);
 
         char code[MAX_CODE_SIZE];
         int fd = open(path, O_RDONLY);
@@ -435,20 +439,20 @@ static void node_update_content(node_t *node, const char *path, const char *name
         size_t code_size = read(fd, code, sizeof(code));
         close(fd);
 
-        lua_node_code(node, code, code_size);
+        node_code(node, code, code_size);
     } else {
         lua_pushstring(node->L, name);
-        lua_node_callback(node, "on_content_update", 1);
+        node_callback(node, "on_content_update", 1);
     }
 }
 
 static void node_remove(node_t *node, const char *name) {
     fprintf(stderr, "<<< content del %s in %s\n", name, node->path);
     if (strcmp(name, "script.lua") == 0) {
-        lua_node_initsandbox(node);
+        node_initsandbox(node);
     } else {
         lua_pushstring(node->L, name);
-        lua_node_callback(node, "on_content_update", 1);
+        node_callback(node, "on_content_update", 1);
     }
 }
 
@@ -535,7 +539,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_pushstring(node->L, name);
     lua_setglobal(node->L, "NAME");
 
-    lua_node_initsandbox(node);
+    node_initsandbox(node);
 
     node_recursive_search(node);
 }
@@ -646,7 +650,6 @@ static void GLFWCALL keypressed(int key, int action) {
     }
 }
 
-
 void udp_read(int fd, short event, void *arg) {
     char buf[1500];
     int len;
@@ -678,7 +681,7 @@ void udp_read(int fd, short event, void *arg) {
         }
 
         lua_pushlstring(node->L, data, data_len);
-        lua_node_callback(node, "on_data", 1);
+        node_callback(node, "on_data", 1);
     }
 }
 
@@ -732,7 +735,10 @@ static void tick() {
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
-    lua_node_render_self(&root, win_w, win_h);
+    glClearColor(0.05, 0.05, 0.05, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    node_render_self(&root, win_w, win_h);
 
     glfwSwapBuffers();
 
@@ -741,6 +747,13 @@ static void tick() {
 }
 
 int main(int argc, char *argv[]) {
+    if (argc != 2)
+        die("%s <root_name>", argv[0]);
+
+    char *root_name = argv[1];
+    if (index(root_name, '/'))
+        die("<root_name> cannot contain /");
+
     inotify_fd = inotify_init1(IN_NONBLOCK);
     if (inotify_fd == -1)
         die("cannot open inotify");
@@ -769,7 +782,7 @@ int main(int argc, char *argv[]) {
 
     signal(SIGVTALRM, deadline_signal);
 
-    node_init(&root, NULL, "news", "news");
+    node_init(&root, NULL, argv[1], argv[1]);
 
     double last = glfwGetTime();
     while (1) {
