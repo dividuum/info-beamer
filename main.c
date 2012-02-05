@@ -24,6 +24,8 @@
 #include "uthash.h"
 #include "kernel.h"
 #include "image.h"
+#include "video.h"
+#include "font.h"
 
 #define MAX_CODE_SIZE 16384 // byte
 #define MAX_MEM 2000 // KB
@@ -173,7 +175,6 @@ static int lua_timed_pcall(node_t *node, int in, int out,
 }
 
 static int lua_panic(lua_State *L) {
-    assert(0);
     die("node panic!");
     return 0;
 }
@@ -372,6 +373,16 @@ static int luaLoadImage(lua_State *L) {
     return image_load(L, path, name);
 }
 
+static int luaLoadVideo(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    const char *name = luaL_checkstring(L, 1);
+    if (index(name, '/'))
+        luaL_error(L, "invalid resource name");
+    char path[PATH_MAX];
+    snprintf(path, sizeof(path), "%s/%s", node->path, name);
+    return video_load(L, path, name);
+}
+
 static int luaLoadFont(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
     const char *name = luaL_checkstring(L, 1);
@@ -530,6 +541,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_atpanic(node->L, lua_panic);
     luaL_openlibs(node->L);
     image_register(node->L);
+    video_register(node->L);
     font_register(node->L);
 
    if (luaL_loadbuffer(node->L, kernel, kernel_size, "<kernel>") != 0)
@@ -542,6 +554,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "render_child", luaRenderChild);
     lua_register_node_func(node, "list_childs", luaListChilds);
     lua_register_node_func(node, "load_image", luaLoadImage);
+    lua_register_node_func(node, "load_video", luaLoadVideo);
     lua_register_node_func(node, "load_font", luaLoadFont);
     lua_register(node->L, "clear", luaClear);
     lua_register(node->L, "now", luaNow);
@@ -770,6 +783,8 @@ int main(int argc, char *argv[]) {
     inotify_fd = inotify_init1(IN_NONBLOCK);
     if (inotify_fd == -1)
         die("cannot open inotify");
+
+    av_register_all();
 
     event_init();
 

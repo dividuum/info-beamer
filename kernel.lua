@@ -1,71 +1,57 @@
------
--- Pretty Printer
------
+--======================
+-- Wrap unsafe functions
+--======================
 
-function table.show(t, name, indent)
-   local cart     -- a container
-   local autoref  -- for self references
+do
+    -- Disable Precompiled
+    local old_loadstring = loadstring
+    local string_byte = string.byte
+    local error = error
 
-   -- (RiciLake) returns true if the table is empty
-   local function isemptytable(t) return next(t) == nil end
+    function loadstring(code, chunkname)
+        if string_byte(code, 1) == 27 then
+            error("no precompiled code")
+        else
+            return old_loadstring(code, chunkname)
+        end
+    end
 
-   local function basicSerialize (o)
-      local so = tostring(o)
-      if type(o) == "function" then
-         return so
-      elseif type(o) == "number" then
-         return so
-      elseif o == nil then
-          return "nil"
-      else
-         return string.format("%q", so)
-      end
-   end
-
-   local function addtocart (value, name, indent, saved, field)
-      indent = indent or ""
-      saved = saved or {}
-      field = field or name
-
-      cart = cart .. indent .. field
-
-      if type(value) ~= "table" then
-         cart = cart .. " = " .. basicSerialize(value) .. ";\n"
-      else
-         if saved[value] then
-            cart = cart .. " = {..}; -- " .. saved[value]
-                        .. " (self reference)\n"
-            autoref = autoref ..  name .. " = " .. saved[value] .. ";\n"
-         else
-            saved[value] = name
-            if isemptytable(value) then
-               cart = cart .. " = {};\n"
-            else
-               cart = cart .. " = {\n"
-               for k, v in pairs(value) do
-                  k = basicSerialize(k)
-                  local fname = string.format("%s[%s]", name, k)
-                  field = string.format("[%s]", k)
-                  -- three spaces between levels
-                  addtocart(v, fname, indent .. "   ", saved, field)
-               end
-               cart = cart .. indent .. "};\n"
-            end
-         end
-      end
-   end
-
-   name = name or "__unnamed__"
-   if type(t) ~= "table" then
-      return name .. " = " .. basicSerialize(t)
-   end
-   cart, autoref = "", ""
-   addtocart(t, name, indent)
-   return cart .. autoref
+    -- Rep can take too much memory/cpu
+    local old_rep = string.rep
+    string.rep = function(s, n)
+        if n > 8192 then
+            error("n too large")
+        elseif n < 0 then
+            error("n cannot be negative")
+        end
+        return old_rep(s, n)
+    end
 end
 
-function pp(t)
-    print(table.show(t))
+--=================
+-- Helper functions
+--=================
+
+function scale_into(source_width, source_height, target_width, target_height)
+    local prop_height = source_height * target_width / source_width
+    local prop_width  = source_width * target_height / source_height
+    local x1, y1, x2, y2
+    if prop_height > target_height then
+        local x_center = target_width / 2
+        local half_width = prop_width / 2
+        x1 = x_center - half_width
+        y1 = 0
+        x2 = x_center + half_width
+        y2 = target_height
+    else
+        local y_center = target_height / 2
+        local half_height = prop_height / 2
+        x1 = 0
+        y1 = y_center - half_height
+        x2 = target_width
+        y2 = y_center + half_height
+    end
+    return x1, y1, x2, y2
 end
 
 --=============
@@ -89,7 +75,6 @@ function init_sandbox()
         type = type;
         unpack = unpack;
         xpcall = xpcall;
-        getmetatable = getmetatable;
         setmetatable = setmetatable;
 
         coroutine = {
@@ -175,12 +160,14 @@ function init_sandbox()
             render_child = render_child;
             clear = clear;
             load_image = load_image;
+            load_video = load_video;
             load_font = load_font;
         };
 
         sys = {
             now = now;
             list_childs = list_childs;
+            scale_into = scale_into;
         };
 
         news = {
@@ -205,35 +192,17 @@ function init_sandbox()
         PATH = PATH;
     }
     sandbox._G = sandbox
+    sandbox.loadstring = function(...)
+        return setfenv(assert(loadstring(...)), sandbox)
+    end
     return sandbox
 end
 
 function render_into_screen(screen_width, screen_height)
     image = render_self()
-
-    root_width, root_height = image:dims()
-
+    root_width, root_height = image:size()
     clear(0.05, 0.05, 0.05, 1)
-
-    local prop_height = root_height * screen_width / root_width
-    local prop_width  = root_width * screen_height / root_height
-    local x1, y1, x2, y2
-    if prop_height > screen_height then
-        local x_center = screen_width / 2
-        local half_width = prop_width / 2
-        x1 = x_center - half_width
-        y1 = 0
-        x2 = x_center + half_width
-        y2 = screen_height
-    else
-        local y_center = screen_height / 2
-        local half_height = prop_height / 2
-        x1 = 0
-        y1 = y_center - half_height
-        x2 = screen_width
-        y2 = y_center + half_height
-    end
-
+    local x1, y1, x2, y2 = scale_into(root_width, root_height, screen_width, screen_height)
     image:draw(x1, y1, x2, y2)
 end
 
@@ -270,11 +239,6 @@ do
     end
 end
 
-
-
--- Globales unsicheres Zeugs zur Sicherheit entfernen.
--- Sollte jemand aus der sandbox ausbrechen, bliebt hier
--- auch nichts gefaehrliches uebrig.
 io = nil
 require = nil
 loadfile = nil
@@ -283,6 +247,5 @@ package = nil
 module = nil
 os = nil
 dofile = nil
-ustring = nil
 getfenv = nil
 debug = { traceback = debug.traceback }

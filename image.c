@@ -265,7 +265,7 @@ static image_t *push_image(lua_State *L) {
     return image;
 }
 
-static int image_dims(lua_State *L) {
+static int image_size(lua_State *L) {
     image_t *image = checked_image(L, 1);
     lua_pushnumber(L, image->width);
     lua_pushnumber(L, image->height);
@@ -295,7 +295,7 @@ static int image_draw(lua_State *L) {
 
 static const luaL_reg image_methods[] = {
   {"draw",          image_draw},
-  {"dims",          image_dims},
+  {"size",          image_size},
   {0,0}
 };
 
