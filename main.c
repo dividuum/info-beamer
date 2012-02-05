@@ -230,12 +230,14 @@ static void lua_node_enter(node_t *node, int args) {
 
 /*======= Node =======*/
 
+// runs code in sandbox
 static void node_code(node_t *node, const char *code, size_t code_size) {
     lua_pushliteral(node->L, "code");
     lua_pushlstring(node->L, code, code_size);
     lua_node_enter(node, 2);
 }
 
+// news.<callback>(args...)
 static void node_callback(node_t *node, const char *name, int args) {
     lua_pushliteral(node->L, "callback"); // [args] "callback"
     lua_pushstring(node->L, name);        // [args] "callback" name
@@ -244,6 +246,7 @@ static void node_callback(node_t *node, const char *name, int args) {
     lua_node_enter(node, 2 + args);
 }
 
+// restart sandbox
 static void node_initsandbox(node_t *node) {
     lua_pushliteral(node->L, "init_sandbox");
     lua_node_enter(node, 1);
@@ -251,6 +254,7 @@ static void node_initsandbox(node_t *node) {
     node->height = 0;
 }
 
+// render node
 static void node_render_self(node_t *node, int width, int height) {
     lua_pushliteral(node->L, "render_self");
     lua_pushnumber(node->L, width);
@@ -423,7 +427,6 @@ static void node_free(node_t *node);
      lua_pushcclosure((node)->L, func, 1), \
      lua_settable((node)->L, LUA_GLOBALSINDEX))
 
-
 static void node_tree_print(node_t *node, int depth) {
     fprintf(stderr, "%4d %*s'- %s (%d)\n", lua_gc(node->L, LUA_GCCOUNT, 0), 
         depth*2, "", node->name, HASH_CNT(by_name, node->childs));
@@ -431,7 +434,6 @@ static void node_tree_print(node_t *node, int depth) {
         node_tree_print(child, depth+1);
     };
 }
-
 
 static void node_add_child(node_t* node, const char *path, const char *name) {
     node_t *child = xmalloc(sizeof(node_t));
@@ -745,6 +747,7 @@ static void tick() {
     check_inotify();
     event_loop(EVLOOP_NONBLOCK);
     glfwPollEvents();
+
     // node_tree_print(&root, 0);
 
     glDisable(GL_CULL_FACE);
@@ -798,8 +801,8 @@ int main(int argc, char *argv[]) {
     open_udp(&udp_event);
 
     glfwInit();
-    // glfwSetTime(time(0));
     glfwOpenWindowHint(GLFW_FSAA_SAMPLES, 4);
+
     int mode = getenv("FULLSCREEN") ? GLFW_FULLSCREEN : GLFW_WINDOW;
 
     if(!glfwOpenWindow(1024, 768, 8,8,8,8, 0,0, mode))
