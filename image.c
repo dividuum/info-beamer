@@ -299,9 +299,9 @@ static int image_draw(lua_State *L) {
 }
 
 static const luaL_reg image_methods[] = {
-  {"draw",          image_draw},
-  {"size",          image_size},
-  {0,0}
+    {"draw",    image_draw},
+    {"size",    image_size},
+    {0,0}
 };
 
 static int image_gc(lua_State *L) {

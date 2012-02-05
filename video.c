@@ -2,7 +2,9 @@
  * Video Module for GPN News.
  * Adapted from code by Michael Meeuwisse
  */
-
+/*
+ * https://docs.google.com/leaf?id=0B_dz2NwhjXB-NDQ0NWNjOWEtMzJiNy00ZjcwLWJjMjYtZTU2YmQzMWMzYmU0
+ */
 /*
  * (C) Copyright 2010 Michael Meeuwisse
  *
@@ -296,11 +298,11 @@ static int video_draw(lua_State *L) {
 }
 
 static const luaL_reg video_methods[] = {
-  {"draw",          video_draw},
-  {"next",          video_next},
-  {"size",          video_size},
-  {"fps",           video_fps},
-  {0,0}
+    {"draw",    video_draw},
+    {"next",    video_next},
+    {"size",    video_size},
+    {"fps",     video_fps},
+    {0,0}
 };
 
 static int video_gc(lua_State *L) {

@@ -2,7 +2,7 @@
 # LDFLAGS=-llua5.1 -levent -lglfw -lGLEW -lGLU -lpng -ljpeg -lftgl
 #
 CFLAGS=-I/usr/include/lua5.1 -I/usr/include/freetype2/ -O3 -std=c99 
-LDFLAGS=-llua5.1 -levent -lglfw -lGLEW -lGLU -lpng -ljpeg -lftgl -lavformat -lavcodec -lavutil -lswscale -lz -lbz2
+LDFLAGS=-llua5.1 -levent -lglfw -lGLEW -lftgl -lpng -ljpeg -lavformat -lavcodec -lavutil -lswscale -lz -lbz2
 
 all: gpn-info
 
@@ -21,4 +21,4 @@ kernel.h: kernel.lua bin2c $(LUAC)
 .PHONY: clean
 
 clean:
-	rm -f *.o gpn-info
+	rm -f *.o gpn-info kernel.h

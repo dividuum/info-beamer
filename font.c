@@ -106,8 +106,8 @@ static int font_write(lua_State *L) {
 }
 
 static const luaL_reg font_methods[] = {
-  {"write",          font_write},
-  {0,0}
+    {"write",       font_write},
+    {0,0}
 };
 
 static int font_gc(lua_State *L) {
