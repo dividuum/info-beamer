@@ -1,3 +1,6 @@
+#define _BSD_SOURCE
+#include <linux/limits.h>
+#include <strings.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -11,12 +14,15 @@
 #include <sys/stat.h>
 #include <sys/inotify.h>
 #include <fcntl.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include <GL/glew.h>
 #include <GL/gl.h>
 #include <GL/glext.h>
 #include <GL/glfw.h>
-#include <GL/glew.h>
+#include <libavformat/avformat.h>
 #include <event.h>
 #include <lualib.h>
 #include <lauxlib.h>

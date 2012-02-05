@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include <GL/glew.h>
 #include <GL/gl.h>
 #include <lauxlib.h>
 #include <lualib.h>
@@ -140,7 +141,11 @@ static int load_png(const char *filename, int *width, int *height) {
     const int PNG_SIG_BYTES = 8;
     unsigned char header[PNG_SIG_BYTES];
 
-    fread(header, 1, PNG_SIG_BYTES, png_file);
+    if (fread(header, 1, PNG_SIG_BYTES, png_file) != PNG_SIG_BYTES) {
+        fprintf(stderr, "cannot read header\n");
+        goto error_info;
+    }
+
     if (png_sig_cmp(header, 0, PNG_SIG_BYTES)) {
         fprintf(stderr, "no png?\n");
         goto error_info;

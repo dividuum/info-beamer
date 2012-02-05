@@ -1,4 +1,9 @@
-/* video.c
+/*
+ * Video Module for GPN News.
+ * Adapted from code by Michael Meeuwisse
+ */
+
+/*
  * (C) Copyright 2010 Michael Meeuwisse
  *
  * Adapted from avcodec_sample.0.5.0.c, license unknown
@@ -32,117 +37,125 @@
 #define VIDEO "video"
 
 typedef struct {
-    AVFormatContext *pFormatCtx;
-    AVCodecContext *pCtx;
-    AVCodec *pCodec;
-    AVFrame *pRaw;
-    AVFrame *pDat;
+    AVFormatContext *format_context;
+    AVCodecContext *codec_context;
+    AVCodec *codec;
+    AVFrame *raw_frame;
+    AVFrame *scaled_frame;
     uint8_t *buffer;
-    struct SwsContext *Sctx;
-    int videoStream, width, height, format;
+    struct SwsContext *scaler;
+    int stream_idx, width, height, format;
     int tex;
     double fps;
 } video_t;
 
 static void video_free(video_t *video) {
-	if (video->Sctx)
-	     sws_freeContext(video->Sctx);
-	if (video->pRaw)
-	     av_free(video->pRaw);
-	if (video->pDat)
-	     av_free(video->pDat);
+	if (video->scaler)
+	     sws_freeContext(video->scaler);
+	if (video->raw_frame)
+	     av_free(video->raw_frame);
+	if (video->scaled_frame)
+	     av_free(video->scaled_frame);
 	
-	if (video->pCtx)
-	     avcodec_close(video->pCtx);
-	if (video->pFormatCtx)
-		av_close_input_file(video->pFormatCtx);
+	if (video->codec_context)
+	     avcodec_close(video->codec_context);
+	if (video->format_context)
+		av_close_input_file(video->format_context);
 	
 	free(video->buffer);
 }
 
 static int video_open(video_t *video, const char *filename) {
 	video->format = PIX_FMT_RGB24;
-	
-	/* Open file, check usability */
-	if (av_open_input_file(&video->pFormatCtx, filename, NULL, 0, NULL) ||
-		av_find_stream_info(video->pFormatCtx) < 0) {
+	if (av_open_input_file(&video->format_context, filename, NULL, 0, NULL) ||
+		av_find_stream_info(video->format_context) < 0) {
         fprintf(stderr, "cannot open video stream %s\n", filename);
         goto failed;
     }
 	
-	/* Find the first video stream */
-	video->videoStream = -1;
-	int i;
-	for (i = 0; i < video->pFormatCtx->nb_streams; i++) {
-		if (video->pFormatCtx->streams[i]->codec->codec_type == AVMEDIA_TYPE_VIDEO) {
-			video->videoStream = i;
+	video->stream_idx = -1;
+	for (int i = 0; i < video->format_context->nb_streams; i++) {
+		if (video->format_context->streams[i]->codec->codec_type == AVMEDIA_TYPE_VIDEO) {
+			video->stream_idx = i;
 			break;
 		}
     }
 	
-	if (video->videoStream == -1) {
+	if (video->stream_idx == -1) {
         fprintf(stderr, "cannot find video stream\n");
 		goto failed;
     }
 
-    AVStream *stream = video->pFormatCtx->streams[video->videoStream];
+    AVStream *stream = video->format_context->streams[video->stream_idx];
+	video->codec_context = stream->codec;
+	video->codec = avcodec_find_decoder(video->codec_context->codec_id);
 
+	if (!video->codec || avcodec_open(video->codec_context, video->codec) < 0) {
+        fprintf(stderr, "cannot open codec\n");
+        goto failed;
+    }
+
+    /* Save Width/Height */
+	video->width = video->codec_context->width;
+	video->height = video->codec_context->height;
+	
+	/* Frame rate fix for some codecs */
+	if (video->codec_context->time_base.num > 1000 && video->codec_context->time_base.den == 1)
+		video->codec_context->time_base.den = 1000;
+
+    /* Get FPS */
     // http://libav-users.943685.n4.nabble.com/Retrieving-Frames-Per-Second-FPS-td946533.html
-    // fprintf(stderr, "%d/%d\n", stream->time_base.num, stream->time_base.den);
-    // fprintf(stderr, "%d/%d\n", stream->r_frame_rate.num, stream->r_frame_rate.den);
-    // fprintf(stderr, "%d/%d\n", stream->codec->time_base.num, stream->codec->time_base.den);
     if ((stream->time_base.den != stream->r_frame_rate.num) ||
         (stream->time_base.num != stream->r_frame_rate.den)) {
         video->fps = 1.0 / stream->r_frame_rate.den * stream->r_frame_rate.num;
     } else {
         video->fps = 1.0 / stream->time_base.num * stream->time_base.den;
     }
-	
-	/* Get context for codec, pin down target width/height, find codec */
-	video->pCtx = stream->codec;
-	video->width = video->pCtx->width;
-	video->height = video->pCtx->height;
-	video->pCodec = avcodec_find_decoder(video->pCtx->codec_id);
-
-    //fprintf(stderr, "
-
-	if (!video->pCodec || avcodec_open(video->pCtx, video->pCodec) < 0) {
-        fprintf(stderr, "no codec found\n");
-        goto failed;
-    }
-	
-	/* Frame rate fix for some codecs */
-	if (video->pCtx->time_base.num > 1000 && video->pCtx->time_base.den == 1)
-		video->pCtx->time_base.den = 1000;
+    fprintf(stderr, "fps: %lf\n", video->fps);
 	
 	/* Get framebuffers */
-	video->pRaw = avcodec_alloc_frame();
-	video->pDat = avcodec_alloc_frame();
+	video->raw_frame = avcodec_alloc_frame();
+	video->scaled_frame = avcodec_alloc_frame();
 	
-	if (!video->pRaw || !video->pDat) {
-        fprintf(stderr, "cannot ???\n");
+	if (!video->raw_frame || !video->scaled_frame) {
+        fprintf(stderr, "cannot preallocate frames\n");
         goto failed;
     }
 	
 	/* Create data buffer */
 	video->buffer = malloc(avpicture_get_size(video->format, 
-		video->pCtx->width, video->pCtx->height));
+		video->codec_context->width, video->codec_context->height));
 	
 	/* Init buffers */
-	avpicture_fill((AVPicture *) video->pDat, video->buffer, video->format, 
-		video->pCtx->width, video->pCtx->height);
+	avpicture_fill(
+        (AVPicture *) video->scaled_frame, 
+        video->buffer, 
+        video->format, 
+		video->codec_context->width, 
+        video->codec_context->height
+    );
 	
 	/* Init scale & convert */
-	video->Sctx = sws_getContext(video->pCtx->width, video->pCtx->height, video->pCtx->pix_fmt,
-		video->width, video->height, video->format, SWS_BICUBIC, NULL, NULL, NULL);
+	video->scaler = sws_getContext(
+        video->codec_context->width, 
+        video->codec_context->height, 
+        video->codec_context->pix_fmt,
+		video->width, 
+        video->height, 
+        video->format, 
+        SWS_BICUBIC, 
+        NULL, 
+        NULL, 
+        NULL
+    );
 	
-	if (!video->Sctx) {
-        fprintf(stderr, "scaling failed\n");
+	if (!video->scaler) {
+        fprintf(stderr, "scale context init failed\n");
         goto failed;
     }
 	
 	/* Give some info on stderr about the file & stream */
-	dump_format(video->pFormatCtx, 0, filename, 0);
+	dump_format(video->format_context, 0, filename, 0);
 	return 1;
 failed:
     video_free(video);
@@ -155,21 +168,21 @@ static int video_next_frame(video_t *video) {
 
 again:
     /* Can we read a frame? */
-    if (av_read_frame(video->pFormatCtx, &packet)) {
+    if (av_read_frame(video->format_context, &packet)) {
         fprintf(stderr, "no next frame\n");
         av_free_packet(&packet);
         return 0;
     }
 	
     /* Is it what we're trying to parse? */
-    if (packet.stream_index != video->videoStream) {
+    if (packet.stream_index != video->stream_idx) {
         // fprintf(stderr, "not video\n");
         goto again;
     }
 	
     /* Decode it! */
     int finished = 0;
-    avcodec_decode_video2(video->pCtx, video->pRaw, &finished, &packet);
+    avcodec_decode_video2(video->codec_context, video->raw_frame, &finished, &packet);
 
     /* Succes? If not, drop packet. */
     if (!finished) {
@@ -177,8 +190,15 @@ again:
         goto again;
     }
 
-    sws_scale(video->Sctx, (const uint8_t* const *) video->pRaw->data, video->pRaw->linesize, 
-            0, video->pCtx->height, video->pDat->data, video->pDat->linesize);
+    sws_scale(
+        video->scaler, 
+        (const uint8_t* const *)video->raw_frame->data, 
+        video->raw_frame->linesize, 
+        0, 
+        video->codec_context->height, 
+        video->scaled_frame->data, 
+        video->scaled_frame->linesize
+    );
     av_free_packet(&packet);
     // fprintf(stderr, "got next frame\n");
     return 1;
@@ -219,12 +239,6 @@ static int video_fps(lua_State *L) {
 
 static int video_next(lua_State *L) {
     video_t *video = checked_video(L, 1);
-    glPixelStorei(GL_UNPACK_SWAP_BYTES, GL_FALSE);
-    glPixelStorei(GL_UNPACK_LSB_FIRST,  GL_TRUE );
-    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-    glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
-    glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
     if (!video_next_frame(video)) {
         lua_pushboolean(L, 0);
@@ -234,6 +248,14 @@ static int video_next(lua_State *L) {
     int prev_tex;
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &prev_tex);
     glBindTexture(GL_TEXTURE_2D, video->tex);
+
+    glPixelStorei(GL_UNPACK_SWAP_BYTES, GL_FALSE);
+    glPixelStorei(GL_UNPACK_LSB_FIRST,  GL_TRUE);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
+    glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
     glTexSubImage2D(
             GL_TEXTURE_2D,
             0,
@@ -257,11 +279,12 @@ static int video_draw(lua_State *L) {
     GLfloat y1 = luaL_checknumber(L, 3);
     GLfloat x2 = luaL_checknumber(L, 4);
     GLfloat y2 = luaL_checknumber(L, 5);
+    GLfloat alpha = luaL_optnumber(L, 6, 1.0);
 
     int prev_tex;
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &prev_tex);
     glBindTexture(GL_TEXTURE_2D, video->tex);
-    glColor4f(1.0, 1.0, 1.0, 1.0);
+    glColor4f(1.0, 1.0, 1.0, alpha);
     glBegin(GL_QUADS); 
         glTexCoord2f(0.0, 0.0); glVertex3f(x1, y1, 0);
         glTexCoord2f(1.0, 0.0); glVertex3f(x2, y1, 0);
