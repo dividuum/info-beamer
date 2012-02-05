@@ -41,6 +41,7 @@ typedef struct {
     struct SwsContext *Sctx;
     int videoStream, width, height, format;
     int tex;
+    double fps;
 } video_t;
 
 static void video_free(video_t *video) {
@@ -83,13 +84,28 @@ static int video_open(video_t *video, const char *filename) {
         fprintf(stderr, "cannot find video stream\n");
 		goto failed;
     }
+
+    AVStream *stream = video->pFormatCtx->streams[video->videoStream];
+
+    // http://libav-users.943685.n4.nabble.com/Retrieving-Frames-Per-Second-FPS-td946533.html
+    // fprintf(stderr, "%d/%d\n", stream->time_base.num, stream->time_base.den);
+    // fprintf(stderr, "%d/%d\n", stream->r_frame_rate.num, stream->r_frame_rate.den);
+    // fprintf(stderr, "%d/%d\n", stream->codec->time_base.num, stream->codec->time_base.den);
+    if ((stream->time_base.den != stream->r_frame_rate.num) ||
+        (stream->time_base.num != stream->r_frame_rate.den)) {
+        video->fps = 1.0 / stream->r_frame_rate.den * stream->r_frame_rate.num;
+    } else {
+        video->fps = 1.0 / stream->time_base.num * stream->time_base.den;
+    }
 	
 	/* Get context for codec, pin down target width/height, find codec */
-	video->pCtx = video->pFormatCtx->streams[video->videoStream]->codec;
+	video->pCtx = stream->codec;
 	video->width = video->pCtx->width;
 	video->height = video->pCtx->height;
 	video->pCodec = avcodec_find_decoder(video->pCtx->codec_id);
-	
+
+    //fprintf(stderr, "
+
 	if (!video->pCodec || avcodec_open(video->pCtx, video->pCodec) < 0) {
         fprintf(stderr, "no codec found\n");
         goto failed;
@@ -195,6 +211,12 @@ static int video_size(lua_State *L) {
     return 2;
 }
 
+static int video_fps(lua_State *L) {
+    video_t *video = checked_video(L, 1);
+    lua_pushnumber(L, video->fps);
+    return 1;
+}
+
 static int video_next(lua_State *L) {
     video_t *video = checked_video(L, 1);
     glPixelStorei(GL_UNPACK_SWAP_BYTES, GL_FALSE);
@@ -254,6 +276,7 @@ static const luaL_reg video_methods[] = {
   {"draw",          video_draw},
   {"next",          video_next},
   {"size",          video_size},
+  {"fps",           video_fps},
   {0,0}
 };
 
