@@ -155,7 +155,7 @@ function init_sandbox()
 
         print = print;
 
-        gfx = {
+        player = {
             setup = setup;
             render_child = render_child;
             clear = clear;
@@ -167,12 +167,13 @@ function init_sandbox()
         sys = {
             now = now;
             list_childs = list_childs;
+            send_child = send_child;
             scale_into = scale_into;
         };
 
         news = {
             on_content_update = function(name) 
-                print("}}} lua: content update " .. name)
+                -- print("}}} lua: content update " .. name)
             end;
 
             on_content_remove = function(name)
@@ -184,6 +185,10 @@ function init_sandbox()
             end;
 
             on_data = function(data)
+                print(data)
+            end;
+
+            on_msg = function(data)
                 print(data)
             end;
         };

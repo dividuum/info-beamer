@@ -18,6 +18,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <jemalloc/jemalloc.h>
 #include <GL/glew.h>
 #include <GL/gl.h>
 #include <GL/glext.h>
@@ -28,14 +29,15 @@
 #include <lauxlib.h>
 
 #include "uthash.h"
+#include "tlsf.h"
 #include "kernel.h"
 #include "image.h"
 #include "video.h"
 #include "font.h"
 
 #define MAX_CODE_SIZE 16384 // byte
-#define MAX_MEM 2000 // KB
-#define MIN_DELTA 20 // ms
+#define MAX_MEM 200000 // KB
+#define MIN_DELTA 10 // ms
 #define MAX_DELTA 2000 // ms
 
 #define MAX_RUNAWAY_TIME 5 // sec
@@ -76,7 +78,6 @@ struct node_s {
     const char *path; // full path (including node name)
 
     lua_State *L;
-    int enforce_mem;
 
     UT_hash_handle by_wd;   // global handle for search by watch descriptor
     UT_hash_handle by_name; // handle for childs by name
@@ -87,6 +88,9 @@ struct node_s {
 
     int width;
     int height;
+
+    void *mem;
+    tlsf_pool pool;
 };
 
 typedef struct node_s node_t;
@@ -99,12 +103,12 @@ static int inotify_fd;
 static double now;
 
 static void die(const char *fmt, ...) {
-    va_list ap;
-    va_start(ap, fmt);
-    printf("CRITICAL ERROR: ");
-    vprintf(fmt, ap);
-    printf("\n");
-    va_end(ap);
+    // va_list ap;
+    // va_start(ap, fmt);
+    // printf("CRITICAL ERROR: ");
+    // vprintf(fmt, ap);
+    // printf("\n");
+    // va_end(ap);
     exit(1);
 }
 
@@ -117,14 +121,14 @@ static void *xmalloc(size_t size) {
 /*======= Lua Sandboxing =======*/
 
 static void *lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize) {
-    node_t *node = ud;
+    // fprintf(stderr, "%d %d\n", osize, nsize);
+    tlsf_pool pool = (tlsf_pool)ud;
     (void)osize;  /* not used */
     if (nsize == 0) {
+        // tlsf_free(pool, ptr);
         free(ptr);
         return NULL;
     } else {
-        if (node->enforce_mem && lua_gc(node->L, LUA_GCCOUNT, 0) > MAX_MEM)
-            return NULL;
         return realloc(ptr, nsize);
     }
 }
@@ -170,9 +174,7 @@ static int lua_timed_pcall(node_t *node, int in, int out,
     global_node = node;
     timers_expired = 0;
 
-    node->enforce_mem = 1;
     int ret = lua_pcall(node->L, in, out, error_handler_pos);
-    node->enforce_mem = 0;
 
     deadline.it_value.tv_usec = 0;
     setitimer(ITIMER_VIRTUAL, &deadline, NULL);
@@ -195,7 +197,6 @@ static const char *lua_safe_error_message(lua_State *L) {
 static void lua_node_enter(node_t *node, int args) {
     lua_State *L = node->L;
     int old_top = lua_gettop(L) - args;
-    lua_gc(L, LUA_GCSTEP, 10);
     lua_pushliteral(L, "execute");              // [args] "execute"
     lua_rawget(L, LUA_REGISTRYINDEX);           // [args] execute
     lua_insert(L, -1 - args);                   // execute [args]
@@ -277,7 +278,7 @@ static int node_render_in_state(lua_State *L, node_t *node) {
      * Aber nunja...
      */
     if (!node->width) {
-        luaL_error(L, "child not initialized with gfx.setup()");
+        luaL_error(L, "child not initialized with player.setup()");
         return 0;
     }
 
@@ -290,6 +291,7 @@ static int node_render_in_state(lua_State *L, node_t *node) {
 
     glGenTextures(1, &tex);
     glBindTexture(GL_TEXTURE_2D, tex);
+    // fprintf(stderr, "%d %d\n", fbo, tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -347,6 +349,20 @@ static int luaRenderChild(lua_State *L) {
     if (!child)
         luaL_error(L, "child not found");
     return node_render_in_state(L, child);
+}
+
+static int luaSendChild(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    const char *name = luaL_checkstring(L, 1);
+    const char *msg = luaL_checkstring(L, 2);
+
+    node_t *child;
+    HASH_FIND(by_name, node->childs, name, strlen(name), child);
+    if (!child)
+        luaL_error(L, "child not found");
+    lua_pushstring(child->L, msg);
+    node_callback(child, "on_msg", 1);
+    return 0;
 }
 
 static int luaSetup(lua_State *L) {
@@ -432,6 +448,13 @@ static void node_tree_print(node_t *node, int depth) {
         depth*2, "", node->name, HASH_CNT(by_name, node->childs));
     node_t *child, *tmp; HASH_ITER(by_name, node->childs, child, tmp) {
         node_tree_print(child, depth+1);
+    };
+}
+
+static void node_tree_gc(node_t *node) {
+    lua_gc(node->L, LUA_GCSTEP, 100);
+    node_t *child, *tmp; HASH_ITER(by_name, node->childs, child, tmp) {
+        node_tree_gc(child);
     };
 }
 
@@ -535,14 +558,16 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     node->parent = parent;
     node->path = strdup(path);
     node->name = strdup(name);
-    node->enforce_mem = 0;
+
+    node->mem = malloc(MAX_MEM);
+    node->pool = tlsf_create(node->mem, MAX_MEM);
 
     // link by watch descriptor & path
     HASH_ADD(by_wd, nodes_by_wd, wd, sizeof(int), node);
     HASH_ADD_KEYPTR(by_path, nodes_by_path, node->path, strlen(node->path), node);
 
     // create lua state
-    node->L = lua_newstate(lua_alloc, node);
+    node->L = luaL_newstate();
     if (!node->L)
         die("cannot create lua");
 
@@ -560,6 +585,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "setup", luaSetup);
     lua_register_node_func(node, "render_self", luaRenderSelf);
     lua_register_node_func(node, "render_child", luaRenderChild);
+    lua_register_node_func(node, "send_child", luaSendChild);
     lua_register_node_func(node, "list_childs", luaListChilds);
     lua_register_node_func(node, "load_image", luaLoadImage);
     lua_register_node_func(node, "load_video", luaLoadVideo);
@@ -574,7 +600,6 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_setglobal(node->L, "NAME");
 
     node_initsandbox(node);
-
     node_recursive_search(node);
 }
 
@@ -587,6 +612,8 @@ static void node_free(node_t *node) {
     HASH_DELETE(by_path, nodes_by_path, node);
     free((void*)node->path);
     free((void*)node->name);
+    tlsf_destroy(node->pool);
+    free(node->mem);
     // inotify_rm_watch(inotify_fd, node->wd));
     lua_close(node->L);
 }
@@ -742,13 +769,27 @@ void open_udp(struct event *event) {
     if (event_add(event, NULL) == -1)
         die("event_add failed");
 }
+
+        // fprintf(stderr, #point ": %7.2f ", (now-step)*100000);
+#define test(point) \
+    do {\
+        double now = glfwGetTime();\
+        fprintf(stdout, ",%7.2f", (now-step)*100000);\
+        step = now;\
+    } while(0);
+
     
 static void tick() {
-    check_inotify();
-    event_loop(EVLOOP_NONBLOCK);
-    glfwPollEvents();
+    double step = glfwGetTime();
+    static int loop = 1;
+    fprintf(stdout, "%d", loop++);
 
-    // node_tree_print(&root, 0);
+    check_inotify();
+    test("inotify");
+
+    event_loop(EVLOOP_NONBLOCK);
+    test("io loop");
+
 
     glDisable(GL_CULL_FACE);
     glDisable(GL_DEPTH_TEST);
@@ -773,12 +814,26 @@ static void tick() {
     glClearColor(0.05, 0.05, 0.05, 1);
     glClear(GL_COLOR_BUFFER_BIT);
 
+    test("render setup");
+
     node_render_self(&root, win_w, win_h);
 
-    glfwSwapBuffers();
+    test("render");
 
+    glfwSwapBuffers();
     if (!glfwGetWindowParam(GLFW_OPENED))
         die("window closed");
+    test("swap buffer");
+
+    glfwPollEvents();
+    test("eventloop");
+
+    node_tree_gc(&root);
+    test("gc");
+
+    test("complete");
+    fprintf(stdout, "\n");
+    //node_tree_print(&root, 0);
 }
 
 int main(int argc, char *argv[]) {
@@ -816,22 +871,24 @@ int main(int argc, char *argv[]) {
     glfwSwapInterval(1);
     glfwSetWindowSizeCallback(reshape);
     glfwSetKeyCallback(keypressed);
+    glfwDisable(GLFW_AUTO_POLL_EVENTS);
 
     signal(SIGVTALRM, deadline_signal);
 
     node_init(&root, NULL, argv[1], argv[1]);
 
     double last = glfwGetTime();
+    fprintf(stdout, "t, inotify, ioloop, setup, render, swap, eventloop, gc, complete\n");
     while (1) {
         now = glfwGetTime();
-        int delta = (now - last) * 1000;
-        if (delta < MIN_DELTA) {
-            glfwSleep((MIN_DELTA-delta)/1000.0);
-            continue;
-        }
-        last = now;
-        if (delta > MAX_DELTA)
-            continue;
+        // int delta = (now - last) * 1000;
+        // if (delta < MIN_DELTA) {
+        //     glfwSleep((MIN_DELTA-delta)/1000.0);
+        //     continue;
+        // }
+        // last = now;
+        // if (delta > MAX_DELTA)
+        //     continue;
         tick();
     }
     return 0;

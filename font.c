@@ -66,7 +66,7 @@ static int font_write(lua_State *L) {
     GLfloat x = luaL_checknumber(L, 2);
     GLfloat y = luaL_checknumber(L, 3);
     const char *text = luaL_checkstring(L, 4);
-    GLfloat size = luaL_checknumber(L, 5);
+    GLfloat size = luaL_checknumber(L, 5) / 1000.0;
     GLfloat r = luaL_checknumber(L, 6);
     GLfloat g = luaL_checknumber(L, 7);
     GLfloat b = luaL_checknumber(L, 8);
@@ -92,12 +92,12 @@ static int font_write(lua_State *L) {
         GLfloat t = (float)glfwGetTime();
         glTranslatef(x, y, 0);
         // glRotatef(t*10, 0, 0.0f, 1.0f);
-        glTranslatef(0, size * 0.8, 0);
+        glTranslatef(0, size * 800, 0);
         glScalef(size, -size, 1.0);
         glColor4f(r, g, b, a);
         ftglRenderFont(font->font, text, FTGL_RENDER_ALL);
     glPopMatrix();
-    glDisable(GL_LIGHTING);
+    // glDisable(GL_LIGHTING);
 
     glEnable(GL_TEXTURE_2D);
 
@@ -153,7 +153,7 @@ int font_new(lua_State *L, const char *path, const char *name) {
     if (!ftgl_font)
         luaL_error(L, "cannot load font file %s", name);
 
-    ftglSetFontFaceSize(ftgl_font, 1, 1);
+    ftglSetFontFaceSize(ftgl_font, 1000, 1000);
     // ftglSetFontDepth(ftgl_font, 0.1);
     // ftglSetFontOutset(ftgl_font, 0, 3);
     ftglSetFontCharMap(ftgl_font, ft_encoding_unicode);
