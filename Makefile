@@ -1,8 +1,8 @@
 # CFLAGS=-I/usr/include/lua5.1 -I/usr/include/freetype2/ -O0 -ggdb
 # LDFLAGS=-llua5.1 -levent -lglfw -lGLEW -lGLU -lpng -ljpeg -lftgl
 #
-CFLAGS=-ILuaJIT-2.0.0-beta9/src -I/usr/include/freetype2/ -O3 -std=c99 
-LDFLAGS=-LLuaJIT-2.0.0-beta9/src -lluajit -levent -lglfw -lGLEW -lftgl -lpng -ljpeg -lavformat -lavcodec -lavutil -lswscale -lz -lbz2 -ljemalloc 
+CFLAGS=-I/usr/include/lua5.1 -I/usr/include/freetype2/ -ggdb -std=c99 
+LDFLAGS=-llua5.1 -levent -lglfw -lGLEW -lftgl -lpng -ljpeg -lavformat -lavcodec -lavutil -lswscale -lz -lbz2
 
 all: gpn-info
 

@@ -204,7 +204,7 @@ function init_sandbox()
 end
 
 function render_into_screen(screen_width, screen_height)
-    image = render_self()
+    local image = render_self()
     root_width, root_height = image:size()
     clear(0.05, 0.05, 0.05, 1)
     local x1, y1, x2, y2 = scale_into(root_width, root_height, screen_width, screen_height)

@@ -18,7 +18,6 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <jemalloc/jemalloc.h>
 #include <GL/glew.h>
 #include <GL/gl.h>
 #include <GL/glext.h>
@@ -37,7 +36,7 @@
 
 #define MAX_CODE_SIZE 16384 // byte
 #define MAX_MEM 200000 // KB
-#define MIN_DELTA 10 // ms
+#define MIN_DELTA 25 // ms
 #define MAX_DELTA 2000 // ms
 
 #define MAX_RUNAWAY_TIME 5 // sec
@@ -125,11 +124,10 @@ static void *lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize) {
     tlsf_pool pool = (tlsf_pool)ud;
     (void)osize;  /* not used */
     if (nsize == 0) {
-        // tlsf_free(pool, ptr);
-        free(ptr);
+        tlsf_free(pool, ptr);
         return NULL;
     } else {
-        return realloc(ptr, nsize);
+        return tlsf_realloc(pool, ptr, nsize);
     }
 }
 
@@ -452,7 +450,7 @@ static void node_tree_print(node_t *node, int depth) {
 }
 
 static void node_tree_gc(node_t *node) {
-    lua_gc(node->L, LUA_GCSTEP, 100);
+    lua_gc(node->L, LUA_GCCOLLECT, 0);
     node_t *child, *tmp; HASH_ITER(by_name, node->childs, child, tmp) {
         node_tree_gc(child);
     };
@@ -567,7 +565,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     HASH_ADD_KEYPTR(by_path, nodes_by_path, node->path, strlen(node->path), node);
 
     // create lua state
-    node->L = luaL_newstate();
+    node->L = lua_newstate(lua_alloc, node->pool);
     if (!node->L)
         die("cannot create lua");
 
@@ -601,6 +599,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
 
     node_initsandbox(node);
     node_recursive_search(node);
+    lua_gc(node->L, LUA_GCSTOP, 0);
 }
 
 static void node_free(node_t *node) {
@@ -774,12 +773,16 @@ void open_udp(struct event *event) {
 #define test(point) \
     do {\
         double now = glfwGetTime();\
-        fprintf(stdout, ",%7.2f", (now-step)*100000);\
+        fprintf(stdout, " %7.2f", (now-step)*100000);\
         step = now;\
     } while(0);
 
     
 static void tick() {
+    int mem;
+    glGetIntegerv(0x9049, &mem);
+    fprintf(stderr, "%d\n", mem);
+
     double step = glfwGetTime();
     static int loop = 1;
     fprintf(stdout, "%d", loop++);
@@ -810,9 +813,6 @@ static void tick() {
             -1000, 1000);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-
-    glClearColor(0.05, 0.05, 0.05, 1);
-    glClear(GL_COLOR_BUFFER_BIT);
 
     test("render setup");
 
@@ -878,17 +878,16 @@ int main(int argc, char *argv[]) {
     node_init(&root, NULL, argv[1], argv[1]);
 
     double last = glfwGetTime();
-    fprintf(stdout, "t, inotify, ioloop, setup, render, swap, eventloop, gc, complete\n");
     while (1) {
         now = glfwGetTime();
-        // int delta = (now - last) * 1000;
-        // if (delta < MIN_DELTA) {
-        //     glfwSleep((MIN_DELTA-delta)/1000.0);
-        //     continue;
-        // }
-        // last = now;
-        // if (delta > MAX_DELTA)
-        //     continue;
+        int delta = (now - last) * 1000;
+        if (delta < MIN_DELTA) {
+            glfwSleep((MIN_DELTA-delta)/1000.0);
+            continue;
+        }
+        last = now;
+        if (delta > MAX_DELTA)
+            continue;
         tick();
     }
     return 0;

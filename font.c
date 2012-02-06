@@ -148,7 +148,7 @@ int font_register (lua_State *L) {
 
 int font_new(lua_State *L, const char *path, const char *name) {
     FTGLfont *ftgl_font = ftglCreatePolygonFont(path);
-    // FTGLfont *ftgl_font = ftglCreateExtrudeFont(path);
+    // FTGLfont *ftgl_font = ftglCreateTextureFont(path);
 
     if (!ftgl_font)
         luaL_error(L, "cannot load font file %s", name);
