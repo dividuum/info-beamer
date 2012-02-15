@@ -268,11 +268,11 @@ static int node_render_to_image(lua_State *L, node_t *node) {
 
 
     print_render_state();
-    int prev_fbo, fbo, tex;
+    int prev_fbo;
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_fbo);
 
+    unsigned int fbo, tex;
     make_framebuffer(node->width, node->height, &tex, &fbo);
-    fprintf(stderr, "TEXTURE ALLOC: %d %d\n", tex, fbo);
     print_render_state();
 
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -502,7 +502,7 @@ static void node_recursive_search(node_t *node) {
     if (!dp)
         die("cannot open directory");
     struct dirent *ep;
-    while (ep = readdir(dp)) {
+    while ((ep = readdir(dp))) {
         if (ep->d_name[0] == '.') 
             continue;
 
@@ -687,10 +687,10 @@ static void GLFWCALL keypressed(int key, int action) {
     }
 }
 
-void udp_read(int fd, short event, void *arg) {
+static void udp_read(int fd, short event, void *arg) {
     char buf[1500];
     int len;
-    int size = sizeof(struct sockaddr);
+    unsigned int size = sizeof(struct sockaddr);
     struct sockaddr_in client_addr;
  
     memset(buf, 0, sizeof(buf));
@@ -722,7 +722,7 @@ void udp_read(int fd, short event, void *arg) {
     }
 }
 
-void open_udp(struct event *event) {
+static void open_udp(struct event *event) {
     int sock_fd;
     int one = 1;
     struct sockaddr_in sin;
@@ -746,21 +746,25 @@ void open_udp(struct event *event) {
         die("event_add failed");
 }
 
-        // fprintf(stderr, #point ": %7.2f ", (now-step)*100000);
+#ifndef DEBUG_PERFORMANCE
 #define test(point) \
     do {\
-        double now = glfwGetTime();\
-        fprintf(stdout, " %7.2f", (now-step)*100000);\
-        step = now;\
+        double next = glfwGetTime();\
+        fprintf(stdout, " %7.2f", (next - now)*100000);\
+        now = next;\
     } while(0);
+#else
+#define test(point)
+#endif
 
-    
-static void tick() {
+static void print_free_video_mem() {
     int mem;
     glGetIntegerv(0x9049, &mem);
-    fprintf(stderr, "%d\n", mem);
-
-    double step = glfwGetTime();
+    fprintf(stderr, "free video mem: %d\n", mem);
+}
+    
+static void tick() {
+    double now = glfwGetTime();
     static int loop = 1;
     fprintf(stdout, "%d", loop++);
 

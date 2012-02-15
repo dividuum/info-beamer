@@ -47,7 +47,7 @@ typedef struct {
     uint8_t *buffer;
     struct SwsContext *scaler;
     int stream_idx, width, height, format;
-    int tex;
+    unsigned int tex;
     double fps;
 } video_t;
 

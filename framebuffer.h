@@ -1,7 +1,7 @@
-#ifndef TEXTURE_H
-#define TEXTURE_H
+#ifndef FRAMEBUFFER_H
+#define FRAMEBUFFER_H
 
-int make_framebuffer(int width, int height, int *tex, int *fbo);
-int recycle_framebuffer(int width, int height, int tex, int fbo);
+void make_framebuffer(int width, int height, unsigned int *tex, unsigned int *fbo);
+void recycle_framebuffer(int width, int height, unsigned int tex, unsigned int fbo);
 
 #endif

@@ -1,7 +1,7 @@
 # CFLAGS=-I/usr/include/lua5.1 -I/usr/include/freetype2/ -O0 -ggdb
 # LDFLAGS=-llua5.1 -levent -lglfw -lGLEW -lGLU -lpng -ljpeg -lftgl
 #
-CFLAGS=-I/usr/include/lua5.1 -I/usr/include/freetype2/ -ggdb -std=c99 
+CFLAGS=-I/usr/include/lua5.1 -I/usr/include/freetype2/ -ggdb -std=c99 -Wall -Wno-deprecated-declarations -Wno-unused-function
 LDFLAGS=-llua5.1 -levent -lglfw -lGLEW -lftgl -lpng -ljpeg -lavformat -lavcodec -lavutil -lswscale -lz -lbz2
 
 all: gpn-info
@@ -24,4 +24,4 @@ performance: performance.csv
 .PHONY: clean performance
 
 clean:
-	rm -f *.o gpn-info kernel.h
+	rm -f *.o gpn-info kernel.h bin2c

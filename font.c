@@ -89,7 +89,6 @@ static int font_write(lua_State *L) {
     glPushMatrix();
         // glMaterialfv(GL_FRONT, GL_AMBIENT, front_ambient);
         // glColorMaterial(GL_FRONT, GL_DIFFUSE);
-        GLfloat t = (float)glfwGetTime();
         glTranslatef(x, y, 0);
         // glRotatef(t*10, 0, 0.0f, 1.0f);
         glTranslatef(0, size * 800, 0);

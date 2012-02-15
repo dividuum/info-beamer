@@ -10,12 +10,13 @@
 #include <jpeglib.h>
 
 #include "framebuffer.h"
+#include "misc.h"
 
 #define IMAGE "image"
 
 typedef struct {
-    int tex;
-    int fbo;
+    unsigned int tex;
+    unsigned int fbo;
     int width;
     int height;
 } image_t;
@@ -48,7 +49,7 @@ static int load_jpeg(const char *filename, int *width, int *height) {
     struct my_error_mgr jerr;
     JSAMPROW j;
     int i;
-    char *pixels = NULL;
+    GLubyte *pixels = NULL;
 
     /* Open image file */
     FILE *fp = fopen(filename, "rb"); 
@@ -85,7 +86,7 @@ static int load_jpeg(const char *filename, int *width, int *height) {
     else
         format = GL_RGB;
 
-    pixels = (GLubyte *)malloc(
+    pixels = (GLubyte *)xmalloc(
         sizeof (GLubyte) * (*width) * (*height) * internalFormat
     );
 

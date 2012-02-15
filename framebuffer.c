@@ -11,8 +11,8 @@
 #define MAX_CACHED 20
 
 typedef struct framebuffer {
-    int fbo;
-    int tex;
+    unsigned int fbo;
+    unsigned int tex;
     int width;
     int height;
     struct framebuffer *prev;
@@ -30,26 +30,26 @@ void free_framebuffer(framebuffer_t *framebuffer) {
     num_framebuffers--;
 }
 
-void make_framebuffer(int width, int height, int *tex, int *fbo) {
+void make_framebuffer(int width, int height, unsigned int *tex, unsigned int *fbo) {
     framebuffer_t *framebuffer, *tmp;
 
-    fprintf(stderr, "requesting framebuffer: %dx%d\n", width, height);
-    fprintf(stderr, "got %d %p framebuffers\n", num_framebuffers, framebuffers);
+    // fprintf(stderr, "requesting framebuffer: %dx%d\n", width, height);
+    // fprintf(stderr, "got %d %p framebuffers\n", num_framebuffers, framebuffers);
 
     DL_FOREACH_SAFE(framebuffers, framebuffer, tmp) {
-        fprintf(stderr, "checking %dx%d %d %d\n", framebuffer->width, framebuffer->height, 
-                framebuffer->tex, framebuffer->fbo);
+        // fprintf(stderr, "checking %dx%d %d %d\n", framebuffer->width, framebuffer->height, 
+        //         framebuffer->tex, framebuffer->fbo);
 
         // Same size?
         if (framebuffer->height == height && framebuffer->width == width) {
-            fprintf(stderr, "found reusable framebuffer\n");
+            // fprintf(stderr, "found reusable framebuffer\n");
             *tex = framebuffer->tex;
             *fbo = framebuffer->fbo;
             free_framebuffer(framebuffer);
             return;
         }
     }
-    fprintf(stderr, "nope\n");
+    // fprintf(stderr, "nope\n");
 
     glGenFramebuffers(1, fbo);
     glBindFramebuffer(GL_FRAMEBUFFER, *fbo);
@@ -66,21 +66,21 @@ void make_framebuffer(int width, int height, int *tex, int *fbo) {
     assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
 }
 
-int recycle_framebuffer(int width, int height, int tex, int fbo) {
+void recycle_framebuffer(int width, int height, unsigned int tex, unsigned int fbo) {
     framebuffer_t *framebuffer = xmalloc(sizeof(framebuffer_t));
     framebuffer->width = width;
     framebuffer->height = height;
     framebuffer->tex = tex;
     framebuffer->fbo = fbo;
 
-    fprintf(stderr, "added recyleable framebuffer %dx%d %d %d\n", framebuffer->width, framebuffer->height, 
-        framebuffer->tex, framebuffer->fbo);
+    // fprintf(stderr, "added recyleable framebuffer %dx%d %d %d\n", framebuffer->width, framebuffer->height, 
+    //     framebuffer->tex, framebuffer->fbo);
 
     DL_PREPEND(framebuffers, framebuffer);
     num_framebuffers++;
 
     if (num_framebuffers > MAX_CACHED) {
-        fprintf(stderr, "too full\n");
+        // fprintf(stderr, "too full\n");
         free_framebuffer(framebuffers);
     }
 }
