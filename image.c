@@ -9,6 +9,8 @@
 #include <png.h>
 #include <jpeglib.h>
 
+#include "framebuffer.h"
+
 #define IMAGE "image"
 
 typedef struct {
@@ -115,14 +117,13 @@ static int load_jpeg(const char *filename, int *width, int *height) {
     glPixelStorei (GL_UNPACK_ALIGNMENT, 1);
 
 #if 0
-    glTexImage2D (GL_TEXTURE_2D, 0, jpeg_tex->internalFormat,
-            jpeg_tex->width, jpeg_tex->height, 0, jpeg_tex->format,
-            GL_UNSIGNED_BYTE, jpeg_tex->texels);
+    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat,
+            *width, *height, 0, format,
+            GL_UNSIGNED_BYTE, pixels);
 #else
     gluBuild2DMipmaps(GL_TEXTURE_2D, internalFormat,
             *width, *height, format, GL_UNSIGNED_BYTE, pixels);
 #endif
-
 
     /* OpenGL has its own copy of texture data */
     free(pixels);
@@ -307,10 +308,17 @@ static const luaL_reg image_methods[] = {
 
 static int image_gc(lua_State *L) {
     image_t *image = to_image(L, 1);
-    // fprintf(stderr, "discarding tex: %d\n", image->tex, image->fbo);
-    glDeleteTextures(1, &image->tex);
-    if (image->fbo)
-        glDeleteFramebuffers(1, &image->fbo);
+    if (image->fbo) {
+        // If images has attached Framebuffer, put the
+        // texture and framebuffer into the recycler.
+        // Allocations for new framebuffers can then
+        // reuse these => Better performance.
+        recycle_framebuffer(image->width, image->height, 
+            image->tex, image->fbo);
+    } else {
+        // No Framebuffer? Just remove the texture.
+        glDeleteTextures(1, &image->tex);
+    }
     return 0;
 }
 

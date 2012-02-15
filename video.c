@@ -251,7 +251,7 @@ static int video_next(lua_State *L) {
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &prev_tex);
     glBindTexture(GL_TEXTURE_2D, video->tex);
 
-    glPixelStorei(GL_UNPACK_SWAP_BYTES, GL_FALSE);
+    glPixelStorei(GL_UNPACK_SWAP_BYTES, GL_TRUE);
     glPixelStorei(GL_UNPACK_LSB_FIRST,  GL_TRUE);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);

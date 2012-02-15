@@ -8,7 +8,7 @@ all: gpn-info
 
 main.o: main.c kernel.h
 
-gpn-info: main.o image.o font.o video.o tlsf.o
+gpn-info: main.o image.o font.o video.o tlsf.o framebuffer.o misc.o
 	$(CC) -o $@ $^ $(LDFLAGS) 
 
 bin2c: bin2c.c
@@ -18,7 +18,10 @@ kernel.h: kernel.lua bin2c $(LUAC)
 	luac -p $<
 	./bin2c $* < $< > $@
 
-.PHONY: clean
+performance: performance.csv
+	gnuplot -e "plot './performance.csv' using 1:8 with lines;pause mouse key"
+
+.PHONY: clean performance
 
 clean:
 	rm -f *.o gpn-info kernel.h

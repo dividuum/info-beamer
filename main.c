@@ -29,14 +29,16 @@
 
 #include "uthash.h"
 #include "tlsf.h"
+#include "misc.h"
 #include "kernel.h"
 #include "image.h"
 #include "video.h"
 #include "font.h"
+#include "framebuffer.h"
 
 #define MAX_CODE_SIZE 16384 // byte
 #define MAX_MEM 200000 // KB
-#define MIN_DELTA 25 // ms
+#define MIN_DELTA 0 // ms
 #define MAX_DELTA 2000 // ms
 
 #define MAX_RUNAWAY_TIME 5 // sec
@@ -100,22 +102,6 @@ static node_t *nodes_by_path = NULL;
 static node_t root;
 static int inotify_fd;
 static double now;
-
-static void die(const char *fmt, ...) {
-    // va_list ap;
-    // va_start(ap, fmt);
-    // printf("CRITICAL ERROR: ");
-    // vprintf(fmt, ap);
-    // printf("\n");
-    // va_end(ap);
-    exit(1);
-}
-
-static void *xmalloc(size_t size) {
-    void *ptr = calloc(1, size);
-    if (!ptr) die("cannot malloc");
-    return ptr;
-}
 
 /*======= Lua Sandboxing =======*/
 
@@ -261,7 +247,7 @@ static void node_render_self(node_t *node, int width, int height) {
     lua_node_enter(node, 3);
 }
 
-static int node_render_in_state(lua_State *L, node_t *node) {
+static int node_render_to_image(lua_State *L, node_t *node) {
     /* Neuen Framebuffer und zugehoerige Texture anlegen.
      * Dort wird dann das Child reingerendert. Das Ergebnis
      * ist ein Image. 
@@ -280,24 +266,15 @@ static int node_render_in_state(lua_State *L, node_t *node) {
         return 0;
     }
 
+
     print_render_state();
     int prev_fbo, fbo, tex;
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_fbo);
 
-    glGenFramebuffers(1, &fbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    make_framebuffer(node->width, node->height, &tex, &fbo);
+    fprintf(stderr, "TEXTURE ALLOC: %d %d\n", tex, fbo);
+    print_render_state();
 
-    glGenTextures(1, &tex);
-    glBindTexture(GL_TEXTURE_2D, tex);
-    // fprintf(stderr, "%d %d\n", fbo, tex);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, node->width, node->height, 0, GL_RGBA, GL_INT, NULL);
-
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
-    assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
     glBindTexture(GL_TEXTURE_2D, 0);
 
     /* Render into new Texture */
@@ -335,7 +312,7 @@ static int node_render_in_state(lua_State *L, node_t *node) {
 
 static int luaRenderSelf(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
-    return node_render_in_state(L, node);
+    return node_render_to_image(L, node);
 }
 
 static int luaRenderChild(lua_State *L) {
@@ -346,7 +323,7 @@ static int luaRenderChild(lua_State *L) {
     HASH_FIND(by_name, node->childs, name, strlen(name), child);
     if (!child)
         luaL_error(L, "child not found");
-    return node_render_in_state(L, child);
+    return node_render_to_image(L, child);
 }
 
 static int luaSendChild(lua_State *L) {
