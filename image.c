@@ -363,7 +363,8 @@ int image_create(lua_State *L, int tex, int fbo, int width, int height) {
 }
 
 int image_load(lua_State *L, const char *path, const char *name) {
-    int tex, width, height;
+    int width, height;
+    int tex = 0;
 
     char *pos = strstr(name, ".png");
     if (pos && pos == name + strlen(name) - 4) {

@@ -38,7 +38,6 @@
 
 #define MAX_CODE_SIZE 16384 // byte
 #define MAX_MEM 200000 // KB
-#define MIN_DELTA 0 // ms
 #define MAX_DELTA 2000 // ms
 
 #define MAX_RUNAWAY_TIME 5 // sec
@@ -47,7 +46,7 @@
 #define UDP_HOST "0.0.0.0"
 #define UDP_PORT 4444
 
-#if 0
+#ifdef DEBUG_OPENGL
 #define print_render_state() \
     {\
         int pd, md, fb, tex;\
@@ -248,24 +247,10 @@ static void node_render_self(node_t *node, int width, int height) {
 }
 
 static int node_render_to_image(lua_State *L, node_t *node) {
-    /* Neuen Framebuffer und zugehoerige Texture anlegen.
-     * Dort wird dann das Child reingerendert. Das Ergebnis
-     * ist ein Image. 
-     *
-     * Von der Performance duerfte das nicht gerade super sein,
-     * da bei folgendem Code
-     *
-     *   gfx.render_child("child"):draw(10, 10, 300, 400)
-     *
-     * ein Framebuffer, eine Texture angelegt, einmalig verwendet
-     * und dann wieder (durch lua gesteuert) geloescht werden.
-     * Aber nunja...
-     */
     if (!node->width) {
         luaL_error(L, "child not initialized with player.setup()");
         return 0;
     }
-
 
     print_render_state();
     int prev_fbo;
@@ -276,6 +261,10 @@ static int node_render_to_image(lua_State *L, node_t *node) {
     print_render_state();
 
     glBindTexture(GL_TEXTURE_2D, 0);
+
+    // Clear with transparent color
+    glClearColor(1, 1, 1, 0);
+    glClear(GL_COLOR_BUFFER_BIT);
 
     /* Render into new Texture */
     print_render_state();
@@ -306,7 +295,6 @@ static int node_render_to_image(lua_State *L, node_t *node) {
     glPopAttrib();
 
     print_render_state();
-
     return image_create(L, tex, fbo, node->width, node->height);
 }
 
@@ -427,7 +415,7 @@ static void node_tree_print(node_t *node, int depth) {
 }
 
 static void node_tree_gc(node_t *node) {
-    lua_gc(node->L, LUA_GCCOLLECT, 0);
+    lua_gc(node->L, LUA_GCSTEP, 10);
     node_t *child, *tmp; HASH_ITER(by_name, node->childs, child, tmp) {
         node_tree_gc(child);
     };
@@ -746,7 +734,7 @@ static void open_udp(struct event *event) {
         die("event_add failed");
 }
 
-#ifndef DEBUG_PERFORMANCE
+#ifdef DEBUG_PERFORMANCE
 #define test(point) \
     do {\
         double next = glfwGetTime();\
@@ -862,10 +850,6 @@ int main(int argc, char *argv[]) {
     while (1) {
         now = glfwGetTime();
         int delta = (now - last) * 1000;
-        if (delta < MIN_DELTA) {
-            glfwSleep((MIN_DELTA-delta)/1000.0);
-            continue;
-        }
         last = now;
         if (delta > MAX_DELTA)
             continue;

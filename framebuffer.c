@@ -8,7 +8,7 @@
 #include "utlist.h"
 #include "misc.h"
 
-#define MAX_CACHED 20
+#define MAX_CACHED 30
 
 typedef struct framebuffer {
     unsigned int fbo;
@@ -76,7 +76,7 @@ void recycle_framebuffer(int width, int height, unsigned int tex, unsigned int f
     // fprintf(stderr, "added recyleable framebuffer %dx%d %d %d\n", framebuffer->width, framebuffer->height, 
     //     framebuffer->tex, framebuffer->fbo);
 
-    DL_PREPEND(framebuffers, framebuffer);
+    DL_APPEND(framebuffers, framebuffer);
     num_framebuffers++;
 
     if (num_framebuffers > MAX_CACHED) {

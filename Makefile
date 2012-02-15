@@ -1,7 +1,10 @@
-# CFLAGS=-I/usr/include/lua5.1 -I/usr/include/freetype2/ -O0 -ggdb
-# LDFLAGS=-llua5.1 -levent -lglfw -lGLEW -lGLU -lpng -ljpeg -lftgl
-#
-CFLAGS=-I/usr/include/lua5.1 -I/usr/include/freetype2/ -ggdb -std=c99 -Wall -Wno-deprecated-declarations -Wno-unused-function
+ifdef DEBUG
+CFLAGS ?= -ggdb 
+else
+CFLAGS ?= -O3
+endif
+
+CFLAGS +=-I/usr/include/lua5.1 -I/usr/include/freetype2/ -std=c99 -Wall -Wno-deprecated-declarations -Wno-unused-function -Wno-unused-variable
 LDFLAGS=-llua5.1 -levent -lglfw -lGLEW -lftgl -lpng -ljpeg -lavformat -lavcodec -lavutil -lswscale -lz -lbz2
 
 all: gpn-info
