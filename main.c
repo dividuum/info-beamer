@@ -45,8 +45,8 @@
 #define MAX_RUNAWAY_TIME 1 // sec
 #define MAX_PCALL_TIME  100000 // usec
 
-#define UDP_HOST "0.0.0.0"
-#define UDP_PORT 4444
+#define HOST "0.0.0.0"
+#define PORT 4444
 
 #ifdef DEBUG_OPENGL
 #define print_render_state() \
@@ -73,7 +73,7 @@
     printf("\n");\
 } while(0)
 
-struct node_s {
+typedef struct node_s {
     int wd; // inotify watch descriptor
 
     const char *name; // local node name
@@ -93,17 +93,32 @@ struct node_s {
 
     void *mem;
     tlsf_pool pool;
-};
 
-typedef struct node_s node_t;
+    struct client_s *client;
+} node_t;
 
 static node_t *nodes_by_wd = NULL;
 static node_t *nodes_by_path = NULL;
-
 static node_t root;
+
+typedef struct client_s {
+    int fd;
+    node_t *node;
+    struct bufferevent *buf_ev;
+} client_t;
+
 static int inotify_fd;
 static double now;
 static int running = 1;
+
+
+/*=== Forward declarations =====*/
+
+static void client_write(client_t *client, const char *data, size_t data_size);
+static void client_close(client_t *client);
+static void node_printf(node_t *node, const char *fmt, ...);
+static void node_init(node_t *node, node_t *parent, const char *path, const char *name);
+static void node_free(node_t *node);
 
 /*======= Lua Sandboxing =======*/
 
@@ -199,13 +214,13 @@ static void lua_node_enter(node_t *node, int args) {
             return;
         // Fehler beim Ausfuehren
         case LUA_ERRRUN:
-            fprintf(stderr, "runtime error: %s\n", lua_safe_error_message(L));
+            node_printf(node, "runtime error: %s\n", lua_safe_error_message(L));
             break;
         case LUA_ERRMEM:
-            fprintf(stderr, "memory error: %s\n", lua_safe_error_message(L));
+            node_printf(node, "memory error: %s\n", lua_safe_error_message(L));
             break;
         case LUA_ERRERR:
-            fprintf(stderr, "error handling error: %s\n", lua_safe_error_message(L));
+            node_printf(node, "error handling error: %s\n", lua_safe_error_message(L));
             break;
         default:
             die("wtf?");
@@ -406,6 +421,28 @@ static int luaLoadFile(lua_State *L) {
     return 1;
 }
 
+static int luaPrint(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    luaL_Buffer b;
+    luaL_buffinit(L, &b);
+    int n = lua_gettop(L);
+    lua_getglobal(L, "tostring");
+    for (int i = 1; i <= n; i++) {
+        lua_pushvalue(L, n + 1); 
+        lua_pushvalue(L, i);
+        lua_call(L, 1, 1);
+        if (!lua_isstring(L, -1))
+            return luaL_error(L, "tostring must return a string to print");
+        if (i > 1)
+            luaL_addchar(&b, '\t');
+        luaL_addvalue(&b);
+    }
+    luaL_addchar(&b, '\n');
+    luaL_pushresult(&b);
+    node_printf(node, "%s", lua_tostring(L, -1));
+    return 0;
+}
+
 static int luaClear(lua_State *L) {
     GLdouble r = luaL_checknumber(L, 1);
     GLdouble g = luaL_checknumber(L, 2);
@@ -421,14 +458,22 @@ static int luaNow(lua_State *L) {
     return 1;
 }
 
-static void node_init(node_t *node, node_t *parent, const char *path, const char *name);
-static void node_free(node_t *node);
-
 #define lua_register_node_func(node,name,func) \
     (lua_pushliteral((node)->L, name), \
      lua_pushlightuserdata((node)->L, node), \
      lua_pushcclosure((node)->L, func, 1), \
      lua_settable((node)->L, LUA_GLOBALSINDEX))
+
+static void node_printf(node_t *node, const char *fmt, ...) {
+    char buffer[4096];
+    va_list ap;
+    va_start(ap, fmt);
+    size_t buffer_size = vsnprintf(buffer, 4096, fmt, ap);
+    va_end(ap);
+    fprintf(stderr, "%s: %s", node->path, buffer);
+    if (node->client) 
+        client_write(node->client, buffer, buffer_size);
+}
 
 static void node_tree_print(node_t *node, int depth) {
     fprintf(stderr, "%4d %*s'- %s (%d)\n", lua_gc(node->L, LUA_GCCOUNT, 0), 
@@ -579,6 +624,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "load_video", luaLoadVideo);
     lua_register_node_func(node, "load_font", luaLoadFont);
     lua_register_node_func(node, "load_file", luaLoadFile);
+    lua_register_node_func(node, "print", luaPrint);
     lua_register(node->L, "clear", luaClear);
     lua_register(node->L, "now", luaNow);
 
@@ -604,6 +650,8 @@ static void node_free(node_t *node) {
     free((void*)node->name);
     tlsf_destroy(node->pool);
     free(node->mem);
+    if (node->client)
+        client_close(node->client);
     // inotify_rm_watch(inotify_fd, node->wd));
     lua_close(node->L);
 }
@@ -701,6 +749,28 @@ static void GLFWCALL keypressed(int key, int action) {
     }
 }
 
+int create_socket(int type) {
+    int one = 1;
+    struct sockaddr_in sin;
+    int fd = socket(AF_INET, type, 0);
+ 
+    if (fd < 0)
+        die("socket");
+ 
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(int)) < 0)
+        die("setsockopt reuse");
+ 
+    memset(&sin, 0, sizeof(sin));
+    sin.sin_family = AF_INET;
+    sin.sin_addr.s_addr = inet_addr(HOST);
+    sin.sin_port = htons(PORT);
+ 
+    if (bind(fd, (struct sockaddr *)&sin, sizeof(struct sockaddr)) < 0)
+        die("bind");
+    
+    return fd;
+}
+
 /*===== UDP (osc) Handling ========*/
 
 static void udp_read(int fd, short event, void *arg) {
@@ -767,28 +837,111 @@ static void udp_read(int fd, short event, void *arg) {
 }
 
 static void open_udp(struct event *event) {
-    int sock_fd;
-    int one = 1;
-    struct sockaddr_in sin;
- 
-    if ((sock_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
-        die("socket");
- 
-    if (setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(int)) < 0)
-        die("setsockopt reuse");
- 
-    memset(&sin, 0, sizeof(sin));
-    sin.sin_family = AF_INET;
-    sin.sin_addr.s_addr = inet_addr(UDP_HOST);
-    sin.sin_port = htons(UDP_PORT);
- 
-    if (bind(sock_fd, (struct sockaddr *)&sin, sizeof(struct sockaddr)) < 0)
-        die("bind");
- 
-    event_set(event, sock_fd, EV_READ | EV_PERSIST, &udp_read, NULL);
+    int fd = create_socket(SOCK_DGRAM); 
+    event_set(event, fd, EV_READ | EV_PERSIST, &udp_read, NULL);
     if (event_add(event, NULL) == -1)
         die("event_add failed");
 }
+
+/*===== TCP Handler ========*/
+
+static void setnonblock(int fd) {
+    fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
+}
+
+static void client_write(client_t *client, const char *data, size_t data_size) {
+    bufferevent_write(client->buf_ev, data, data_size);
+}
+
+static void client_close(client_t *client) {
+    if (client->node) {
+        client->node->client = NULL;
+        client->node = NULL;
+    }
+    bufferevent_free(client->buf_ev);
+    close(client->fd);
+    free(client);
+}
+
+static void client_read(struct bufferevent *bev, void *arg) {
+    client_t *client = arg;
+
+    char *line = evbuffer_readline(bev->input);
+    if (!line)
+        return;
+
+    if (!client->node) {
+        node_t *node;
+        HASH_FIND(by_path, nodes_by_path, line, strlen(line), node);
+        if (!node) {
+            client_write(client, "404\n", 4);
+            goto done;
+        }
+        if (node->client) {
+            client_write(node->client, "go!\n", 4);
+            client_close(node->client);
+        }
+        node->client = client;
+        client->node = node;
+        client_write(client, "ok!\n", 4);
+    } 
+done:
+    free(line);
+}
+
+static void client_error(struct bufferevent *bev, short what, void *arg) {
+    client_t *client = arg;
+    client_close(client);
+}
+
+static void client_create(int fd) {
+    client_t *client = xmalloc(sizeof(client_t));
+    client->fd = fd;
+    client->buf_ev = bufferevent_new(
+        fd,
+        client_read,
+        NULL,
+        client_error,
+        client);
+    bufferevent_enable(client->buf_ev, EV_READ);
+}
+
+static void accept_callback(int fd, short ev, void *arg) {
+    int client_fd;
+    struct sockaddr_in client_addr;
+    socklen_t client_len = sizeof(client_addr);
+
+    client_fd = accept(fd,
+            (struct sockaddr *)&client_addr,
+            &client_len);
+    if (client_fd < 0) {
+        fprintf(stderr, "accept() failed\n");
+        return;
+    }
+
+    setnonblock(client_fd);
+    client_create(client_fd);
+}
+
+static void open_tcp(struct event *event) {
+    int fd = create_socket(SOCK_STREAM);
+
+    if (listen(fd, 5) < 0)
+        die("cannot listen");
+
+    setnonblock(fd);
+
+    struct event accept_event;
+    event_set(&accept_event,
+            fd,
+            EV_READ | EV_PERSIST,
+            accept_callback,
+            NULL);
+
+    if (event_add(&accept_event, NULL) == -1)
+        die("event_add failed");
+}
+
 
 #ifdef DEBUG_PERFORMANCE
 #define test(point) \
@@ -880,6 +1033,9 @@ int main(int argc, char *argv[]) {
 
     struct event udp_event;
     open_udp(&udp_event);
+
+    struct event tcp_event;
+    open_tcp(&tcp_event);
 
     glfwInit();
     glfwOpenWindowHint(GLFW_FSAA_SAMPLES, 4);
