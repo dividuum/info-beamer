@@ -76,6 +76,7 @@ function init_sandbox()
         unpack = unpack;
         xpcall = xpcall;
         setmetatable = setmetatable;
+        struct = struct;
 
         coroutine = {
             create = coroutine.create;
@@ -184,12 +185,50 @@ function init_sandbox()
 
             end;
 
+            on_raw_data = function(data, is_osc)
+                -- print(PATH, "on_data", is_osc)
+                if is_osc then
+                    if string.byte(data, 1, 1) ~= 44 then
+                        print("no osc type tag string")
+                        return
+                    end
+                    local typetags, offset = struct.unpack(">!4s", data)
+                    local tags = {string.byte(typetags, 1, offset)}
+                    local fmt = ">!4"
+                    for idx, tag in ipairs(tags) do
+                        if tag == 44 then -- ,
+                            fmt = fmt .. "s"
+                        elseif tag == 105 then -- i
+                            fmt = fmt .. "i4"
+                        elseif tag == 102 then -- f
+                            fmt = fmt .. "f"
+                        elseif tag == 98 then -- b
+                            print("no blob support")
+                            return
+                        else
+                            print("unknown type tag " .. string.char(tag))
+                            return
+                        end
+                    end
+                    local unpacked = {struct.unpack(fmt, data)}
+                    table.remove(unpacked, 1) -- remove typetags
+                    table.remove(unpacked, #unpacked) -- remove trailing offset
+                    return sandbox.news.on_osc(unpack(unpacked))
+                else
+                    return sandbox.news.on_data(data)
+                end
+            end;
+
             on_data = function(data)
-                print(data)
+                print(PATH, "on_data")
+            end;
+
+            on_osc = function(...)
+                print(PATH, "on_osc", ...)
             end;
 
             on_msg = function(data)
-                print(data)
+                print(PATH, "on_msg")
             end;
         };
 

@@ -35,6 +35,7 @@
 #include "video.h"
 #include "font.h"
 #include "framebuffer.h"
+#include "struct.h"
 
 #define MAX_CODE_SIZE 16384 // byte
 #define MAX_MEM 200000 // KB
@@ -539,6 +540,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     image_register(node->L);
     video_register(node->L);
     font_register(node->L);
+    luaopen_struct(node->L);
 
    if (luaL_loadbuffer(node->L, kernel, kernel_size, "<kernel>") != 0)
        die("kernel load");
@@ -687,16 +689,43 @@ static void udp_read(int fd, short event, void *arg) {
     if (len == -1) {
         die("recvfrom");
     } else {
-        char *sep = memchr(buf, ':', len);
+        assert(len > 0);
+        // own format:  <path>:<payload>
+        int is_osc = 0;
+        char payload_separator = ':';
+        int initial_offset = 0;
+
+        // If data starts with /, assume it's osc
+        // format: /<path>0x00<payload>
+        if (*buf == '/') {
+            is_osc = 1;
+            payload_separator = '\0';
+            initial_offset = 1;
+        };
+
+        char *sep = memchr(buf, payload_separator, len);
         if (!sep) {
             sendto(fd, "fmt\n", 4, 0, (struct sockaddr *)&client_addr, size);
             return;
         }
+
+        // Terminate by NUL
         *sep = '\0';
-        char *path = buf;
+
+        char *path = buf + initial_offset;
         char *data = sep + 1;
-        int data_len = len - (data - path);
-        fprintf(stderr, "%s -> %*s (%d)\n", path, data_len, data, data_len);
+        if (is_osc) {
+            // round up to next multiple of 4
+            data += 3 - (data - buf - 1) % 4;
+        }
+
+        int data_len = buf + len - data;
+        if (data_len < 0) {
+            sendto(fd, "wtf\n", 4, 0, (struct sockaddr *)&client_addr, size);
+            return;
+        }
+
+        // fprintf(stderr, "%s -> %*s (%d)\n", path, data_len, data, data_len);
         
         node_t *node;
         HASH_FIND(by_path, nodes_by_path, path, strlen(path), node);
@@ -706,7 +735,8 @@ static void udp_read(int fd, short event, void *arg) {
         }
 
         lua_pushlstring(node->L, data, data_len);
-        node_callback(node, "on_data", 1);
+        lua_pushboolean(node->L, is_osc);
+        node_callback(node, "on_raw_data", 2);
     }
 }
 
@@ -753,8 +783,8 @@ static void print_free_video_mem() {
     
 static void tick() {
     double now = glfwGetTime();
-    static int loop = 1;
-    fprintf(stdout, "%d", loop++);
+    // static int loop = 1;
+    // fprintf(stdout, "%d", loop++);
 
     check_inotify();
     test("inotify");
@@ -801,8 +831,8 @@ static void tick() {
     test("gc");
 
     test("complete");
-    fprintf(stdout, "\n");
-    //node_tree_print(&root, 0);
+    // fprintf(stdout, "\n");
+    // node_tree_print(&root, 0);
 }
 
 int main(int argc, char *argv[]) {
