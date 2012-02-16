@@ -1,9 +1,13 @@
+VERSION="rev-$(shell git rev-parse --short=6 HEAD)"
+
+
 ifdef DEBUG
-CFLAGS ?= -ggdb 
+CFLAGS ?= -ggdb -DDEBUG
 else
 CFLAGS ?= -O3
 endif
 
+CFLAGS += -DVERSION='$(VERSION)'
 CFLAGS +=-I/usr/include/lua5.1 -I/usr/include/freetype2/ -std=c99 -Wall -Wno-deprecated-declarations -Wno-unused-function -Wno-unused-variable
 LDFLAGS=-llua5.1 -levent -lglfw -lGLEW -lftgl -lpng -ljpeg -lavformat -lavcodec -lavutil -lswscale -lz -lbz2
 

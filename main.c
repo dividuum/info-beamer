@@ -28,6 +28,7 @@
 #include <lauxlib.h>
 
 #include "uthash.h"
+#include "utlist.h"
 #include "tlsf.h"
 #include "misc.h"
 #include "kernel.h"
@@ -37,13 +38,20 @@
 #include "framebuffer.h"
 #include "struct.h"
 
+#define VERSION_STRING "GPN-INFO " VERSION
+
 #define MAX_CODE_SIZE 16384 // byte
 #define MAX_LOADFILE_SIZE 16384 // byte
 #define MAX_MEM 200000 // KB
 #define MAX_DELTA 2000 // ms
 
+#ifdef DEBUG
+#define MAX_RUNAWAY_TIME 10 // sec
+#define MAX_PCALL_TIME  100000000 // usec
+#else
 #define MAX_RUNAWAY_TIME 1 // sec
 #define MAX_PCALL_TIME  100000 // usec
+#endif
 
 #define HOST "0.0.0.0"
 #define PORT 4444
@@ -94,7 +102,7 @@ typedef struct node_s {
     void *mem;
     tlsf_pool pool;
 
-    struct client_s *client;
+    struct client_s *clients;
 } node_t;
 
 static node_t *nodes_by_wd = NULL;
@@ -105,6 +113,9 @@ typedef struct client_s {
     int fd;
     node_t *node;
     struct bufferevent *buf_ev;
+
+    struct client_s *next;
+    struct client_s *prev;
 } client_t;
 
 static int inotify_fd;
@@ -366,7 +377,8 @@ static int luaListChilds(lua_State *L) {
     int num_childs = HASH_CNT(by_name, node->childs);
     if (!lua_checkstack(L, num_childs))
         luaL_error(L, "too many childs");
-    node_t *child, *tmp; HASH_ITER(by_name, node->childs, child, tmp) {
+    node_t *child, *tmp; 
+    HASH_ITER(by_name, node->childs, child, tmp) {
         lua_pushstring(L, child->name);
     }
     return num_childs;
@@ -471,21 +483,25 @@ static void node_printf(node_t *node, const char *fmt, ...) {
     size_t buffer_size = vsnprintf(buffer, 4096, fmt, ap);
     va_end(ap);
     fprintf(stderr, "%s: %s", node->path, buffer);
-    if (node->client) 
-        client_write(node->client, buffer, buffer_size);
+    client_t *client;
+    DL_FOREACH(node->clients, client) {
+        client_write(client, buffer, buffer_size);
+    }
 }
 
 static void node_tree_print(node_t *node, int depth) {
-    fprintf(stderr, "%4d %*s'- %s (%d)\n", lua_gc(node->L, LUA_GCCOUNT, 0), 
-        depth*2, "", node->name, HASH_CNT(by_name, node->childs));
-    node_t *child, *tmp; HASH_ITER(by_name, node->childs, child, tmp) {
+    fprintf(stderr, "%4d %*s'- %s (%d) %p\n", lua_gc(node->L, LUA_GCCOUNT, 0), 
+        depth*2, "", node->name, HASH_CNT(by_name, node->childs), node->clients);
+    node_t *child, *tmp; 
+    HASH_ITER(by_name, node->childs, child, tmp) {
         node_tree_print(child, depth+1);
     };
 }
 
 static void node_tree_gc(node_t *node) {
     lua_gc(node->L, LUA_GCSTEP, 10);
-    node_t *child, *tmp; HASH_ITER(by_name, node->childs, child, tmp) {
+    node_t *child, *tmp; 
+    HASH_ITER(by_name, node->childs, child, tmp) {
         node_tree_gc(child);
     };
 }
@@ -641,19 +657,26 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
 
 static void node_free(node_t *node) {
     fprintf(stderr, "<<< node del %s in %s\n", node->name, node->path);
-    node_t *child, *tmp; HASH_ITER(by_name, node->childs, child, tmp) {
+    node_t *child, *tmp; 
+    HASH_ITER(by_name, node->childs, child, tmp) {
         node_remove_child(node, child);
     }
     HASH_DELETE(by_wd, nodes_by_wd, node);
     HASH_DELETE(by_path, nodes_by_path, node);
     free((void*)node->path);
     free((void*)node->name);
-    tlsf_destroy(node->pool);
-    free(node->mem);
-    if (node->client)
-        client_close(node->client);
+
+    client_t *client, *tmp_client;
+    DL_FOREACH_SAFE(node->clients, client, tmp_client) {
+        client_close(client);
+    }
+    assert(node->clients == NULL);
+
     // inotify_rm_watch(inotify_fd, node->wd));
     lua_close(node->L);
+
+    tlsf_destroy(node->pool);
+    free(node->mem);
 }
 
 /*======= inotify ==========*/
@@ -855,7 +878,8 @@ static void client_write(client_t *client, const char *data, size_t data_size) {
 
 static void client_close(client_t *client) {
     if (client->node) {
-        client->node->client = NULL;
+        // Unlink client & node
+        DL_DELETE(client->node->clients, client);
         client->node = NULL;
     }
     bufferevent_free(client->buf_ev);
@@ -877,12 +901,11 @@ static void client_read(struct bufferevent *bev, void *arg) {
             client_write(client, "404\n", 4);
             goto done;
         }
-        if (node->client) {
-            client_write(node->client, "go!\n", 4);
-            client_close(node->client);
-        }
-        node->client = client;
+
+        // Link client & node
+        DL_APPEND(node->clients, client);
         client->node = node;
+
         client_write(client, "ok!\n", 4);
     } 
 done:
@@ -904,6 +927,9 @@ static void client_create(int fd) {
         client_error,
         client);
     bufferevent_enable(client->buf_ev, EV_READ);
+    client_write(client, "Welcome to ", 11);
+    client_write(client, VERSION_STRING, strlen(VERSION_STRING));
+    client_write(client, ". Select your channel!\n", 23);
 }
 
 static void accept_callback(int fd, short ev, void *arg) {
@@ -1015,6 +1041,13 @@ static void tick() {
         running = 0;
 }
 
+static void update_now() {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    now = tv.tv_sec;
+    now += 1.0 / 1000000 * tv.tv_usec;
+}
+
 int main(int argc, char *argv[]) {
     if (argc != 2)
         die("%s <root_name>", argv[0]);
@@ -1057,15 +1090,12 @@ int main(int argc, char *argv[]) {
 
     signal(SIGVTALRM, deadline_signal);
 
+    update_now();
     node_init(&root, NULL, argv[1], argv[1]);
 
     double last = glfwGetTime();
     while (running) {
-        now = glfwGetTime();
-        int delta = (now - last) * 1000;
-        last = now;
-        if (delta > MAX_DELTA)
-            continue;
+        update_now();
         tick();
     }
 
