@@ -38,11 +38,12 @@
 #include "struct.h"
 
 #define MAX_CODE_SIZE 16384 // byte
+#define MAX_LOADFILE_SIZE 16384 // byte
 #define MAX_MEM 200000 // KB
 #define MAX_DELTA 2000 // ms
 
-#define MAX_RUNAWAY_TIME 5 // sec
-#define MAX_PCALL_TIME  20000000 // usec
+#define MAX_RUNAWAY_TIME 1 // sec
+#define MAX_PCALL_TIME  100000 // usec
 
 #define UDP_HOST "0.0.0.0"
 #define UDP_PORT 4444
@@ -102,6 +103,7 @@ static node_t *nodes_by_path = NULL;
 static node_t root;
 static int inotify_fd;
 static double now;
+static int running = 1;
 
 /*======= Lua Sandboxing =======*/
 
@@ -284,6 +286,8 @@ static int node_render_to_image(lua_State *L, node_t *node) {
     glLoadIdentity();
     glPushMatrix();
 
+    // glRotatef(glfwGetTime()*30, 0, 0, 1);
+
     node_callback(node, "on_render", 0);
 
     glMatrixMode(GL_PROJECTION);
@@ -381,6 +385,25 @@ static int luaLoadFont(lua_State *L) {
     char path[PATH_MAX];
     snprintf(path, sizeof(path), "%s/%s", node->path, name);
     return font_new(L, path, name);
+}
+
+static int luaLoadFile(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    const char *name = luaL_checkstring(L, 1);
+    if (index(name, '/'))
+        luaL_error(L, "invalid resource name");
+    char path[PATH_MAX];
+    snprintf(path, sizeof(path), "%s/%s", node->path, name);
+
+    char data[MAX_LOADFILE_SIZE];
+    int fd = open(path, O_RDONLY);
+    if (fd == -1)
+        return luaL_error(L, "cannot open file");
+
+    size_t data_size = read(fd, data, sizeof(data));
+    close(fd);
+    lua_pushlstring(L, data, data_size);
+    return 1;
 }
 
 static int luaClear(lua_State *L) {
@@ -555,6 +578,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "load_image", luaLoadImage);
     lua_register_node_func(node, "load_video", luaLoadVideo);
     lua_register_node_func(node, "load_font", luaLoadFont);
+    lua_register_node_func(node, "load_file", luaLoadFile);
     lua_register(node->L, "clear", luaClear);
     lua_register(node->L, "now", luaNow);
 
@@ -671,11 +695,13 @@ static void GLFWCALL keypressed(int key, int action) {
     if (action == GLFW_PRESS) {
         switch (key) {
             case GLFW_KEY_ESC:
-                die("exit!");
+                running = 0;
                 break;
         }
     }
 }
+
+/*===== UDP (osc) Handling ========*/
 
 static void udp_read(int fd, short event, void *arg) {
     char buf[1500];
@@ -820,8 +846,6 @@ static void tick() {
     test("render");
 
     glfwSwapBuffers();
-    if (!glfwGetWindowParam(GLFW_OPENED))
-        die("window closed");
     test("swap buffer");
 
     glfwPollEvents();
@@ -833,6 +857,9 @@ static void tick() {
     test("complete");
     // fprintf(stdout, "\n");
     // node_tree_print(&root, 0);
+
+    if (!glfwGetWindowParam(GLFW_OPENED))
+        running = 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -877,7 +904,7 @@ int main(int argc, char *argv[]) {
     node_init(&root, NULL, argv[1], argv[1]);
 
     double last = glfwGetTime();
-    while (1) {
+    while (running) {
         now = glfwGetTime();
         int delta = (now - last) * 1000;
         last = now;
@@ -885,5 +912,7 @@ int main(int argc, char *argv[]) {
             continue;
         tick();
     }
+
+    // no cleanup :-}
     return 0;
 }

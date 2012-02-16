@@ -163,6 +163,7 @@ function init_sandbox()
             load_image = load_image;
             load_video = load_video;
             load_font = load_font;
+            load_file = load_file;
         };
 
         sys = {
