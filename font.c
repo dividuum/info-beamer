@@ -73,30 +73,14 @@ static int font_write(lua_State *L) {
     GLfloat a = luaL_checknumber(L, 9);
 
     glDisable(GL_TEXTURE_2D);
-    // glEnable(GL_LIGHTING);
-
-    // float ambient[4]  = { 1, 1, 1, 1};
-    // float diffuse[4]  = { 1.0f, 0.9f, 0.9f, 1.0f };
-    // float specular[4] = { 1.0f, 0.7f, 0.7f, 1.0f };
-    // float position[4] = { 100.0f, 100.0f, 0.0f, 10.0f };
-    // float front_ambient[4]  = { 0.7f, 0.7f, 0.7f, 0.0f };
-    // glLightfv(GL_LIGHT1, GL_AMBIENT,  ambient);
-    // glLightfv(GL_LIGHT1, GL_DIFFUSE,  diffuse);
-    // glLightfv(GL_LIGHT1, GL_SPECULAR, specular);
-    // glLightfv(GL_LIGHT1, GL_POSITION, position);
-    // glEnable(GL_LIGHT1);
 
     glPushMatrix();
-        // glMaterialfv(GL_FRONT, GL_AMBIENT, front_ambient);
-        // glColorMaterial(GL_FRONT, GL_DIFFUSE);
         glTranslatef(x, y, 0);
-        // glRotatef(t*10, 0, 0.0f, 1.0f);
         glTranslatef(0, size * 800, 0);
         glScalef(size, -size, 1.0);
         glColor4f(r, g, b, a);
         ftglRenderFont(font->font, text, FTGL_RENDER_ALL);
     glPopMatrix();
-    // glDisable(GL_LIGHTING);
 
     glEnable(GL_TEXTURE_2D);
 
@@ -112,7 +96,7 @@ static const luaL_reg font_methods[] = {
 static int font_gc(lua_State *L) {
     font_t *font = to_font(L, 1);
     ftglDestroyFont(font->font);
-    fprintf(stderr, "collecting font\n");
+    fprintf(stderr, "gc'ing font\n");
     return 0;
 }
 

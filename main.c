@@ -53,6 +53,8 @@
 #define MAX_PCALL_TIME  100000 // usec
 #endif
 
+#define MAX_GL_PUSH 20
+
 #define HOST "0.0.0.0"
 #define PORT 4444
 
@@ -81,6 +83,8 @@
     printf("\n");\
 } while(0)
 
+#define NO_GL_PUSHPOP -1
+
 typedef struct node_s {
     int wd; // inotify watch descriptor
 
@@ -98,6 +102,8 @@ typedef struct node_s {
 
     int width;
     int height;
+
+    int gl_matrix_depth;
 
     void *mem;
     tlsf_pool pool;
@@ -280,6 +286,7 @@ static int node_render_to_image(lua_State *L, node_t *node) {
         luaL_error(L, "child not initialized with player.setup()");
         return 0;
     }
+    // fprintf(stderr, "rendering %s\n", node->path);
 
     print_render_state();
     int prev_fbo;
@@ -295,10 +302,9 @@ static int node_render_to_image(lua_State *L, node_t *node) {
     glClearColor(1, 1, 1, 0);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    /* Render into new Texture */
-    print_render_state();
-
+    glPushClientAttrib(GL_CLIENT_ALL_ATTRIB_BITS);
     glPushAttrib(GL_ALL_ATTRIB_BITS);
+    glPushMatrix();
 
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
@@ -310,11 +316,14 @@ static int node_render_to_image(lua_State *L, node_t *node) {
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    glPushMatrix();
 
-    // glRotatef(glfwGetTime()*30, 0, 0, 1);
-
+    node->gl_matrix_depth = 0;
     node_callback(node, "on_render", 0);
+    while (node->gl_matrix_depth > 0) {
+        glPopMatrix();
+        node->gl_matrix_depth--;
+    }
+    node->gl_matrix_depth = NO_GL_PUSHPOP;
 
     glMatrixMode(GL_PROJECTION);
     glPopMatrix();
@@ -324,6 +333,7 @@ static int node_render_to_image(lua_State *L, node_t *node) {
     glBindFramebuffer(GL_FRAMEBUFFER, prev_fbo);
 
     glPopAttrib();
+    glPopClientAttrib();
 
     print_render_state();
     return image_create(L, tex, fbo, node->width, node->height);
@@ -452,6 +462,51 @@ static int luaPrint(lua_State *L) {
     luaL_addchar(&b, '\n');
     luaL_pushresult(&b);
     node_printf(node, "%s", lua_tostring(L, -1));
+    return 0;
+}
+
+static int luaGlPushMatrix(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    if (node->gl_matrix_depth == NO_GL_PUSHPOP)
+        return luaL_error(L, "only callable in on_render");
+    if (node->gl_matrix_depth > MAX_GL_PUSH)
+        return luaL_error(L, "Too may pushes");
+    glPushMatrix();
+    node->gl_matrix_depth++;
+    return 0;
+}
+
+static int luaGlPopMatrix(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    if (node->gl_matrix_depth == NO_GL_PUSHPOP)
+        return luaL_error(L, "only callable in on_render");
+    if (node->gl_matrix_depth == 0)
+        return luaL_error(L, "Nothing to pop");
+    glPopMatrix();
+    node->gl_matrix_depth--;
+    return 0;
+}
+
+static int luaGlRotate(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    if (node->gl_matrix_depth == NO_GL_PUSHPOP)
+        return luaL_error(L, "only callable in on_render");
+    double angle = luaL_checknumber(L, 1);
+    double x = luaL_checknumber(L, 2);
+    double y = luaL_checknumber(L, 3);
+    double z = luaL_checknumber(L, 4);
+    glRotated(angle, x, y, z);
+    return 0;
+}
+
+static int luaGlTranslate(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    if (node->gl_matrix_depth == NO_GL_PUSHPOP)
+        return luaL_error(L, "only callable in on_render");
+    double x = luaL_checknumber(L, 1);
+    double y = luaL_checknumber(L, 2);
+    double z = luaL_optnumber(L, 3, 0.0);
+    glTranslated(x, y, z);
     return 0;
 }
 
@@ -609,6 +664,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
 
     node->mem = malloc(MAX_MEM);
     node->pool = tlsf_create(node->mem, MAX_MEM);
+    node->gl_matrix_depth = NO_GL_PUSHPOP;
 
     // link by watch descriptor & path
     HASH_ADD(by_wd, nodes_by_wd, wd, sizeof(int), node);
@@ -641,6 +697,10 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "load_font", luaLoadFont);
     lua_register_node_func(node, "load_file", luaLoadFile);
     lua_register_node_func(node, "print", luaPrint);
+    lua_register_node_func(node, "glPushMatrix", luaGlPushMatrix);
+    lua_register_node_func(node, "glPopMatrix", luaGlPopMatrix);
+    lua_register_node_func(node, "glRotate", luaGlRotate);
+    lua_register_node_func(node, "glTranslate", luaGlTranslate);
     lua_register(node->L, "clear", luaClear);
     lua_register(node->L, "now", luaNow);
 

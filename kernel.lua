@@ -166,6 +166,13 @@ function init_sandbox()
             load_file = load_file;
         };
 
+        gl = {
+            pushMatrix = glPushMatrix;
+            popMatrix = glPopMatrix;
+            rotate = glRotate;
+            translate = glTranslate;
+        };
+
         sys = {
             now = now;
             list_childs = list_childs;
