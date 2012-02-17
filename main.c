@@ -721,7 +721,6 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
 
     node_initsandbox(node);
     node_recursive_search(node);
-    lua_gc(node->L, LUA_GCSTOP, 0);
 }
 
 static void node_free(node_t *node) {
@@ -801,7 +800,7 @@ static void check_inotify() {
                 node_update_content(node, path, event->name);
             } else if (event->mask & IN_DELETE_SELF) {
                 if (!node->parent)
-                    die("data deleted. cannot continue");
+                    die("root node deleted. cannot continue");
                 node_remove_child(node->parent, node);
             } else if (event->mask & IN_DELETE && !(event->mask & IN_ISDIR)) {
                 node_remove(node, event->name);
