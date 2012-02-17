@@ -32,7 +32,7 @@ end
 -- Sandboxing
 --=============
 
-function init_sandbox()
+function create_sandbox()
     local sandbox = {
         error = error;
         assert = assert;
@@ -226,6 +226,25 @@ function init_sandbox()
     return sandbox
 end
 
+function load_into_sandbox(code, chunkname)
+    setfenv(
+        assert(loadstring(code, chunkname)),
+        sandbox
+    )()
+end
+
+function reload(usercode_file)
+    sandbox = create_sandbox()
+
+    -- load userlib
+    load_into_sandbox(USERLIB, "<userlib>")
+
+    if usercode_file then
+        local node_code = load_file(usercode_file)
+        load_into_sandbox(node_code, "node: " .. PATH)
+    end
+end
+
 -- Einige Funktionen in der registry speichern, 
 -- so dass der C Teil dran kommt.
 do
@@ -234,12 +253,9 @@ do
     registry.traceback = debug.traceback
 
     registry.execute = function(cmd, ...)
-        if cmd == "code" then
-            local code, chunkname = ...
-            setfenv(
-                assert(loadstring(code, chunkname or ("node: " .. PATH))),
-                sandbox
-            )()
+        if cmd == "boot" then
+            print "booting node"
+            reload("node.lua")
         elseif cmd == "event" then
             setfenv(
                 function(event_name, ...)
@@ -247,8 +263,25 @@ do
                 end,
                 sandbox
             )(...)
-        elseif cmd == "init_sandbox" then
-            sandbox = init_sandbox()
+        elseif cmd == "update_content" then
+            local name, added = ...
+            if name == "node.lua" then
+                if added then
+                    print "updating node code"
+                    reload("node.lua")
+                else
+                    print "removing node code"
+                    reload()
+                end
+            else
+                if added then
+                    print("content updated: " .. name)
+                    sandbox.event.content_update(name)
+                else
+                    print("content removed: " .. name)
+                    sandbox.event.content_remove(name)
+                end
+            end
         elseif cmd == "render_self" then
             local screen_width, screen_height = ...
             local self = render_self()

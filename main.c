@@ -252,16 +252,18 @@ static void lua_node_enter(node_t *node, int args) {
 
 /*======= Node =======*/
 
-// runs code in sandbox
-static void node_code(node_t *node, const char *code, size_t code_size, const char *chunkname) {
-    lua_pushliteral(node->L, "code");
-    lua_pushlstring(node->L, code, code_size);
-    if (chunkname) {
-        lua_pushstring(node->L, chunkname);
-        lua_node_enter(node, 3);
-    } else {
-        lua_node_enter(node, 2);
-    }
+// reinit sandbox, load usercode and user code
+static void node_boot(node_t *node) {
+    lua_pushliteral(node->L, "boot");
+    lua_node_enter(node, 1);
+}
+
+// notify of content update 
+static void node_update_content(node_t *node, const char *name, int added) {
+    lua_pushliteral(node->L, "update_content");
+    lua_pushstring(node->L, name);
+    lua_pushboolean(node->L, added);
+    lua_node_enter(node, 3);
 }
 
 // event.<event_name>(args...)
@@ -271,14 +273,6 @@ static void node_event(node_t *node, const char *name, int args) {
     lua_insert(node->L, -2 - args);    // name [args] "event_name"
     lua_insert(node->L, -2 - args);    // "event_name" name [args]
     lua_node_enter(node, 2 + args);
-}
-
-// restart sandbox
-static void node_initsandbox(node_t *node) {
-    lua_pushliteral(node->L, "init_sandbox");
-    lua_node_enter(node, 1);
-    node->width = 0;
-    node->height = 0;
 }
 
 // render node
@@ -443,7 +437,7 @@ static int luaLoadFile(lua_State *L) {
     char data[MAX_LOADFILE_SIZE];
     int fd = open(path, O_RDONLY);
     if (fd == -1)
-        return luaL_error(L, "cannot open file");
+        return luaL_error(L, "cannot open file '%s'", path);
 
     size_t data_size = read(fd, data, sizeof(data));
     close(fd);
@@ -543,7 +537,7 @@ static void node_printf(node_t *node, const char *fmt, ...) {
     char buffer[4096];
     va_list ap;
     va_start(ap, fmt);
-    size_t buffer_size = vsnprintf(buffer, 4096, fmt, ap);
+    size_t buffer_size = vsnprintf(buffer, sizeof(buffer), fmt, ap);
     va_end(ap);
     fprintf(stderr, "%s: %s", node->path, buffer);
     client_t *client;
@@ -569,10 +563,11 @@ static void node_tree_gc(node_t *node) {
     };
 }
 
-static void node_add_child(node_t* node, const char *path, const char *name) {
+static node_t *node_add_child(node_t* node, const char *path, const char *name) {
     node_t *child = xmalloc(sizeof(node_t));
     node_init(child, node, path, name);
     HASH_ADD_KEYPTR(by_name, node->childs, child->name, strlen(child->name), child);
+    return child;
 }
 
 static void node_remove_child(node_t* node, node_t* child) {
@@ -587,73 +582,6 @@ static void node_remove_child_by_name(node_t* node, const char *name) {
     if (!child)
         die("child not found: %s", name);
     node_remove_child(node, child); 
-}
-
-static void node_update_content(node_t *node, const char *path, const char *name) {
-    fprintf(stderr, ">>> content add %s in %s\n", name, node->path);
-    if (strcmp(name, "node.lua") == 0) {
-        node_initsandbox(node);
-
-        char code[MAX_CODE_SIZE];
-        int fd = open(path, O_RDONLY);
-        if (fd == -1) {
-            fprintf(stderr, "cannot open file for reading: %s\n", path);
-            return;
-        }
-
-        size_t code_size = read(fd, code, sizeof(code));
-        close(fd);
-
-        node_code(node, userlib, userlib_size, "<userlib>");
-        node_code(node, code, code_size, NULL);
-    } else {
-        lua_pushstring(node->L, name);
-        node_event(node, "content_update", 1);
-    }
-}
-
-static void node_remove(node_t *node, const char *name) {
-    fprintf(stderr, "<<< content del %s in %s\n", name, node->path);
-    if (strcmp(name, "node.lua") == 0) {
-        node_initsandbox(node);
-    } else {
-        lua_pushstring(node->L, name);
-        node_event(node, "content_update", 1);
-    }
-}
-
-static void node_recursive_search(node_t *node) {
-    // search for existing node.lua
-    char path[PATH_MAX];
-    snprintf(path, sizeof(path), "%s/node.lua", node->path);
-
-    struct stat stat_buf;
-    if (stat(path, &stat_buf) != -1 && 
-            S_ISREG(stat_buf.st_mode)) {
-        node_update_content(node, path, "node.lua");
-    }
-
-    // recursivly add remaining files (except node.lua) and 
-    // directories
-    DIR *dp = opendir(node->path);
-    if (!dp)
-        die("cannot open directory");
-    struct dirent *ep;
-    while ((ep = readdir(dp))) {
-        if (ep->d_name[0] == '.') 
-            continue;
-
-        char path[PATH_MAX];
-        snprintf(path, sizeof(path), "%s/%s", node->path, ep->d_name);
-
-        if (ep->d_type == DT_DIR) {
-            node_add_child(node, path, ep->d_name);
-        } else if (ep->d_type == DT_REG &&
-                strcmp(ep->d_name, "node.lua") != 0) {
-            node_update_content(node, path, ep->d_name);
-        }
-    }
-    closedir(dp);
 }
 
 static void node_init(node_t *node, node_t *parent, const char *path, const char *name) {
@@ -673,6 +601,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
 
     node->mem = malloc(MAX_MEM);
     node->pool = tlsf_create(node->mem, MAX_MEM);
+
     node->gl_matrix_depth = NO_GL_PUSHPOP;
 
     // link by watch descriptor & path
@@ -719,8 +648,8 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_pushstring(node->L, name);
     lua_setglobal(node->L, "NAME");
 
-    node_initsandbox(node);
-    node_recursive_search(node);
+    lua_pushlstring(node->L, userlib, userlib_size);
+    lua_setglobal(node->L, "USERLIB");
 }
 
 static void node_free(node_t *node) {
@@ -745,6 +674,36 @@ static void node_free(node_t *node) {
 
     tlsf_destroy(node->pool);
     free(node->mem);
+}
+
+
+static void node_init_all(node_t *root, const char *base_path) {
+    void init_recursive(node_t *node, node_t *parent, const char *path) {
+        DIR *dp = opendir(node->path);
+        if (!dp)
+            die("cannot open directory %s", node->path);
+
+        struct dirent *ep;
+        while ((ep = readdir(dp))) {
+            if (ep->d_name[0] == '.') 
+                continue;
+
+            const char *child_name = ep->d_name;
+            char child_path[PATH_MAX];
+            snprintf(child_path, sizeof(child_path), "%s/%s", path, child_name);
+
+            if (ep->d_type == DT_DIR) {
+                node_t *child = node_add_child(node, child_path, child_name);
+                init_recursive(child, node, child_path);
+            }
+        }
+        closedir(dp);
+
+        node_boot(node);
+    }
+
+    node_init(root, NULL, base_path, base_path);
+    init_recursive(root, NULL, base_path);
 }
 
 /*======= inotify ==========*/
@@ -794,27 +753,30 @@ static void check_inotify() {
                     continue;
                 }
 
-                if (S_ISDIR(stat_buf.st_mode))
-                    node_add_child(node, path, event->name);
+                if (S_ISDIR(stat_buf.st_mode)) {
+                    node_t *child = node_add_child(node, path, event->name);
+                    node_boot(child);
+                }
             } else if (event->mask & IN_CLOSE_WRITE) {
-                node_update_content(node, path, event->name);
+                node_update_content(node, event->name, 1);
             } else if (event->mask & IN_DELETE_SELF) {
                 if (!node->parent)
                     die("root node deleted. cannot continue");
                 node_remove_child(node->parent, node);
             } else if (event->mask & IN_DELETE && !(event->mask & IN_ISDIR)) {
-                node_remove(node, event->name);
+                node_update_content(node, event->name, 0);
             } else if (event->mask & IN_MOVED_FROM) {
                 if (event->mask & IN_ISDIR) {
                     node_remove_child_by_name(node, event->name);
                 } else {
-                    node_remove(node, event->name);
+                    node_update_content(node, event->name, 0);
                 }
             } else if (event->mask & IN_MOVED_TO) {
                 if (event->mask & IN_ISDIR) {
-                    node_add_child(node, path, event->name);
+                    node_t *child = node_add_child(node, path, event->name);
+                    node_boot(child);
                 } else {
-                    node_update_content(node, path, event->name);
+                    node_update_content(node, event->name, 1);
                 }
             }
         }
@@ -1167,7 +1129,8 @@ int main(int argc, char *argv[]) {
     signal(SIGVTALRM, deadline_signal);
 
     update_now();
-    node_init(&root, NULL, argv[1], argv[1]);
+
+    node_init_all(&root, argv[1]);
 
     double last = glfwGetTime();
     while (running) {
