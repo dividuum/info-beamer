@@ -14,7 +14,7 @@ LDFLAGS=-llua5.1 -levent -lglfw -lGL -lGLU -lGLEW -lftgl -lpng -ljpeg -lavformat
 
 all: info-beamer
 
-main.o: main.c kernel.h
+main.o: main.c kernel.h userlib.h
 
 info-beamer: main.o image.o font.o video.o tlsf.o framebuffer.o misc.o struct.o
 	$(CC) -o $@ $^ $(LDFLAGS) 
@@ -26,10 +26,14 @@ kernel.h: kernel.lua bin2c $(LUAC)
 	luac -p $<
 	./bin2c $* < $< > $@
 
+userlib.h: userlib.lua bin2c $(LUAC)
+	luac -p $<
+	./bin2c $* < $< > $@
+
 performance: performance.csv
 	gnuplot -e "plot './performance.csv' using 1:8 with lines;pause mouse key"
 
 .PHONY: clean performance
 
 clean:
-	rm -f *.o info-beamer kernel.h bin2c
+	rm -f *.o info-beamer kernel.h userlib.h bin2c

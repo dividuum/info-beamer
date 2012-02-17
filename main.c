@@ -33,12 +33,14 @@
 #include "utlist.h"
 #include "tlsf.h"
 #include "misc.h"
-#include "kernel.h"
 #include "image.h"
 #include "video.h"
 #include "font.h"
 #include "framebuffer.h"
 #include "struct.h"
+
+#include "kernel.h"
+#include "userlib.h"
 
 #define VERSION_STRING "Info Beamer " VERSION
 #define INFO_URL "http://dividuum.de/info-beamer"
@@ -251,10 +253,15 @@ static void lua_node_enter(node_t *node, int args) {
 /*======= Node =======*/
 
 // runs code in sandbox
-static void node_code(node_t *node, const char *code, size_t code_size) {
+static void node_code(node_t *node, const char *code, size_t code_size, const char *chunkname) {
     lua_pushliteral(node->L, "code");
     lua_pushlstring(node->L, code, code_size);
-    lua_node_enter(node, 2);
+    if (chunkname) {
+        lua_pushstring(node->L, chunkname);
+        lua_node_enter(node, 3);
+    } else {
+        lua_node_enter(node, 2);
+    }
 }
 
 // event.<event_name>(args...)
@@ -597,7 +604,8 @@ static void node_update_content(node_t *node, const char *path, const char *name
         size_t code_size = read(fd, code, sizeof(code));
         close(fd);
 
-        node_code(node, code, code_size);
+        node_code(node, userlib, userlib_size, "<userlib>");
+        node_code(node, code, code_size, NULL);
     } else {
         lua_pushstring(node->L, name);
         node_event(node, "content_update", 1);

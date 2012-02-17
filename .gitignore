@@ -1,5 +1,6 @@
 *.o
-gpn-info
+info-beamer
 news/
 kernel.h
+userlib.h
 bin2c
