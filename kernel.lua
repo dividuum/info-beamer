@@ -161,10 +161,8 @@ function init_sandbox()
             return setfenv(assert(loadstring(...)), sandbox)
         end;
 
-        player = {
-            setup = setup;
+        resource = {
             render_child = render_child;
-            clear = clear;
             load_image = load_image;
             load_video = load_video;
             load_font = load_font;
@@ -172,6 +170,8 @@ function init_sandbox()
         };
 
         gl = {
+            setup = setup;
+            clear = clear;
             pushMatrix = glPushMatrix;
             popMatrix = glPopMatrix;
             rotate = glRotate;
@@ -185,17 +185,56 @@ function init_sandbox()
             scale_into = scale_into;
         };
 
-        news = {
-            on_content_update = function(name) 
+        util = {
+            videoplayer = function(name)
+                local stream = sandbox.resource.load_video(name)
+                local start = sandbox.sys.now()
+                local fps = stream:fps()
+                local frame = 0
+                local width, height = stream:size()
+
+                return {
+                    play = function(_, x1, y1, x2, y2, alpha)
+                        local now = sandbox.sys.now()
+                        local target_frame = (now - start) * fps
+                        if target_frame > frame + 10 then
+                            print(string.format(
+                                "slow player for '%s'. missed %d frames since last call",
+                                name,
+                                target_frame - frame
+                            ))
+                            -- too slow to decode. rebase time
+                            start = now - frame * 1/fps
+                        else
+                            while frame < target_frame do
+                                if not stream:next() then
+                                    -- stream completed
+                                    return false
+                                end
+                                frame = frame + 1
+                            end
+                        end
+                        local sx1, sy1, sx2, sy2 = sandbox.sys.scale_into(
+                            width, height, x2 - x1, y2 - y1
+                        )
+                        stream:draw(x1 + sx1, y1 + sy1, x1 + sx2, y1 + sy2, alpha)
+                        return true
+                    end
+                }
+            end
+        };
+
+        event = {
+            content_update = function(name) 
             end;
 
-            on_content_remove = function(name)
+            content_remove = function(name)
             end;
 
-            on_render = function()
+            render = function()
             end;
 
-            on_raw_data = function(data, is_osc)
+            raw_data = function(data, is_osc)
                 -- print(PATH, "on_data", is_osc)
                 if is_osc then
                     if string.byte(data, 1, 1) ~= 44 then
@@ -223,21 +262,21 @@ function init_sandbox()
                     local unpacked = {struct.unpack(fmt, data)}
                     table.remove(unpacked, 1) -- remove typetags
                     table.remove(unpacked, #unpacked) -- remove trailing offset
-                    return sandbox.news.on_osc(unpack(unpacked))
+                    return sandbox.event.osc(unpack(unpacked))
                 else
-                    return sandbox.news.on_data(data)
+                    return sandbox.event.data(data)
                 end
             end;
 
-            on_data = function(data)
+            data = function(data)
                 print(PATH, "on_data")
             end;
 
-            on_osc = function(...)
+            osc = function(...)
                 print(PATH, "on_osc", ...)
             end;
 
-            on_msg = function(data)
+            msg = function(data)
                 print(PATH, "on_msg")
             end;
         };
@@ -266,13 +305,13 @@ do
     registry.execute = function(cmd, ...)
         if cmd == "code" then
             setfenv(
-                assert(loadstring(..., "usercode: " .. PATH)),
+                assert(loadstring(..., "node: " .. PATH)),
                 sandbox
             )()
-        elseif cmd == "callback" then
+        elseif cmd == "event" then
             setfenv(
-                function(callback, ...)
-                    news[callback](...)
+                function(event_name, ...)
+                    event[event_name](...)
                 end,
                 sandbox
             )(...)

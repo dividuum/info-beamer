@@ -257,12 +257,12 @@ static void node_code(node_t *node, const char *code, size_t code_size) {
     lua_node_enter(node, 2);
 }
 
-// news.<callback>(args...)
-static void node_callback(node_t *node, const char *name, int args) {
-    lua_pushliteral(node->L, "callback"); // [args] "callback"
-    lua_pushstring(node->L, name);        // [args] "callback" name
-    lua_insert(node->L, -2 - args);       // name [args] "callback"
-    lua_insert(node->L, -2 - args);       // "callback" name [args]
+// event.<event_name>(args...)
+static void node_event(node_t *node, const char *name, int args) {
+    lua_pushliteral(node->L, "event"); // [args] "event_name"
+    lua_pushstring(node->L, name);     // [args] "event_name" name
+    lua_insert(node->L, -2 - args);    // name [args] "event_name"
+    lua_insert(node->L, -2 - args);    // "event_name" name [args]
     lua_node_enter(node, 2 + args);
 }
 
@@ -284,7 +284,7 @@ static void node_render_self(node_t *node, int width, int height) {
 
 static int node_render_to_image(lua_State *L, node_t *node) {
     if (!node->width) {
-        luaL_error(L, "child not initialized with player.setup()");
+        luaL_error(L, "node not initialized with gl.setup()");
         return 0;
     }
     // fprintf(stderr, "rendering %s\n", node->path);
@@ -319,7 +319,7 @@ static int node_render_to_image(lua_State *L, node_t *node) {
     glLoadIdentity();
 
     node->gl_matrix_depth = 0;
-    node_callback(node, "on_render", 0);
+    node_event(node, "render", 0);
     while (node->gl_matrix_depth > 0) {
         glPopMatrix();
         node->gl_matrix_depth--;
@@ -366,7 +366,7 @@ static int luaSendChild(lua_State *L) {
     if (!child)
         luaL_error(L, "child not found");
     lua_pushstring(child->L, msg);
-    node_callback(child, "on_msg", 1);
+    node_event(child, "msg", 1);
     return 0;
 }
 
@@ -469,7 +469,7 @@ static int luaPrint(lua_State *L) {
 static int luaGlPushMatrix(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
     if (node->gl_matrix_depth == NO_GL_PUSHPOP)
-        return luaL_error(L, "only callable in on_render");
+        return luaL_error(L, "only callable in event.render");
     if (node->gl_matrix_depth > MAX_GL_PUSH)
         return luaL_error(L, "Too may pushes");
     glPushMatrix();
@@ -480,7 +480,7 @@ static int luaGlPushMatrix(lua_State *L) {
 static int luaGlPopMatrix(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
     if (node->gl_matrix_depth == NO_GL_PUSHPOP)
-        return luaL_error(L, "only callable in on_render");
+        return luaL_error(L, "only callable in event.render");
     if (node->gl_matrix_depth == 0)
         return luaL_error(L, "Nothing to pop");
     glPopMatrix();
@@ -491,7 +491,7 @@ static int luaGlPopMatrix(lua_State *L) {
 static int luaGlRotate(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
     if (node->gl_matrix_depth == NO_GL_PUSHPOP)
-        return luaL_error(L, "only callable in on_render");
+        return luaL_error(L, "only callable in event.render");
     double angle = luaL_checknumber(L, 1);
     double x = luaL_checknumber(L, 2);
     double y = luaL_checknumber(L, 3);
@@ -503,7 +503,7 @@ static int luaGlRotate(lua_State *L) {
 static int luaGlTranslate(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
     if (node->gl_matrix_depth == NO_GL_PUSHPOP)
-        return luaL_error(L, "only callable in on_render");
+        return luaL_error(L, "only callable in event.render");
     double x = luaL_checknumber(L, 1);
     double y = luaL_checknumber(L, 2);
     double z = luaL_optnumber(L, 3, 0.0);
@@ -600,7 +600,7 @@ static void node_update_content(node_t *node, const char *path, const char *name
         node_code(node, code, code_size);
     } else {
         lua_pushstring(node->L, name);
-        node_callback(node, "on_content_update", 1);
+        node_event(node, "content_update", 1);
     }
 }
 
@@ -610,7 +610,7 @@ static void node_remove(node_t *node, const char *name) {
         node_initsandbox(node);
     } else {
         lua_pushstring(node->L, name);
-        node_callback(node, "on_content_update", 1);
+        node_event(node, "content_update", 1);
     }
 }
 
@@ -916,7 +916,7 @@ static void udp_read(int fd, short event, void *arg) {
 
         lua_pushlstring(node->L, data, data_len);
         lua_pushboolean(node->L, is_osc);
-        node_callback(node, "on_raw_data", 2);
+        node_event(node, "raw_data", 2);
     }
 }
 
