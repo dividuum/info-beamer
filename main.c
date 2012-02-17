@@ -1142,7 +1142,7 @@ int main(int argc, char *argv[]) {
     if (err != GLEW_OK)
         die("cannot initialize glew");
 
-    glfwSetWindowTitle("GPN Info");
+    glfwSetWindowTitle("GPN Info " VERSION_STRING);
     glfwSwapInterval(1);
     glfwSetWindowSizeCallback(reshape);
     glfwSetKeyCallback(keypressed);

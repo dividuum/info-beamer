@@ -179,6 +179,7 @@ again:
     /* Is it what we're trying to parse? */
     if (packet.stream_index != video->stream_idx) {
         // fprintf(stderr, "not video\n");
+        av_free_packet(&packet);
         goto again;
     }
 	
@@ -189,6 +190,7 @@ again:
     /* Succes? If not, drop packet. */
     if (!finished) {
         fprintf(stderr, "not complete\n");
+        av_free_packet(&packet);
         goto again;
     }
 
