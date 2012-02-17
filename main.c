@@ -591,7 +591,7 @@ static void node_remove_child_by_name(node_t* node, const char *name) {
 
 static void node_update_content(node_t *node, const char *path, const char *name) {
     fprintf(stderr, ">>> content add %s in %s\n", name, node->path);
-    if (strcmp(name, "script.lua") == 0) {
+    if (strcmp(name, "node.lua") == 0) {
         node_initsandbox(node);
 
         char code[MAX_CODE_SIZE];
@@ -614,7 +614,7 @@ static void node_update_content(node_t *node, const char *path, const char *name
 
 static void node_remove(node_t *node, const char *name) {
     fprintf(stderr, "<<< content del %s in %s\n", name, node->path);
-    if (strcmp(name, "script.lua") == 0) {
+    if (strcmp(name, "node.lua") == 0) {
         node_initsandbox(node);
     } else {
         lua_pushstring(node->L, name);
@@ -623,17 +623,17 @@ static void node_remove(node_t *node, const char *name) {
 }
 
 static void node_recursive_search(node_t *node) {
-    // search for existing script.lua
+    // search for existing node.lua
     char path[PATH_MAX];
-    snprintf(path, sizeof(path), "%s/script.lua", node->path);
+    snprintf(path, sizeof(path), "%s/node.lua", node->path);
 
     struct stat stat_buf;
     if (stat(path, &stat_buf) != -1 && 
             S_ISREG(stat_buf.st_mode)) {
-        node_update_content(node, path, "script.lua");
+        node_update_content(node, path, "node.lua");
     }
 
-    // recursivly add remaining files (except script.lua) and 
+    // recursivly add remaining files (except node.lua) and 
     // directories
     DIR *dp = opendir(node->path);
     if (!dp)
@@ -649,7 +649,7 @@ static void node_recursive_search(node_t *node) {
         if (ep->d_type == DT_DIR) {
             node_add_child(node, path, ep->d_name);
         } else if (ep->d_type == DT_REG &&
-                strcmp(ep->d_name, "script.lua") != 0) {
+                strcmp(ep->d_name, "node.lua") != 0) {
             node_update_content(node, path, ep->d_name);
         }
     }
