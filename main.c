@@ -40,12 +40,17 @@
 #include "framebuffer.h"
 #include "struct.h"
 
-#define VERSION_STRING "GPN-INFO " VERSION
+#define VERSION_STRING "Info Beamer " VERSION
+#define INFO_URL "http://dividuum.de/info-beamer"
 
 #define MAX_CODE_SIZE 16384 // byte
 #define MAX_LOADFILE_SIZE 16384 // byte
 #define MAX_MEM 200000 // KB
-#define MAX_DELTA 2000 // ms
+#define MAX_GL_PUSH 20 // glPushMatrix depth
+
+// Default host/port (both udp & tcp)
+#define HOST "0.0.0.0"
+#define PORT 4444
 
 #ifdef DEBUG
 #define MAX_RUNAWAY_TIME 10 // sec
@@ -54,11 +59,6 @@
 #define MAX_RUNAWAY_TIME 1 // sec
 #define MAX_PCALL_TIME  100000 // usec
 #endif
-
-#define MAX_GL_PUSH 20
-
-#define HOST "0.0.0.0"
-#define PORT 4444
 
 #ifdef DEBUG_OPENGL
 #define print_render_state() \
@@ -86,6 +86,7 @@
 } while(0)
 
 #define NO_GL_PUSHPOP -1
+#define LITERAL_SIZE(x) (sizeof(x) - 1)
 
 typedef struct node_s {
     int wd; // inotify watch descriptor
@@ -989,8 +990,10 @@ static void client_create(int fd) {
         client_error,
         client);
     bufferevent_enable(client->buf_ev, EV_READ);
-    client_write(client, "Welcome to ", 11);
-    client_write(client, VERSION_STRING, strlen(VERSION_STRING));
+    client_write(client, VERSION_STRING, LITERAL_SIZE(VERSION_STRING));
+    client_write(client, " (", 2);
+    client_write(client, INFO_URL, LITERAL_SIZE(INFO_URL));
+    client_write(client, ")", 2);
     client_write(client, ". Select your channel!\n", 23);
 }
 
@@ -1111,8 +1114,13 @@ static void update_now() {
 }
 
 int main(int argc, char *argv[]) {
-    if (argc != 2)
-        die("%s <root_name>", argv[0]);
+    fprintf(stdout, VERSION_STRING " (" INFO_URL ")\n");
+    fprintf(stdout, "Copyright (c) 2012, Florian Wesch <fw@dividuum.de>\n");
+
+    if (argc != 2) {
+        fprintf(stderr, "\nusage: %s <root_name>\n", argv[0]);
+		exit(1);
+	}
 
     char *root_name = argv[1];
     if (index(root_name, '/'))
@@ -1144,7 +1152,7 @@ int main(int argc, char *argv[]) {
     if (err != GLEW_OK)
         die("cannot initialize glew");
 
-    glfwSetWindowTitle("GPN Info " VERSION_STRING);
+    glfwSetWindowTitle(VERSION_STRING);
     glfwSwapInterval(1);
     glfwSetWindowSizeCallback(reshape);
     glfwSetKeyCallback(keypressed);

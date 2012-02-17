@@ -12,11 +12,11 @@ CFLAGS += -DVERSION='$(VERSION)'
 CFLAGS +=-I/usr/include/lua5.1 -I/usr/include/freetype2/ -std=c99 -Wall -Wno-unused-function -Wno-unused-variable -Wno-deprecated-declarations 
 LDFLAGS=-llua5.1 -levent -lglfw -lGL -lGLU -lGLEW -lftgl -lpng -ljpeg -lavformat -lavcodec -lavutil -lswscale -lz -lbz2
 
-all: gpn-info
+all: info-beamer
 
 main.o: main.c kernel.h
 
-gpn-info: main.o image.o font.o video.o tlsf.o framebuffer.o misc.o struct.o
+info-beamer: main.o image.o font.o video.o tlsf.o framebuffer.o misc.o struct.o
 	$(CC) -o $@ $^ $(LDFLAGS) 
 
 bin2c: bin2c.c
@@ -32,4 +32,4 @@ performance: performance.csv
 .PHONY: clean performance
 
 clean:
-	rm -f *.o gpn-info kernel.h bin2c
+	rm -f *.o info-beamer kernel.h bin2c
