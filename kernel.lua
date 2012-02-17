@@ -28,32 +28,6 @@ do
     end
 end
 
---=================
--- Helper functions
---=================
-
-function scale_into(source_width, source_height, target_width, target_height)
-    local prop_height = source_height * target_width / source_width
-    local prop_width  = source_width * target_height / source_height
-    local x1, y1, x2, y2
-    if prop_height > target_height then
-        local x_center = target_width / 2
-        local half_width = prop_width / 2
-        x1 = x_center - half_width
-        y1 = 0
-        x2 = x_center + half_width
-        y2 = target_height
-    else
-        local y_center = target_height / 2
-        local half_height = prop_height / 2
-        x1 = 0
-        y1 = y_center - half_height
-        x2 = target_width
-        y2 = y_center + half_height
-    end
-    return x1, y1, x2, y2
-end
-
 --=============
 -- Sandboxing
 --=============
@@ -170,7 +144,11 @@ function init_sandbox()
         };
 
         gl = {
-            setup = setup;
+            setup = function(width, height)
+                setup(width, height)
+                sandbox.WIDTH = width
+                sandbox.HEIGHT = height
+            end;
             clear = clear;
             pushMatrix = glPushMatrix;
             popMatrix = glPopMatrix;
@@ -182,7 +160,6 @@ function init_sandbox()
             now = now;
             list_childs = list_childs;
             send_child = send_child;
-            scale_into = scale_into;
         };
 
         event = {
@@ -249,13 +226,6 @@ function init_sandbox()
     return sandbox
 end
 
-function render_into_screen(screen_width, screen_height)
-    local image = render_self()
-    root_width, root_height = image:size()
-    local x1, y1, x2, y2 = scale_into(root_width, root_height, screen_width, screen_height)
-    image:draw(x1, y1, x2, y2)
-end
-
 -- Einige Funktionen in der registry speichern, 
 -- so dass der C Teil dran kommt.
 do
@@ -280,8 +250,13 @@ do
         elseif cmd == "init_sandbox" then
             sandbox = init_sandbox()
         elseif cmd == "render_self" then
-            local width, height = ...
-            render_into_screen(width, height)
+            local screen_width, screen_height = ...
+            local self = render_self()
+            local root_width, root_height = self:size()
+            local x1, y1, x2, y2 = sandbox.util.scale_into(
+                root_width, root_height, screen_width, screen_height
+            )
+            self:draw(x1, y1, x2, y2)
         end
     end
 
