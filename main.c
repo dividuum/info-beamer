@@ -229,8 +229,7 @@ static void lua_node_enter(node_t *node, int args) {
         // Erfolgreich ausgefuehrt
         case 0:                                 // traceback
             lua_remove(L, error_handler_pos);   //
-            if (lua_gettop(L) != old_top)
-                die("unbalanced call (success)");
+            assert(lua_gettop(L) == old_top);
             return;
         // Fehler beim Ausfuehren
         case LUA_ERRRUN:
@@ -246,8 +245,7 @@ static void lua_node_enter(node_t *node, int args) {
             die("wtf?");
     };                                          // traceback "error"
     lua_pop(L, 2);                              // 
-    if (lua_gettop(L) != old_top)
-        die("unbalanced call");
+    assert(lua_gettop(L) == old_top);
 }
 
 /*======= Node =======*/
@@ -1062,7 +1060,6 @@ static void tick() {
     event_loop(EVLOOP_NONBLOCK);
     test("io loop");
 
-
     glDisable(GL_CULL_FACE);
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_LIGHTING);
@@ -1085,6 +1082,8 @@ static void tick() {
 
     test("render setup");
 
+    glClearColor(0.05, 0.05, 0.05, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
     node_render_self(&root, win_w, win_h);
 
     test("render");

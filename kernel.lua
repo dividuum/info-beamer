@@ -7,11 +7,9 @@
 do
     -- Disable Precompiled
     local old_loadstring = loadstring
-    local string_byte = string.byte
-    local error = error
 
     function loadstring(code, chunkname)
-        if string_byte(code, 1) == 27 then
+        if string.byte(code, 1) == 27 then
             error("no precompiled code")
         else
             return old_loadstring(code, chunkname)
@@ -78,7 +76,9 @@ function init_sandbox()
         unpack = unpack;
         xpcall = xpcall;
         setmetatable = setmetatable;
-        struct = struct;
+        struct = {
+            unpack = struct.unpack;
+        };
 
         coroutine = {
             create = coroutine.create;
@@ -153,10 +153,13 @@ function init_sandbox()
             maxn = table.maxn;
             remove = table.remove;
             sort = table.sort;
-            show = table.show;
         };
 
         print = print;
+
+        loadstring = function(...)
+            return setfenv(assert(loadstring(...)), sandbox)
+        end;
 
         player = {
             setup = setup;
@@ -184,15 +187,12 @@ function init_sandbox()
 
         news = {
             on_content_update = function(name) 
-                -- print("}}} lua: content update " .. name)
             end;
 
             on_content_remove = function(name)
-                print("{{{ lua: content remove " .. name)
             end;
 
             on_render = function()
-
             end;
 
             on_raw_data = function(data, is_osc)
@@ -246,16 +246,12 @@ function init_sandbox()
         PATH = PATH;
     }
     sandbox._G = sandbox
-    sandbox.loadstring = function(...)
-        return setfenv(assert(loadstring(...)), sandbox)
-    end
     return sandbox
 end
 
 function render_into_screen(screen_width, screen_height)
     local image = render_self()
     root_width, root_height = image:size()
-    clear(0.05, 0.05, 0.05, 1)
     local x1, y1, x2, y2 = scale_into(root_width, root_height, screen_width, screen_height)
     image:draw(x1, y1, x2, y2)
 end
