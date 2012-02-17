@@ -14,7 +14,7 @@ function util.videoplayer(name)
             local now = sys.now()
             local target_frame = (now - start) * fps
             if target_frame > frame + 10 then
-                error(string.format(
+                print(string.format(
                     "slow player for '%s'. missed %d frames since last call",
                     name,
                     target_frame - frame
