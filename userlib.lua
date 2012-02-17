@@ -2,12 +2,16 @@
 
 util = {}
 
-function util.videoplayer(name)
+function util.videoplayer(name, opt)
     local stream = resource.load_video(name)
     local start = sys.now()
     local fps = stream:fps()
     local frame = 0
     local width, height = stream:size()
+
+    opt = opt or {}
+    local speed = opt.speed or 1
+    fps = fps * speed
 
     return {
         play = function(_, x1, y1, x2, y2, alpha)
