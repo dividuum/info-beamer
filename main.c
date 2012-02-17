@@ -1,6 +1,7 @@
 /* See Copyright Notice in LICENSE.txt */
 
 #define _BSD_SOURCE
+#define _GNU_SOURCE
 #include <linux/limits.h>
 #include <strings.h>
 #include <unistd.h>
@@ -862,6 +863,7 @@ static void udp_read(int fd, short event, void *arg) {
         *sep = '\0';
 
         char *path = buf + initial_offset;
+        char *suffix = sep;
         char *data = sep + 1;
         if (is_osc) {
             // round up to next multiple of 4
@@ -874,18 +876,33 @@ static void udp_read(int fd, short event, void *arg) {
             return;
         }
 
-        // fprintf(stderr, "%s -> %*s (%d)\n", path, data_len, data, data_len);
-        
+        // split a/b/c into first matching prefix:
+        // a/b -> suffix: c if node a/b exists
+
         node_t *node;
-        HASH_FIND(by_path, nodes_by_path, path, strlen(path), node);
-        if (!node) {
-            sendto(fd, "404\n", 4, 0, (struct sockaddr *)&client_addr, size);
-            return;
+        while (1) {
+            HASH_FIND(by_path, nodes_by_path, path, strlen(path), node);
+            if (node)
+                break;
+
+            char *next_split = memrchr(path, '/', strlen(path));
+            if (!next_split) {
+                sendto(fd, "404\n", 4, 0, (struct sockaddr *)&client_addr, size);
+                return;
+            }
+            if (suffix != sep)
+                *suffix = '/';
+            suffix = next_split;
+            *next_split = '\0';
         }
+        if (suffix != sep)
+            suffix++;
+        printf("searching for >%s< >%s<\n", path, suffix);
 
         lua_pushlstring(node->L, data, data_len);
         lua_pushboolean(node->L, is_osc);
-        node_event(node, "raw_data", 2);
+        lua_pushstring(node->L, suffix);
+        node_event(node, "raw_data", 3);
     }
 }
 

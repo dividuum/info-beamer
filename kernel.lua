@@ -172,7 +172,7 @@ function create_sandbox()
             render = function()
             end;
 
-            raw_data = function(data, is_osc)
+            raw_data = function(data, is_osc, suffix)
                 -- print(PATH, "on_data", is_osc)
                 if is_osc then
                     if string.byte(data, 1, 1) ~= 44 then
@@ -200,9 +200,9 @@ function create_sandbox()
                     local unpacked = {struct.unpack(fmt, data)}
                     table.remove(unpacked, 1) -- remove typetags
                     table.remove(unpacked, #unpacked) -- remove trailing offset
-                    return sandbox.event.osc(unpack(unpacked))
+                    return sandbox.event.osc(suffix, unpack(unpacked))
                 else
-                    return sandbox.event.data(data)
+                    return sandbox.event.data(data, suffix)
                 end
             end;
 
