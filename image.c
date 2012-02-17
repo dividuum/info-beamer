@@ -1,3 +1,20 @@
+/* See Copyright Notice in LICENSE.txt */
+
+/* JPEG loader is based on jpeg.c from
+ * http://tfc.duke.free.fr/
+ *
+ * License: "All these programs are Open Source. Some old
+ * works haven't been tagged yet with a licence. I assume
+ * they are licensed under the MIT-license, like a majority
+ * of my other works."
+ *
+ *
+ * PNG loader is based on
+ * http://files.slembcke.net/misc/PNGTexture.tar.gz
+ *
+ * License: unknown
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

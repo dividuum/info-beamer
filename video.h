@@ -1,3 +1,5 @@
+/* See Copyright Notice in LICENSE.txt */
+
 #ifndef VIDEO_H
 #define VIDEO_H
 

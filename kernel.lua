@@ -1,3 +1,5 @@
+-- See Copyright Notice in LICENSE.txt
+
 --======================
 -- Wrap unsafe functions
 --======================

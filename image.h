@@ -1,3 +1,5 @@
+/* See Copyright Notice in LICENSE.txt */
+
 #ifndef IMAGE_H
 #define IMAGE_H
 

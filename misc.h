@@ -1,3 +1,5 @@
+/* See Copyright Notice in LICENSE.txt */
+
 #ifndef MISC_H
 #define MISC_H
 

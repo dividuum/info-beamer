@@ -1,3 +1,5 @@
+/* See Copyright Notice in LICENSE.txt */
+
 #ifndef FRAMEBUFFER_H
 #define FRAMEBUFFER_H
 

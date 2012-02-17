@@ -1,3 +1,5 @@
+/* See Copyright Notice in LICENSE.txt */
+
 #ifndef STRUCT_H
 #define STRUCT_H
 

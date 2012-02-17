@@ -1,5 +1,6 @@
-VERSION="rev-$(shell git rev-parse --short=6 HEAD)"
+# See Copyright Notice in LICENSE.txt
 
+VERSION="rev-$(shell git rev-parse --short=6 HEAD)"
 
 ifdef DEBUG
 CFLAGS ?= -ggdb -DDEBUG

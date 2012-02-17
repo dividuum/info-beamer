@@ -1,11 +1,11 @@
+/* See Copyright Notice in LICENSE.txt */
+
 /*
- * Video Module for GPN News.
- * Adapted from code by Michael Meeuwisse
- */
-/*
+ * Includes from code by Michael Meeuwisse
  * https://docs.google.com/leaf?id=0B_dz2NwhjXB-NDQ0NWNjOWEtMzJiNy00ZjcwLWJjMjYtZTU2YmQzMWMzYmU0
- */
-/*
+ *
+ * License: 
+ * 
  * (C) Copyright 2010 Michael Meeuwisse
  *
  * Adapted from avcodec_sample.0.5.0.c, license unknown

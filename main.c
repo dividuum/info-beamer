@@ -1,3 +1,5 @@
+/* See Copyright Notice in LICENSE.txt */
+
 #define _BSD_SOURCE
 #include <linux/limits.h>
 #include <strings.h>
