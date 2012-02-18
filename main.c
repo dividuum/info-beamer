@@ -863,7 +863,6 @@ static void udp_read(int fd, short event, void *arg) {
         *sep = '\0';
 
         char *path = buf + initial_offset;
-        char *suffix = sep;
         char *data = sep + 1;
         if (is_osc) {
             // round up to next multiple of 4
@@ -879,13 +878,14 @@ static void udp_read(int fd, short event, void *arg) {
         // split a/b/c into first matching prefix:
         // a/b -> suffix: c if node a/b exists
 
+        char *suffix = sep;
         node_t *node;
         while (1) {
             HASH_FIND(by_path, nodes_by_path, path, strlen(path), node);
             if (node)
                 break;
 
-            char *next_split = memrchr(path, '/', strlen(path));
+            char *next_split = memrchr(path, '/', suffix - path);
             if (!next_split) {
                 sendto(fd, "404\n", 4, 0, (struct sockaddr *)&client_addr, size);
                 return;
@@ -897,7 +897,6 @@ static void udp_read(int fd, short event, void *arg) {
         }
         if (suffix != sep)
             suffix++;
-        printf("searching for >%s< >%s<\n", path, suffix);
 
         lua_pushlstring(node->L, data, data_len);
         lua_pushboolean(node->L, is_osc);

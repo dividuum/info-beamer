@@ -5,17 +5,6 @@
 --======================
 
 do
-    -- Disable Precompiled
-    local old_loadstring = loadstring
-
-    function loadstring(code, chunkname)
-        if string.byte(code, 1) == 27 then
-            error("no precompiled code")
-        else
-            return old_loadstring(code, chunkname)
-        end
-    end
-
     -- Rep can take too much memory/cpu
     local old_rep = string.rep
     string.rep = function(s, n)
@@ -131,8 +120,12 @@ function create_sandbox()
 
         print = print;
 
-        loadstring = function(...)
-            return setfenv(assert(loadstring(...)), sandbox)
+        loadstring = function(code, chunkname)
+            if string.byte(code, 1) == 27 then
+                error("no precompiled code")
+            else
+                return setfenv(assert(loadstring(code, chunkname)), sandbox)
+            end
         end;
 
         resource = {
@@ -173,7 +166,6 @@ function create_sandbox()
             end;
 
             raw_data = function(data, is_osc, suffix)
-                -- print(PATH, "on_data", is_osc)
                 if is_osc then
                     if string.byte(data, 1, 1) ~= 44 then
                         print("no osc type tag string")
@@ -206,16 +198,16 @@ function create_sandbox()
                 end
             end;
 
-            data = function(data)
-                print(PATH, "on_data")
+            data = function(...)
+                print(PATH, "data", ...)
             end;
 
             osc = function(...)
-                print(PATH, "on_osc", ...)
+                print(PATH, "osc", ...)
             end;
 
-            msg = function(data)
-                print(PATH, "on_msg")
+            msg = function(...)
+                print(PATH, "msg", ...)
             end;
         };
 

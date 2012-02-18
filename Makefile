@@ -23,12 +23,12 @@ bin2c: bin2c.c
 	$(CC) $^ -o $@
 
 kernel.h: kernel.lua bin2c $(LUAC)
-	luac -p $<
-	./bin2c $* < $< > $@
+	luac -o $<.compiled $<
+	./bin2c $* < $<.compiled > $@
 
 userlib.h: userlib.lua bin2c $(LUAC)
-	luac -p $<
-	./bin2c $* < $< > $@
+	luac -o $<.compiled $<
+	./bin2c $* < $<.compiled > $@
 
 performance: performance.csv
 	gnuplot -e "plot './performance.csv' using 1:8 with lines;pause mouse key"
@@ -36,4 +36,4 @@ performance: performance.csv
 .PHONY: clean performance
 
 clean:
-	rm -f *.o info-beamer kernel.h userlib.h bin2c
+	rm -f *.o info-beamer kernel.h userlib.h bin2c *.compiled
