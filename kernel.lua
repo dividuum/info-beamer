@@ -134,6 +134,7 @@ function create_sandbox()
             load_video = load_video;
             load_font = load_font;
             load_file = load_file;
+            create_shader = create_shader;
         };
 
         gl = {
@@ -301,4 +302,7 @@ module = nil
 os = nil
 dofile = nil
 getfenv = nil
-debug = { traceback = debug.traceback }
+debug = {
+	traceback = debug.traceback;
+	getinfo = debug.getinfo;
+}

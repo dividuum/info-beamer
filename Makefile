@@ -16,7 +16,7 @@ all: info-beamer
 
 main.o: main.c kernel.h userlib.h
 
-info-beamer: main.o image.o font.o video.o tlsf.o framebuffer.o misc.o struct.o
+info-beamer: main.o image.o font.o video.o shader.o framebuffer.o misc.o tlsf.o struct.o
 	$(CC) -o $@ $^ $(LDFLAGS) 
 
 bin2c: bin2c.c

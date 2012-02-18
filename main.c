@@ -37,6 +37,7 @@
 #include "image.h"
 #include "video.h"
 #include "font.h"
+#include "shader.h"
 #include "framebuffer.h"
 #include "struct.h"
 
@@ -446,6 +447,15 @@ static int luaLoadFile(lua_State *L) {
     return 1;
 }
 
+static int luaCreateShader(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    if (node->parent)
+        luaL_error(L, "shader only allowed in toplevel node");
+    const char *vertex = luaL_checkstring(L, 1);
+    const char *fragment = luaL_checkstring(L, 2);
+    return shader_new(L, vertex, fragment);
+}
+
 static int luaPrint(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
     luaL_Buffer b;
@@ -619,6 +629,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     image_register(node->L);
     video_register(node->L);
     font_register(node->L);
+    shader_register(node->L);
     luaopen_struct(node->L);
 
    if (luaL_loadbuffer(node->L, kernel, kernel_size, "kernel.lua") != 0)
@@ -635,6 +646,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "load_video", luaLoadVideo);
     lua_register_node_func(node, "load_font", luaLoadFont);
     lua_register_node_func(node, "load_file", luaLoadFile);
+    lua_register_node_func(node, "create_shader", luaCreateShader);
     lua_register_node_func(node, "print", luaPrint);
     lua_register_node_func(node, "glPushMatrix", luaGlPushMatrix);
     lua_register_node_func(node, "glPopMatrix", luaGlPopMatrix);
@@ -807,21 +819,21 @@ int create_socket(int type) {
     int one = 1;
     struct sockaddr_in sin;
     int fd = socket(AF_INET, type, 0);
- 
+
     if (fd < 0)
         die("socket");
- 
+
     if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(int)) < 0)
         die("setsockopt reuse");
- 
+
     memset(&sin, 0, sizeof(sin));
     sin.sin_family = AF_INET;
     sin.sin_addr.s_addr = inet_addr(HOST);
     sin.sin_port = htons(PORT);
- 
+
     if (bind(fd, (struct sockaddr *)&sin, sizeof(struct sockaddr)) < 0)
         die("bind");
-    
+
     return fd;
 }
 
@@ -832,10 +844,10 @@ static void udp_read(int fd, short event, void *arg) {
     int len;
     unsigned int size = sizeof(struct sockaddr);
     struct sockaddr_in client_addr;
- 
+
     memset(buf, 0, sizeof(buf));
     len = recvfrom(fd, buf, sizeof(buf), 0, (struct sockaddr *)&client_addr, &size);
- 
+
     if (len == -1) {
         die("recvfrom");
     } else {
@@ -967,11 +979,11 @@ static void client_create(int fd) {
     client_t *client = xmalloc(sizeof(client_t));
     client->fd = fd;
     client->buf_ev = bufferevent_new(
-        fd,
-        client_read,
-        NULL,
-        client_error,
-        client);
+            fd,
+            client_read,
+            NULL,
+            client_error,
+            client);
     bufferevent_enable(client->buf_ev, EV_READ);
     client_write(client, VERSION_STRING, LITERAL_SIZE(VERSION_STRING));
     client_write(client, " (", 2);
@@ -1033,7 +1045,7 @@ static void print_free_video_mem() {
     glGetIntegerv(0x9049, &mem);
     fprintf(stderr, "free video mem: %d\n", mem);
 }
-    
+
 static void tick() {
     double now = glfwGetTime();
     // static int loop = 1;
@@ -1069,6 +1081,7 @@ static void tick() {
 
     glClearColor(0.05, 0.05, 0.05, 1);
     glClear(GL_COLOR_BUFFER_BIT);
+    glUseProgram(0);
     node_render_self(&root, win_w, win_h);
 
     test("render");
@@ -1103,8 +1116,8 @@ int main(int argc, char *argv[]) {
 
     if (argc != 2) {
         fprintf(stderr, "\nusage: %s <root_name>\n", argv[0]);
-		exit(1);
-	}
+        exit(1);
+    }
 
     char *root_name = argv[1];
     if (index(root_name, '/'))
