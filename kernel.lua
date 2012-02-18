@@ -225,15 +225,17 @@ function load_into_sandbox(code, chunkname)
     )()
 end
 
+NODE_CODE_FILE = "node.lua"
+
 function reload(usercode_file)
     sandbox = create_sandbox()
 
     -- load userlib
-    load_into_sandbox(USERLIB, "<userlib>")
+    load_into_sandbox(USERLIB, "userlib.lua")
 
     if usercode_file then
         local node_code = load_file(usercode_file)
-        load_into_sandbox(node_code, "node: " .. PATH)
+        load_into_sandbox(node_code, "=" .. PATH .. "/" .. NODE_CODE_FILE)
     end
 end
 
@@ -247,7 +249,7 @@ do
     registry.execute = function(cmd, ...)
         if cmd == "boot" then
             print "booting node"
-            reload("node.lua")
+            reload(NODE_CODE_FILE)
         elseif cmd == "event" then
             setfenv(
                 function(event_name, ...)
@@ -257,10 +259,10 @@ do
             )(...)
         elseif cmd == "update_content" then
             local name, added = ...
-            if name == "node.lua" then
+            if name == NODE_CODE_FILE then
                 if added then
                     print "updating node code"
-                    reload("node.lua")
+                    reload(NODE_CODE_FILE)
                 else
                     print "removing node code"
                     reload()
