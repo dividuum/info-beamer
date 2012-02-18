@@ -36,7 +36,7 @@
 #include <libswscale/swscale.h>
 #include <libavdevice/avdevice.h>
 
-#define VIDEO "video"
+#include "misc.h"
 
 typedef struct {
     AVFormatContext *format_context;
@@ -50,6 +50,10 @@ typedef struct {
     unsigned int tex;
     double fps;
 } video_t;
+
+LUA_TYPE_DECL(video);
+
+/* Helper functions */
 
 static void video_free(video_t *video) {
 	if (video->scaler)
@@ -208,25 +212,7 @@ again:
     return 1;
 }
 
-static video_t *to_video(lua_State *L, int index) {
-    video_t *video = (video_t *)lua_touserdata(L, index);
-    if (!video) luaL_typerror(L, index, VIDEO);
-    return video;
-}
-
-static video_t *checked_video(lua_State *L, int index) {
-    luaL_checktype(L, index, LUA_TUSERDATA);
-    video_t *video = (video_t *)luaL_checkudata(L, index, VIDEO);
-    if (!video) luaL_typerror(L, index, VIDEO);
-    return video;
-}
-
-static video_t *push_video(lua_State *L) {
-    video_t *video = (video_t *)lua_newuserdata(L, sizeof(video_t));
-    luaL_getmetatable(L, VIDEO);
-    lua_setmetatable(L, -2);
-    return video;
-}
+/* Instance methods */
 
 static int video_size(lua_State *L) {
     video_t *video = checked_video(L, 1);
@@ -307,42 +293,7 @@ static const luaL_reg video_methods[] = {
     {0,0}
 };
 
-static int video_gc(lua_State *L) {
-    video_t *video = to_video(L, 1);
-    fprintf(stderr, "gc'ing video: tex id: %d\n", video->tex);
-    glDeleteTextures(1, &video->tex);
-    video_free(video);
-    return 0;
-}
-
-static int video_tostring(lua_State *L) {
-    lua_pushfstring(L, "video: %p", lua_touserdata(L, 1));
-    return 1;
-}
-
-static const luaL_reg video_meta[] = {
-    {"__gc",       video_gc},
-    {"__tostring", video_tostring},
-    {0, 0}
-};
-
-
-int video_register(lua_State *L) {
-    luaL_openlib(L, VIDEO, video_methods, 0);  /* create methods table,
-                                                  add it to the globals */
-    luaL_newmetatable(L, VIDEO);        /* create metatable for Image,
-                                           add it to the Lua registry */
-    luaL_openlib(L, 0, video_meta, 0);  /* fill metatable */
-    lua_pushliteral(L, "__index");
-    lua_pushvalue(L, -3);               /* dup methods table*/
-    lua_rawset(L, -3);                  /* metatable.__index = methods */
-    lua_pushliteral(L, "__metatable");
-    lua_pushvalue(L, -3);               /* dup methods table*/
-    lua_rawset(L, -3);                  /* hide metatable:
-                                           metatable.__metatable = methods */
-    lua_pop(L, 1);                      /* drop metatable */
-    return 1;                           /* return methods on the stack */
-}
+/* Lifecycle */
 
 int video_load(lua_State *L, const char *path, const char *name) {
     video_t video;
@@ -374,3 +325,13 @@ int video_load(lua_State *L, const char *path, const char *name) {
     *push_video(L) = video;
     return 1;
 }
+
+static int video_gc(lua_State *L) {
+    video_t *video = to_video(L, 1);
+    fprintf(stderr, "gc'ing video: tex id: %d\n", video->tex);
+    glDeleteTextures(1, &video->tex);
+    video_free(video);
+    return 0;
+}
+
+LUA_TYPE_IMPL(video);

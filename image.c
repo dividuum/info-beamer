@@ -29,14 +29,16 @@
 #include "framebuffer.h"
 #include "misc.h"
 
-#define IMAGE "image"
-
 typedef struct {
     unsigned int tex;
     unsigned int fbo;
     int width;
     int height;
 } image_t;
+
+LUA_TYPE_DECL(image);
+
+/* Helper functions */
 
 static int load_jpeg(const char *filename, int *width, int *height) {
     /* JPEG error manager */
@@ -268,26 +270,7 @@ error_info:
     return 0;
 }
 
-
-static image_t *to_image(lua_State *L, int index) {
-    image_t *image = (image_t *)lua_touserdata(L, index);
-    if (!image) luaL_typerror(L, index, IMAGE);
-    return image;
-}
-
-static image_t *checked_image(lua_State *L, int index) {
-    luaL_checktype(L, index, LUA_TUSERDATA);
-    image_t *image = (image_t *)luaL_checkudata(L, index, IMAGE);
-    if (!image) luaL_typerror(L, index, IMAGE);
-    return image;
-}
-
-static image_t *push_image(lua_State *L) {
-    image_t *image = (image_t *)lua_newuserdata(L, sizeof(image_t));
-    luaL_getmetatable(L, IMAGE);
-    lua_setmetatable(L, -2);
-    return image;
-}
+/* Instance methods */
 
 static int image_size(lua_State *L) {
     image_t *image = checked_image(L, 1);
@@ -324,50 +307,7 @@ static const luaL_reg image_methods[] = {
     {0,0}
 };
 
-static int image_gc(lua_State *L) {
-    image_t *image = to_image(L, 1);
-    if (image->fbo) {
-        // If images has attached Framebuffer, put the
-        // texture and framebuffer into the recycler.
-        // Allocations for new framebuffers can then
-        // reuse these => Better performance.
-        recycle_framebuffer(image->width, image->height, 
-            image->tex, image->fbo);
-    } else {
-        // No Framebuffer? Just remove the texture.
-        glDeleteTextures(1, &image->tex);
-    }
-    return 0;
-}
-
-static int image_tostring(lua_State *L) {
-    lua_pushfstring(L, "image: %p", lua_touserdata(L, 1));
-    return 1;
-}
-
-static const luaL_reg image_meta[] = {
-    {"__gc",       image_gc},
-    {"__tostring", image_tostring},
-    {0, 0}
-};
-
-
-int image_register(lua_State *L) {
-    luaL_openlib(L, IMAGE, image_methods, 0);  /* create methods table,
-                                                  add it to the globals */
-    luaL_newmetatable(L, IMAGE);        /* create metatable for Image,
-                                           add it to the Lua registry */
-    luaL_openlib(L, 0, image_meta, 0);  /* fill metatable */
-    lua_pushliteral(L, "__index");
-    lua_pushvalue(L, -3);               /* dup methods table*/
-    lua_rawset(L, -3);                  /* metatable.__index = methods */
-    lua_pushliteral(L, "__metatable");
-    lua_pushvalue(L, -3);               /* dup methods table*/
-    lua_rawset(L, -3);                  /* hide metatable:
-                                           metatable.__metatable = methods */
-    lua_pop(L, 1);                      /* drop metatable */
-    return 1;                           /* return methods on the stack */
-}
+/* Lifecycle */
 
 int image_create(lua_State *L, int tex, int fbo, int width, int height) {
     image_t *image = push_image(L);
@@ -405,3 +345,21 @@ int image_load(lua_State *L, const char *path, const char *name) {
     image->height = height;
     return 1;
 }
+
+static int image_gc(lua_State *L) {
+    image_t *image = to_image(L, 1);
+    if (image->fbo) {
+        // If images has attached Framebuffer, put the
+        // texture and framebuffer into the recycler.
+        // Allocations for new framebuffers can then
+        // reuse these => Better performance.
+        recycle_framebuffer(image->width, image->height, 
+            image->tex, image->fbo);
+    } else {
+        // No Framebuffer? Just remove the texture.
+        glDeleteTextures(1, &image->tex);
+    }
+    return 0;
+}
+
+LUA_TYPE_IMPL(image);

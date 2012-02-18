@@ -10,31 +10,15 @@
 #include <lauxlib.h>
 #include <lualib.h>
 
-#define FONT "font"
+#include "misc.h"
 
 typedef struct {
     FTGLfont *font;
 } font_t;
 
-static font_t *to_font(lua_State *L, int index) {
-    font_t *font = (font_t *)lua_touserdata(L, index);
-    if (!font) luaL_typerror(L, index, FONT);
-    return font;
-}
+LUA_TYPE_DECL(font);
 
-static font_t *checked_font(lua_State *L, int index) {
-    luaL_checktype(L, index, LUA_TUSERDATA);
-    font_t *font = (font_t *)luaL_checkudata(L, index, FONT);
-    if (!font) luaL_typerror(L, index, FONT);
-    return font;
-}
-
-static font_t *push_font(lua_State *L) {
-    font_t *font = (font_t *)lua_newuserdata(L, sizeof(font_t));
-    luaL_getmetatable(L, FONT);
-    lua_setmetatable(L, -2);
-    return font;
-}
+/* Instance methods */
 
 static int font_write(lua_State *L) {
     font_t *font = checked_font(L, 1);
@@ -68,41 +52,7 @@ static const luaL_reg font_methods[] = {
     {0,0}
 };
 
-static int font_gc(lua_State *L) {
-    font_t *font = to_font(L, 1);
-    ftglDestroyFont(font->font);
-    fprintf(stderr, "gc'ing font\n");
-    return 0;
-}
-
-static int font_tostring(lua_State *L) {
-    lua_pushfstring(L, "font: %p", lua_touserdata(L, 1));
-    return 1;
-}
-
-static const luaL_reg font_meta[] = {
-    {"__gc",       font_gc},
-    {"__tostring", font_tostring},
-    {0, 0}
-};
-
-
-int font_register (lua_State *L) {
-    luaL_openlib(L, FONT, font_methods, 0);  /* create methods table,
-                                                  add it to the globals */
-    luaL_newmetatable(L, FONT);        /* create metatable for Image,
-                                           add it to the Lua registry */
-    luaL_openlib(L, 0, font_meta, 0);  /* fill metatable */
-    lua_pushliteral(L, "__index");
-    lua_pushvalue(L, -3);               /* dup methods table*/
-    lua_rawset(L, -3);                  /* metatable.__index = methods */
-    lua_pushliteral(L, "__metatable");
-    lua_pushvalue(L, -3);               /* dup methods table*/
-    lua_rawset(L, -3);                  /* hide metatable:
-                                           metatable.__metatable = methods */
-    lua_pop(L, 1);                      /* drop metatable */
-    return 1;                           /* return methods on the stack */
-}
+/* Lifecycle */
 
 int font_new(lua_State *L, const char *path, const char *name) {
     FTGLfont *ftgl_font = ftglCreatePolygonFont(path);
@@ -120,3 +70,12 @@ int font_new(lua_State *L, const char *path, const char *name) {
     font->font = ftgl_font;
     return 1;
 }
+
+static int font_gc(lua_State *L) {
+    font_t *font = to_font(L, 1);
+    ftglDestroyFont(font->font);
+    fprintf(stderr, "gc'ing font\n");
+    return 0;
+}
+
+LUA_TYPE_IMPL(font);

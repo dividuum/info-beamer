@@ -4,3 +4,4 @@ news/
 kernel.h
 userlib.h
 bin2c
+*.compiled
