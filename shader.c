@@ -30,15 +30,36 @@ static int shader_use(lua_State *L) {
     return 1;
 }
 
+static int shader_set(lua_State *L) {
+    shader_t *shader = checked_shader(L, 1);
+    const char *name = luaL_checkstring(L, 2);
+    int type = lua_type(L, 3);
+    if (type == LUA_TNUMBER) {
+        GLfloat value = lua_tonumber(L, 3);
+        GLint loc = glGetUniformLocation(shader->po, name);
+        if (loc == -1)
+            return luaL_error(L, "unknown uniform name");
+        glUniform1f(loc, value);
+        // glGetUniformfv(shader->po, loc, &value);
+        // fprintf(stderr, "%f\n", value);
+    } else {
+        return luaL_error(L, "unsupported value type");
+    }
+    return 0;
+}
+
 static const luaL_reg shader_methods[] = {
     {"use",       shader_use},
+    {"set",       shader_set},
     {0,0}
 };
 
 /* Lifecycle */
 
 int shader_new(lua_State *L, const char *vertex, const char *fragment) {
+    char *fault = "";
     char log[1024];
+    GLint status;
     GLsizei log_len;
     GLuint fs = 0, vs = 0, po = 0;
 
@@ -47,18 +68,26 @@ int shader_new(lua_State *L, const char *vertex, const char *fragment) {
     glShaderSource(vs, 1, &vertex, NULL);
     glCompileShader(vs);
 
-    glGetShaderInfoLog(vs, sizeof(log), &log_len, log);
-    if (log_len > 0) 
-        goto error;
+    glGetObjectParameterivARB(vs, GL_COMPILE_STATUS, &status);
+    if (!status) {
+        fault = "compiling pixel shader";
+        glGetShaderInfoLog(vs, sizeof(log), &log_len, log);
+        if (log_len > 0) 
+            goto error;
+    }
 
     // Fragment
     fs =  glCreateShader(GL_FRAGMENT_SHADER);
     glShaderSource(fs, 1, &fragment, NULL);
     glCompileShader(fs);
 
-    glGetShaderInfoLog(fs, sizeof(log), &log_len, log);
-    if (log_len > 0) 
-        goto error;
+    glGetObjectParameterivARB(fs, GL_COMPILE_STATUS, &status);
+    if (!status) {
+        fault = "compiling fragment shader";
+        glGetShaderInfoLog(fs, sizeof(log), &log_len, log);
+        if (log_len > 0) 
+            goto error;
+    }
 
     // Program Object
     po = glCreateProgram();
@@ -66,16 +95,13 @@ int shader_new(lua_State *L, const char *vertex, const char *fragment) {
     glAttachShader(po, fs);
     glLinkProgram(po);
 
-    glGetProgramInfoLog(fs, sizeof(log), &log_len, log);
-    if (log_len > 0) 
-        goto error;
-
-    // GLint compiled;
-    // glGetObjectParameteriv(ShaderObject, GL_COMPILE_STATUS, &compiled);
-    // if (!compiled)
-    //     luaL_error(L, "%s", log);
-    //
-    // fprintf(stderr, "SHADER: %d %d %d\n", fs, vs, po);
+    glGetProgramiv(po, GL_LINK_STATUS, &status);
+    if (!status) {
+        fault = "linking program";
+        glGetProgramInfoLog(fs, sizeof(log), &log_len, log);
+        if (log_len > 0) 
+            goto error;
+    }
 
     shader_t *shader = push_shader(L);
     shader->fs = fs;
@@ -90,7 +116,7 @@ error:
         glDeleteShader(vs);
     if (fs)
         glDeleteShader(fs);
-    return luaL_error(L, "%s", log);
+    return luaL_error(L, "While %s: %s", fault, log);
 }
 
 static int shader_gc(lua_State *L) {
