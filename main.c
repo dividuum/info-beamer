@@ -181,7 +181,7 @@ static void deadline_signal(int i) {
     } else {
         // Lua wollte sich nicht beenden. Hier
         // kann nichts anderes mehr gemacht werden.
-        die("unstoppable runaway code in %s", global_node->name);
+        die("unstoppable runaway code in %s", global_node->path);
     }
     timers_expired++;
 }

@@ -26,31 +26,38 @@ LUA_TYPE_DECL(shader);
 static int shader_use(lua_State *L) {
     shader_t *shader = checked_shader(L, 1);
     glUseProgram(shader->po);
-    lua_pushnumber(L, 1);
-    return 1;
-}
 
-static int shader_set(lua_State *L) {
-    shader_t *shader = checked_shader(L, 1);
-    const char *name = luaL_checkstring(L, 2);
-    int type = lua_type(L, 3);
-    if (type == LUA_TNUMBER) {
-        GLfloat value = lua_tonumber(L, 3);
-        GLint loc = glGetUniformLocation(shader->po, name);
-        if (loc == -1)
-            return luaL_error(L, "unknown uniform name");
-        glUniform1f(loc, value);
-        // glGetUniformfv(shader->po, loc, &value);
-        // fprintf(stderr, "%f\n", value);
-    } else {
-        return luaL_error(L, "unsupported value type");
+    // No variables?
+    if (lua_type(L, 2) == LUA_TNIL)
+        return 0;
+    
+    luaL_checktype(L, 2, LUA_TTABLE);
+
+    lua_pushnil(L);
+    while (lua_next(L, -2)) {
+        // name kopieren und nach string konvertieren
+        // => [name] [value] [converted name]
+        lua_pushvalue(L, -2); 
+        const char *name = lua_tostring(L, -1);
+
+        int type = lua_type(L, -2);
+        if (type == LUA_TNUMBER) {
+            GLfloat value = lua_tonumber(L, -2);
+            GLint loc = glGetUniformLocation(shader->po, name);
+            if (loc == -1)
+                return luaL_error(L, "unknown uniform name");
+            glUniform1f(loc, value);
+        } else {
+            return luaL_error(L, "unsupported value type");
+        }
+        lua_pop(L, 2);
     }
+    lua_pop(L, 1);
     return 0;
 }
 
 static const luaL_reg shader_methods[] = {
     {"use",       shader_use},
-    {"set",       shader_set},
     {0,0}
 };
 
