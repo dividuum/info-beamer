@@ -284,11 +284,18 @@ static int video_draw(lua_State *L) {
     return 0;
 }
 
+static int video_texid(lua_State *L) {
+    video_t *video = checked_video(L, 1);
+    lua_pushnumber(L, video->tex);
+    return 1;
+}
+
 static const luaL_reg video_methods[] = {
     {"draw",    video_draw},
     {"next",    video_next},
     {"size",    video_size},
     {"fps",     video_fps},
+    {"texid",   video_texid},
     {0,0}
 };
 

@@ -30,8 +30,14 @@ static int shader_use(lua_State *L) {
     // No variables?
     if (lua_type(L, 2) == LUA_TNIL)
         return 0;
+
+    int num_textures = 1;
     
     luaL_checktype(L, 2, LUA_TTABLE);
+
+    // GLint old_active_texture;
+    // glGetIntegerv (GL_ACTIVE_TEXTURE, &selected);
+    // fprintf(stderr, "> active: %d\n", selected);
 
     lua_pushnil(L);
     while (lua_next(L, -2)) {
@@ -40,19 +46,47 @@ static int shader_use(lua_State *L) {
         lua_pushvalue(L, -2); 
         const char *name = lua_tostring(L, -1);
 
+        GLint loc = glGetUniformLocation(shader->po, name);
+        if (loc == -1)
+            return luaL_error(L, "unknown uniform name %s", name);
+
         int type = lua_type(L, -2);
+
         if (type == LUA_TNUMBER) {
             GLfloat value = lua_tonumber(L, -2);
-            GLint loc = glGetUniformLocation(shader->po, name);
-            if (loc == -1)
-                return luaL_error(L, "unknown uniform name %s", name);
             glUniform1f(loc, value);
+        // } else if (type == LUA_TUSERDATA) {
+        //     lua_pushliteral(L, "texid");
+        //     lua_gettable(L, -3);                // texid aus metatable holen
+        //     if (lua_type(L, -1) != LUA_TFUNCTION)
+        //         return luaL_error(L, "no texid() function");
+        //     lua_pushvalue(L, -3);               // value kopieren (als self)
+        //     lua_call(L, 1, 1);                  // obj:texid()
+        //     if (lua_type(L, -1) != LUA_TNUMBER)
+        //         return luaL_error(L, "texid() did not return number");
+        //     int tex_id = lua_tonumber(L, -1);
+        //     lua_pop(L, 1);
+
+        //     glActiveTexture(GL_TEXTURE0 + num_textures);
+        //     glBindTexture(GL_TEXTURE_2D, tex_id);
+        //     glUniform1i(loc, num_textures);
+        //     // fprintf(stderr, "bound tex id %d to %d: loc: %d\n", tex_id, num_textures, loc);
+        //     //
+        //     // int MaxTextureImageUnits;
+        //     // glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &MaxTextureImageUnits);
+        //     // fprintf(stderr, "max: %d\n", MaxTextureImageUnits);
+
+        //     num_textures++;
         } else {
             return luaL_error(L, "unsupported value type");
         }
         lua_pop(L, 2);
     }
     lua_pop(L, 1);
+    glActiveTexture(GL_TEXTURE0);
+    // glGetIntegerv (GL_ACTIVE_TEXTURE, &selected);
+    // fprintf(stderr, "< active: %d\n", selected);
+    // glUseProgram(shader->po);
     return 0;
 }
 

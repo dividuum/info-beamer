@@ -301,9 +301,16 @@ static int image_draw(lua_State *L) {
     return 0;
 }
 
+static int image_texid(lua_State *L) {
+    image_t *image = checked_image(L, 1);
+    lua_pushnumber(L, image->tex);
+    return 1;
+}
+
 static const luaL_reg image_methods[] = {
     {"draw",    image_draw},
     {"size",    image_size},
+    {"texid",   image_texid},
     {0,0}
 };
 

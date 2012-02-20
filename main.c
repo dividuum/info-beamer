@@ -322,11 +322,11 @@ static int node_render_to_image(lua_State *L, node_t *node) {
     glLoadIdentity();
 
     node->gl_matrix_depth = 0;
+
     node_event(node, "render", 0);
-    while (node->gl_matrix_depth > 0) {
+
+    while (node->gl_matrix_depth-- > 0)
         glPopMatrix();
-        node->gl_matrix_depth--;
-    }
     node->gl_matrix_depth = NO_GL_PUSHPOP;
 
     glMatrixMode(GL_PROJECTION);
