@@ -45,7 +45,7 @@ static int shader_use(lua_State *L) {
             GLfloat value = lua_tonumber(L, -2);
             GLint loc = glGetUniformLocation(shader->po, name);
             if (loc == -1)
-                return luaL_error(L, "unknown uniform name");
+                return luaL_error(L, "unknown uniform name %s", name);
             glUniform1f(loc, value);
         } else {
             return luaL_error(L, "unsupported value type");

@@ -567,7 +567,7 @@ static void node_tree_print(node_t *node, int depth) {
 }
 
 static void node_tree_gc(node_t *node) {
-    lua_gc(node->L, LUA_GCSTEP, 10);
+    lua_gc(node->L, LUA_GCSTEP, 100);
     node_t *child, *tmp; 
     HASH_ITER(by_name, node->childs, child, tmp) {
         node_tree_gc(child);
