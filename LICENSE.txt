@@ -38,6 +38,14 @@ files in included in their header.
         Includes code from ffmpeg example code
         http://bit.ly/w3iOvz
 
+    misc.h
+        Includes code based on lua-users wiki:
+        http://lua-users.org/wiki/UserDataWithPointerExample
+
+    userlib.lua
+        Includes code based on lua-users wiki:
+        http://lua-users.org/wiki/TableSerialization
+
 3rd Party code:
 
     tlsf.c tlsf.h tlsfbits.h
@@ -54,4 +62,3 @@ files in included in their header.
     struct.c
         Library for packing/unpacking structures. 
         http://www.inf.puc-rio.br/~roberto/struct/
-

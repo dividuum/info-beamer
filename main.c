@@ -49,7 +49,7 @@
 
 #define MAX_CODE_SIZE 16384 // byte
 #define MAX_LOADFILE_SIZE 16384 // byte
-#define MAX_MEM 200000 // KB
+#define MAX_MEM 2000000 // KB
 #define MAX_GL_PUSH 20 // glPushMatrix depth
 
 // Default host/port (both udp & tcp)
@@ -545,7 +545,7 @@ static int luaNow(lua_State *L) {
      lua_settable((node)->L, LUA_GLOBALSINDEX))
 
 static void node_printf(node_t *node, const char *fmt, ...) {
-    char buffer[4096];
+    char buffer[16384];
     va_list ap;
     va_start(ap, fmt);
     size_t buffer_size = vsnprintf(buffer, sizeof(buffer), fmt, ap);

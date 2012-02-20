@@ -3,18 +3,29 @@
 util = {}
 
 function util.videoplayer(name, opt)
-    local stream = resource.load_video(name)
-    local start = sys.now()
-    local fps = stream:fps()
-    local frame = 0
-    local width, height = stream:size()
+    local stream, start, fps, frame, width, height
+
+    function open_stream()
+        stream = resource.load_video(name)
+        start = sys.now()
+        fps = stream:fps()
+        frame = 0
+        width, height = stream:size()
+    end
+
+    open_stream()
 
     opt = opt or {}
     local speed = opt.speed or 1
     fps = fps * speed
 
+    local loop = opt.loop or true
+
+    local done = false
+
     return {
         play = function(_, x1, y1, x2, y2, alpha)
+            if done then return end
             local now = sys.now()
             local target_frame = (now - start) * fps
             if target_frame > frame + 10 then
@@ -28,8 +39,14 @@ function util.videoplayer(name, opt)
             else
                 while frame < target_frame do
                     if not stream:next() then
-                        -- stream completed
-                        return false
+                        if loop then
+                            open_stream()
+                            break
+                        else
+                            -- stream completed
+                            done = true
+                            return false
+                        end
                     end
                     frame = frame + 1
                 end
@@ -104,3 +121,106 @@ function util.scale_into(source_width, source_height, target_width, target_heigh
     return x1, y1, x2, y2
 end
 
+
+
+-- Based on http://lua-users.org/wiki/TableSerialization
+-- Modified to *not* use debug.getinfo
+
+--[[
+   Author: Julio Manuel Fernandez-Diaz
+   Date:   January 12, 2007
+   (For Lua 5.1)
+   
+   Modified slightly by RiciLake to avoid the unnecessary table traversal in tablecount()
+
+   Formats tables with cycles recursively to any depth.
+   The output is returned as a string.
+   References to other tables are shown as values.
+   Self references are indicated.
+
+   The string returned is "Lua code", which can be procesed
+   (in the case in which indent is composed by spaces or "--").
+   Userdata and function keys and values are shown as strings,
+   which logically are exactly not equivalent to the original code.
+
+   This routine can serve for pretty formating tables with
+   proper indentations, apart from printing them:
+
+      print(table.show(t, "t"))   -- a typical use
+   
+   Heavily based on "Saving tables with cycles", PIL2, p. 113.
+
+   Arguments:
+      t is the table.
+      name is the name of the table (optional)
+      indent is a first indentation (optional).
+--]]
+function table.show(t, name, indent)
+   local cart     -- a container
+   local autoref  -- for self references
+
+   --[[ counts the number of elements in a table
+   local function tablecount(t)
+      local n = 0
+      for _, _ in pairs(t) do n = n+1 end
+      return n
+   end
+   ]]
+   -- (RiciLake) returns true if the table is empty
+   local function isemptytable(t) return next(t) == nil end
+
+   local function basicSerialize (o)
+      local so = tostring(o)
+      if type(o) == "function" or type(o) == "number" or type(o) == "boolean" then
+         return so
+      else
+         return string.format("%q", so)
+      end
+   end
+
+   local function addtocart (value, name, indent, saved, field)
+      indent = indent or ""
+      saved = saved or {}
+      field = field or name
+
+      cart = cart .. indent .. field
+
+      if type(value) ~= "table" then
+         cart = cart .. " = " .. basicSerialize(value) .. ";\n"
+      else
+         if saved[value] then
+            cart = cart .. " = {...}; -- " .. saved[value] 
+                        .. " (self reference)\n"
+            autoref = autoref ..  name .. " = " .. saved[value] .. ";\n"
+         else
+            saved[value] = name
+            --if tablecount(value) == 0 then
+            if isemptytable(value) then
+               cart = cart .. " = {};\n"
+            else
+               cart = cart .. " = {\n"
+               for k, v in pairs(value) do
+                  k = basicSerialize(k)
+                  local fname = string.format("%s[%s]", name, k)
+                  field = string.format("[%s]", k)
+                  -- three spaces between levels
+                  addtocart(v, fname, indent .. "   ", saved, field)
+               end
+               cart = cart .. indent .. "};\n"
+            end
+         end
+      end
+   end
+
+   name = name or "__unnamed__"
+   if type(t) ~= "table" then
+      return name .. " = " .. basicSerialize(t)
+   end
+   cart, autoref = "", ""
+   addtocart(t, name, indent)
+   return cart .. autoref
+end
+
+function pp(t)
+    print(table.show(t))
+end

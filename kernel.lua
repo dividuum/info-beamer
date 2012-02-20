@@ -303,6 +303,6 @@ os = nil
 dofile = nil
 getfenv = nil
 debug = {
-	traceback = debug.traceback;
-	getinfo = debug.getinfo;
+    traceback = debug.traceback;
+    getinfo = debug.getinfo;
 }

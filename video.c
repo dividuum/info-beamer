@@ -56,120 +56,120 @@ LUA_TYPE_DECL(video);
 /* Helper functions */
 
 static void video_free(video_t *video) {
-	if (video->scaler)
-	     sws_freeContext(video->scaler);
-	if (video->raw_frame)
-	     av_free(video->raw_frame);
-	if (video->scaled_frame)
-	     av_free(video->scaled_frame);
-	
-	if (video->codec_context)
-	     avcodec_close(video->codec_context);
-	if (video->format_context)
-		av_close_input_file(video->format_context);
-	
-	free(video->buffer);
+    if (video->scaler)
+        sws_freeContext(video->scaler);
+    if (video->raw_frame)
+        av_free(video->raw_frame);
+    if (video->scaled_frame)
+        av_free(video->scaled_frame);
+
+    if (video->codec_context)
+        avcodec_close(video->codec_context);
+    if (video->format_context)
+        av_close_input_file(video->format_context);
+
+    free(video->buffer);
 }
 
 static int video_open(video_t *video, const char *filename) {
-	video->format = PIX_FMT_RGB24;
-	if (av_open_input_file(&video->format_context, filename, NULL, 0, NULL) ||
-		av_find_stream_info(video->format_context) < 0) {
+    video->format = PIX_FMT_RGB24;
+    if (av_open_input_file(&video->format_context, filename, NULL, 0, NULL) ||
+            av_find_stream_info(video->format_context) < 0) {
         fprintf(stderr, "cannot open video stream %s\n", filename);
         goto failed;
     }
-	
-	video->stream_idx = -1;
-	for (int i = 0; i < video->format_context->nb_streams; i++) {
-		if (video->format_context->streams[i]->codec->codec_type == AVMEDIA_TYPE_VIDEO) {
-			video->stream_idx = i;
-			break;
-		}
+
+    video->stream_idx = -1;
+    for (int i = 0; i < video->format_context->nb_streams; i++) {
+        if (video->format_context->streams[i]->codec->codec_type == AVMEDIA_TYPE_VIDEO) {
+            video->stream_idx = i;
+            break;
+        }
     }
-	
-	if (video->stream_idx == -1) {
+
+    if (video->stream_idx == -1) {
         fprintf(stderr, "cannot find video stream\n");
-		goto failed;
+        goto failed;
     }
 
     AVStream *stream = video->format_context->streams[video->stream_idx];
-	video->codec_context = stream->codec;
-	video->codec = avcodec_find_decoder(video->codec_context->codec_id);
+    video->codec_context = stream->codec;
+    video->codec = avcodec_find_decoder(video->codec_context->codec_id);
 
-	if (!video->codec || avcodec_open(video->codec_context, video->codec) < 0) {
+    if (!video->codec || avcodec_open(video->codec_context, video->codec) < 0) {
         fprintf(stderr, "cannot open codec\n");
         goto failed;
     }
 
     /* Save Width/Height */
-	video->width = video->codec_context->width;
-	video->height = video->codec_context->height;
-	
-	/* Frame rate fix for some codecs */
-	if (video->codec_context->time_base.num > 1000 && video->codec_context->time_base.den == 1)
-		video->codec_context->time_base.den = 1000;
+    video->width = video->codec_context->width;
+    video->height = video->codec_context->height;
+
+    /* Frame rate fix for some codecs */
+    if (video->codec_context->time_base.num > 1000 && video->codec_context->time_base.den == 1)
+        video->codec_context->time_base.den = 1000;
 
     /* Get FPS */
     // http://libav-users.943685.n4.nabble.com/Retrieving-Frames-Per-Second-FPS-td946533.html
     if ((stream->time_base.den != stream->r_frame_rate.num) ||
-        (stream->time_base.num != stream->r_frame_rate.den)) {
+            (stream->time_base.num != stream->r_frame_rate.den)) {
         video->fps = 1.0 / stream->r_frame_rate.den * stream->r_frame_rate.num;
     } else {
         video->fps = 1.0 / stream->time_base.num * stream->time_base.den;
     }
     fprintf(stderr, "fps: %lf\n", video->fps);
-	
-	/* Get framebuffers */
-	video->raw_frame = avcodec_alloc_frame();
-	video->scaled_frame = avcodec_alloc_frame();
-	
-	if (!video->raw_frame || !video->scaled_frame) {
+
+    /* Get framebuffers */
+    video->raw_frame = avcodec_alloc_frame();
+    video->scaled_frame = avcodec_alloc_frame();
+
+    if (!video->raw_frame || !video->scaled_frame) {
         fprintf(stderr, "cannot preallocate frames\n");
         goto failed;
     }
-	
-	/* Create data buffer */
-	video->buffer = malloc(avpicture_get_size(video->format, 
-		video->codec_context->width, video->codec_context->height));
-	
-	/* Init buffers */
-	avpicture_fill(
-        (AVPicture *) video->scaled_frame, 
-        video->buffer, 
-        video->format, 
-		video->codec_context->width, 
-        video->codec_context->height
-    );
-	
-	/* Init scale & convert */
-	video->scaler = sws_getContext(
-        video->codec_context->width, 
-        video->codec_context->height, 
-        video->codec_context->pix_fmt,
-		video->width, 
-        video->height, 
-        video->format, 
-        SWS_BICUBIC, 
-        NULL, 
-        NULL, 
-        NULL
-    );
-	
-	if (!video->scaler) {
+
+    /* Create data buffer */
+    video->buffer = malloc(avpicture_get_size(video->format, 
+                video->codec_context->width, video->codec_context->height));
+
+    /* Init buffers */
+    avpicture_fill(
+            (AVPicture *) video->scaled_frame, 
+            video->buffer, 
+            video->format, 
+            video->codec_context->width, 
+            video->codec_context->height
+            );
+
+    /* Init scale & convert */
+    video->scaler = sws_getContext(
+            video->codec_context->width, 
+            video->codec_context->height, 
+            video->codec_context->pix_fmt,
+            video->width, 
+            video->height, 
+            video->format, 
+            SWS_BICUBIC, 
+            NULL, 
+            NULL, 
+            NULL
+            );
+
+    if (!video->scaler) {
         fprintf(stderr, "scale context init failed\n");
         goto failed;
     }
-	
-	/* Give some info on stderr about the file & stream */
-	dump_format(video->format_context, 0, filename, 0);
-	return 1;
+
+    /* Give some info on stderr about the file & stream */
+    dump_format(video->format_context, 0, filename, 0);
+    return 1;
 failed:
     video_free(video);
     return 0;
 }
 
 static int video_next_frame(video_t *video) {
-	AVPacket packet;
+    AVPacket packet;
     av_init_packet(&packet);
 
 again:
@@ -179,14 +179,14 @@ again:
         av_free_packet(&packet);
         return 0;
     }
-	
+
     /* Is it what we're trying to parse? */
     if (packet.stream_index != video->stream_idx) {
         // fprintf(stderr, "not video\n");
         av_free_packet(&packet);
         goto again;
     }
-	
+
     /* Decode it! */
     int finished = 0;
     avcodec_decode_video2(video->codec_context, video->raw_frame, &finished, &packet);
