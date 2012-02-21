@@ -61,7 +61,7 @@
 #define MAX_PCALL_TIME  100000000 // usec
 #else
 #define MAX_RUNAWAY_TIME 1 // sec
-#define MAX_PCALL_TIME  100000 // usec
+#define MAX_PCALL_TIME  1000000 // usec
 #endif
 
 #ifdef DEBUG_OPENGL
