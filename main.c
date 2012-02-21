@@ -291,18 +291,21 @@ static int node_render_to_image(lua_State *L, node_t *node) {
         luaL_error(L, "node not initialized with gl.setup()");
         return 0;
     }
-    // fprintf(stderr, "rendering %s\n", node->path);
 
     print_render_state();
+
+    // Vorherigen Framebuffer und Shader speichern
     int prev_fbo, prev_prog;
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_fbo);
     glGetIntegerv(GL_CURRENT_PROGRAM, &prev_prog);
 
+    // Shader deaktivieren
+    glUseProgram(0);
+
+    // Neuen Framebuffer aus dem Recycler holen
     unsigned int fbo, tex;
     make_framebuffer(node->width, node->height, &tex, &fbo);
     print_render_state();
-
-    // glBindTexture(GL_TEXTURE_2D, default_tex);
 
     // Clear with transparent color
     glClearColor(1, 1, 1, 0);
@@ -388,6 +391,36 @@ static int luaSetup(lua_State *L) {
         luaL_error(L, "invalid height [32,2048]");
     node->width = width;
     node->height = height;
+    return 0;
+}
+
+static int luaGlOrtho(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(0, node->width,
+            node->height, 0,
+            -1000, 1000);
+    glMatrixMode(GL_MODELVIEW);
+    return 0;
+}
+
+static int luaGlPerspective(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    double fov = luaL_checknumber(L, 1);
+    double eye_x = luaL_checknumber(L, 2);
+    double eye_y = luaL_checknumber(L, 3);
+    double eye_z = luaL_checknumber(L, 4);
+    double center_x = luaL_checknumber(L, 5);
+    double center_y = luaL_checknumber(L, 6);
+    double center_z = luaL_checknumber(L, 7);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluPerspective(fov, (float)node->width / (float)node->height, 0.1, 10000);
+    gluLookAt(eye_x, eye_y, eye_z, 
+              center_x, center_y, center_z,
+              0, -1, 0);
+    glMatrixMode(GL_MODELVIEW);
     return 0;
 }
 
@@ -657,6 +690,8 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "glPopMatrix", luaGlPopMatrix);
     lua_register_node_func(node, "glRotate", luaGlRotate);
     lua_register_node_func(node, "glTranslate", luaGlTranslate);
+    lua_register_node_func(node, "glOrtho", luaGlOrtho);
+    lua_register_node_func(node, "glPerspective", luaGlPerspective);
     lua_register(node->L, "clear", luaClear);
     lua_register(node->L, "now", luaNow);
 

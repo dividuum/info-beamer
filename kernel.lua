@@ -148,6 +148,8 @@ function create_sandbox()
             popMatrix = glPopMatrix;
             rotate = glRotate;
             translate = glTranslate;
+            ortho = glOrtho;
+            perspective = glPerspective;
         };
 
         sys = {
