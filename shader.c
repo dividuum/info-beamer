@@ -13,6 +13,25 @@
 
 #include "misc.h"
 
+/*
+ * Identity shader
+ *
+ * shader = resource.create_shader([[
+ *     void main() {
+ *         gl_TexCoord[0] = gl_MultiTexCoord0;
+ *         gl_FrontColor = gl_Color;
+ *         gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+ *     }
+ * ]], [[
+ *     uniform sampler2D tex;
+ *     void main() {
+ *         vec4 texel = texture2D(tex, gl_TexCoord[0].st);
+ *         gl_FragColor = gl_Color * texel;
+ *     }
+ * ]])
+ *
+*/
+
 typedef struct {
     GLuint fs;
     GLuint vs;
