@@ -287,11 +287,9 @@ static int image_draw(lua_State *L) {
     GLfloat y2 = luaL_checknumber(L, 5);
     GLfloat alpha = luaL_optnumber(L, 6, 1.0);
 
-    int prev_tex;
-    glGetIntegerv(GL_TEXTURE_BINDING_2D, &prev_tex);
     glBindTexture(GL_TEXTURE_2D, image->tex);
-
     glColor4f(1.0, 1.0, 1.0, alpha);
+
     glBegin(GL_QUADS); 
         glTexCoord2f(0.0, 1.0); glVertex3f(x1, y1, 0);
         glTexCoord2f(1.0, 1.0); glVertex3f(x2, y1, 0);
@@ -299,7 +297,6 @@ static int image_draw(lua_State *L) {
         glTexCoord2f(0.0, 0.0); glVertex3f(x1, y2, 0);
     glEnd();
 
-    glBindTexture(GL_TEXTURE_2D, prev_tex);
     return 0;
 }
 

@@ -234,8 +234,6 @@ static int video_next(lua_State *L) {
         return 1;
     }
 
-    int prev_tex;
-    glGetIntegerv(GL_TEXTURE_BINDING_2D, &prev_tex);
     glBindTexture(GL_TEXTURE_2D, video->tex);
 
     glPixelStorei(GL_UNPACK_SWAP_BYTES, GL_TRUE);
@@ -256,7 +254,6 @@ static int video_next(lua_State *L) {
             GL_UNSIGNED_BYTE,
             video->buffer 
     );
-    glBindTexture(GL_TEXTURE_2D, prev_tex);
 
     lua_pushboolean(L, 1);
     return 1;
@@ -270,17 +267,15 @@ static int video_draw(lua_State *L) {
     GLfloat y2 = luaL_checknumber(L, 5);
     GLfloat alpha = luaL_optnumber(L, 6, 1.0);
 
-    int prev_tex;
-    glGetIntegerv(GL_TEXTURE_BINDING_2D, &prev_tex);
     glBindTexture(GL_TEXTURE_2D, video->tex);
     glColor4f(1.0, 1.0, 1.0, alpha);
+
     glBegin(GL_QUADS); 
         glTexCoord2f(0.0, 0.0); glVertex3f(x1, y1, 0);
         glTexCoord2f(1.0, 0.0); glVertex3f(x2, y1, 0);
         glTexCoord2f(1.0, 1.0); glVertex3f(x2, y2, 0);
         glTexCoord2f(0.0, 1.0); glVertex3f(x1, y2, 0);
     glEnd();
-    glBindTexture(GL_TEXTURE_2D, prev_tex);
     return 0;
 }
 
@@ -310,8 +305,6 @@ int video_load(lua_State *L, const char *path, const char *name) {
 
     glGenTextures(1, &video.tex);
 
-    int prev_tex;
-    glGetIntegerv(GL_TEXTURE_BINDING_2D, &prev_tex);
     glBindTexture(GL_TEXTURE_2D, video.tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -326,7 +319,6 @@ int video_load(lua_State *L, const char *path, const char *name) {
             GL_UNSIGNED_BYTE,
             NULL 
     );
-    glBindTexture(GL_TEXTURE_2D, prev_tex);
 
     *push_video(L) = video;
     return 1;

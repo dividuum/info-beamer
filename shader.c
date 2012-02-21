@@ -28,7 +28,7 @@ static int shader_use(lua_State *L) {
     glUseProgram(shader->po);
 
     // No variables?
-    if (lua_type(L, 2) == LUA_TNIL)
+    if (lua_gettop(L) == 1)
         return 0;
 
     int num_textures = 1;
@@ -84,9 +84,6 @@ static int shader_use(lua_State *L) {
     }
     lua_pop(L, 1);
     glActiveTexture(GL_TEXTURE0);
-    // glGetIntegerv (GL_ACTIVE_TEXTURE, &selected);
-    // fprintf(stderr, "< active: %d\n", selected);
-    // glUseProgram(shader->po);
     return 0;
 }
 
@@ -139,7 +136,7 @@ int shader_new(lua_State *L, const char *vertex, const char *fragment) {
     glGetProgramiv(po, GL_LINK_STATUS, &status);
     if (!status) {
         fault = "linking program";
-        glGetProgramInfoLog(fs, sizeof(log), &log_len, log);
+        glGetProgramInfoLog(po, sizeof(log), &log_len, log);
         if (log_len > 0) 
             goto error;
     }

@@ -3,11 +3,16 @@
 #ifndef MISC_H
 #define MISC_H
 
+#include <GL/gl.h>
+
 void die(const char *fmt, ...);
 void *xmalloc(size_t size);
 
+extern GLuint default_tex;
+
 // Simple Lua binder
 // Based on http://lua-users.org/wiki/UserDataWithPointerExample
+
 
 #define LUA_TYPE_DECL(type) \
 static type##_t *to_##type(lua_State *L, int index);                    \

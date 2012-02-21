@@ -135,6 +135,7 @@ static int inotify_fd;
 static double now;
 static int running = 1;
 
+GLuint default_tex; // white default texture
 
 /*=== Forward declarations =====*/
 
@@ -301,7 +302,7 @@ static int node_render_to_image(lua_State *L, node_t *node) {
     make_framebuffer(node->width, node->height, &tex, &fbo);
     print_render_state();
 
-    glBindTexture(GL_TEXTURE_2D, 0);
+    // glBindTexture(GL_TEXTURE_2D, default_tex);
 
     // Clear with transparent color
     glClearColor(1, 1, 1, 0);
@@ -1070,7 +1071,7 @@ static void tick() {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glBindTexture(GL_TEXTURE_2D, 0);
+    // glBindTexture(GL_TEXTURE_2D, default_tex);
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
@@ -1113,6 +1114,14 @@ static void update_now() {
     now += 1.0 / 1000000 * tv.tv_usec;
 }
 
+static void init_default_texture() {
+    glGenTextures(1, &default_tex);
+    glBindTexture(GL_TEXTURE_2D, default_tex);
+    unsigned char pixels[] = {255, 255, 255, 255};
+    glTexImage2D(GL_TEXTURE_2D, 0, 4, 1, 1, 0, 
+        GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+}
+
 int main(int argc, char *argv[]) {
     fprintf(stdout, VERSION_STRING " (" INFO_URL ")\n");
     fprintf(stdout, "Copyright (c) 2012, Florian Wesch <fw@dividuum.de>\n");
@@ -1151,6 +1160,8 @@ int main(int argc, char *argv[]) {
     GLenum err = glewInit();
     if (err != GLEW_OK)
         die("cannot initialize glew");
+    if (!glewIsSupported("GL_VERSION_2_0"))
+        die("need opengl 2.0 support\n");
 
     glfwSetWindowTitle(VERSION_STRING);
     glfwSwapInterval(1);
@@ -1161,6 +1172,7 @@ int main(int argc, char *argv[]) {
     signal(SIGVTALRM, deadline_signal);
 
     update_now();
+    init_default_texture();
 
     node_init_all(&root, argv[1]);
 
