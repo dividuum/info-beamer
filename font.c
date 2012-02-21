@@ -35,6 +35,9 @@ static int font_write(lua_State *L) {
     const char *text = luaL_checkstring(L, 4);
     GLfloat size = luaL_checknumber(L, 5) / 1000.0;
 
+    // int prev_tex;
+    // glGetIntegerv(GL_TEXTURE_BINDING_2D, &prev_tex);
+
     int type = lua_type(L, 6);
     if (type == LUA_TNUMBER) {
         GLfloat r = luaL_checknumber(L, 6);
@@ -42,8 +45,14 @@ static int font_write(lua_State *L) {
         GLfloat b = luaL_checknumber(L, 8);
         GLfloat a = luaL_checknumber(L, 9);
 
-        // int prev_tex;
-        // glGetIntegerv(GL_TEXTURE_BINDING_2D, &prev_tex);
+        glColor4f(r,g,b,a);
+
+        // XXX: HACK: Die Schrift bekommt hier
+        // eine vorgefaerbte Texture verpasst.
+        // Eigentlich sollte das auch ohne moeglich
+        // sein, aber dann verschwinden die
+        // Schriften, sobald ein Shader aktiv ist.
+
         glBindTexture(GL_TEXTURE_2D, font->tex);
 
         unsigned char texel[4] = {
@@ -70,6 +79,7 @@ static int font_write(lua_State *L) {
         if (lua_type(L, -1) != LUA_TNUMBER)
             return luaL_error(L, "texid() did not return number");
         int tex_id = lua_tonumber(L, -1);
+        glColor4f(1,1,1,1);
         glBindTexture(GL_TEXTURE_2D, tex_id);
         lua_pop(L, 1);
     } else {
