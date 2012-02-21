@@ -293,8 +293,9 @@ static int node_render_to_image(lua_State *L, node_t *node) {
     // fprintf(stderr, "rendering %s\n", node->path);
 
     print_render_state();
-    int prev_fbo;
+    int prev_fbo, prev_prog;
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_fbo);
+    glGetIntegerv(GL_CURRENT_PROGRAM, &prev_prog);
 
     unsigned int fbo, tex;
     make_framebuffer(node->width, node->height, &tex, &fbo);
@@ -335,6 +336,9 @@ static int node_render_to_image(lua_State *L, node_t *node) {
     glPopMatrix();
 
     glBindFramebuffer(GL_FRAMEBUFFER, prev_fbo);
+
+    // Shader zuruecksetzen
+    glUseProgram(prev_prog);
 
     glPopAttrib();
     glPopClientAttrib();
@@ -449,8 +453,8 @@ static int luaLoadFile(lua_State *L) {
 
 static int luaCreateShader(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
-    if (node->parent)
-        luaL_error(L, "shader only allowed in toplevel node");
+    // if (node->parent)
+    //     luaL_error(L, "shader only allowed in toplevel node");
     const char *vertex = luaL_checkstring(L, 1);
     const char *fragment = luaL_checkstring(L, 2);
     return shader_new(L, vertex, fragment);
@@ -1081,7 +1085,6 @@ static void tick() {
 
     glClearColor(0.05, 0.05, 0.05, 1);
     glClear(GL_COLOR_BUFFER_BIT);
-    glUseProgram(0);
     node_render_self(&root, win_w, win_h);
 
     test("render");

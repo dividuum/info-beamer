@@ -14,9 +14,11 @@ alert = resource.create_shader(
     uniform float Scale, InvScale;
 
     void main() {
-        float absScale = 0.5 - abs(Scale) / 2;
-        float x = sin(Scale*90) * 0.02 * absScale;
-        float y = cos(Scale*90) * 0.02 * absScale;
+        float dist = 0.5 - min(0.5, sqrt(pow(0.5 - gl_TexCoord[0].s, 2) + pow(0.5 - gl_TexCoord[0].t, 2)));
+
+        float absScale = abs(Scale) / 2 * dist;
+        float x = sin(Scale*10) * 0.25 * absScale;
+        float y = cos(Scale*10) * 0.26 * absScale;
         vec4 color = texture2D(tex, gl_TexCoord[0].st + vec4(
             x, y, 0, 0
         ));
@@ -31,8 +33,8 @@ alert = resource.create_shader(
 
 function event.render()
     gl.clear(1,1,1,1)
-    logo:draw(120, 40, 520, 440)
     alert:use{
-        Scale = math.cos(sys.now()*2)
+        Scale = math.cos(sys.now()*2)*3
     }
+    logo:draw(120, 40, 520, 440)
 end
