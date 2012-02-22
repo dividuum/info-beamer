@@ -13,8 +13,8 @@
 #define MAX_CACHED 30
 
 typedef struct framebuffer {
-    unsigned int fbo;
-    unsigned int tex;
+    GLuint fbo;
+    GLuint tex;
     int width;
     int height;
     struct framebuffer *prev;
@@ -24,15 +24,13 @@ typedef struct framebuffer {
 static framebuffer_t *framebuffers = NULL;
 static int num_framebuffers = 0;
 
-void free_framebuffer(framebuffer_t *framebuffer) {
-    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer->fbo);
-    glBindTexture(GL_TEXTURE_2D, framebuffer->tex);
+void unlink_framebuffer(framebuffer_t *framebuffer) {
     DL_DELETE(framebuffers, framebuffer);
     free(framebuffer);
     num_framebuffers--;
 }
 
-void make_framebuffer(int width, int height, unsigned int *tex, unsigned int *fbo) {
+void make_framebuffer(int width, int height, GLuint *tex, GLuint *fbo) {
     framebuffer_t *framebuffer, *tmp;
 
     // fprintf(stderr, "requesting framebuffer: %dx%d\n", width, height);
@@ -47,7 +45,9 @@ void make_framebuffer(int width, int height, unsigned int *tex, unsigned int *fb
             // fprintf(stderr, "found reusable framebuffer\n");
             *tex = framebuffer->tex;
             *fbo = framebuffer->fbo;
-            free_framebuffer(framebuffer);
+            glBindFramebuffer(GL_FRAMEBUFFER, framebuffer->fbo);
+            glBindTexture(GL_TEXTURE_2D, framebuffer->tex);
+            unlink_framebuffer(framebuffer);
             return;
         }
     }
@@ -55,6 +55,7 @@ void make_framebuffer(int width, int height, unsigned int *tex, unsigned int *fb
 
     glGenFramebuffers(1, fbo);
     glBindFramebuffer(GL_FRAMEBUFFER, *fbo);
+    fprintf(stderr, "new framebuffer (%dx%d): %u\n", width, height, *fbo);
 
     glGenTextures(1, tex);
     glBindTexture(GL_TEXTURE_2D, *tex);
@@ -68,7 +69,7 @@ void make_framebuffer(int width, int height, unsigned int *tex, unsigned int *fb
     assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
 }
 
-void recycle_framebuffer(int width, int height, unsigned int tex, unsigned int fbo) {
+void recycle_framebuffer(int width, int height, GLuint tex, GLuint fbo) {
     framebuffer_t *framebuffer = xmalloc(sizeof(framebuffer_t));
     framebuffer->width = width;
     framebuffer->height = height;
@@ -82,7 +83,9 @@ void recycle_framebuffer(int width, int height, unsigned int tex, unsigned int f
     num_framebuffers++;
 
     if (num_framebuffers > MAX_CACHED) {
-        // fprintf(stderr, "too full\n");
-        free_framebuffer(framebuffers);
+        fprintf(stderr, "too many framebuffers\n");
+        glDeleteFramebuffers(1, &framebuffers->fbo);
+        glDeleteTextures(1, &framebuffers->tex);
+        unlink_framebuffer(framebuffers);
     }
 }

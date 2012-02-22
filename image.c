@@ -30,8 +30,8 @@
 #include "misc.h"
 
 typedef struct {
-    unsigned int tex;
-    unsigned int fbo;
+    GLuint tex;
+    GLuint fbo;
     int width;
     int height;
 } image_t;
@@ -149,6 +149,8 @@ static int load_jpeg(const char *filename, int *width, int *height) {
     free(pixels);
 
     glPixelStorei(GL_UNPACK_ALIGNMENT, alignment);
+
+    fprintf(stderr, "jpeg loaded. size is %dx%d\n", *width, *height);
     return tex;
 }
 
@@ -260,7 +262,7 @@ static int load_png(const char *filename, int *width, int *height) {
 
     glPixelStorei (GL_UNPACK_ALIGNMENT, alignment);
 
-    fprintf(stderr, "got png: %dx%d\n", *width, *height);
+    fprintf(stderr, "png loaded. size is %dx%d\n", *width, *height);
     return tex;
     // XXX: Fehlerhandling scheint mir noch inkorrekt
 error_read:
@@ -315,7 +317,7 @@ static const luaL_reg image_methods[] = {
 
 /* Lifecycle */
 
-int image_create(lua_State *L, int tex, int fbo, int width, int height) {
+int image_create(lua_State *L, GLuint tex, GLuint fbo, int width, int height) {
     image_t *image = push_image(L);
     // printf("creating image %d,%d %dx%d\n", tex, fbo, width, height);
     image->tex = tex;
@@ -327,7 +329,7 @@ int image_create(lua_State *L, int tex, int fbo, int width, int height) {
 
 int image_load(lua_State *L, const char *path, const char *name) {
     int width, height;
-    int tex = 0;
+    GLuint tex = 0;
 
     char *pos = strstr(name, ".png");
     if (pos && pos == name + strlen(name) - 4) {

@@ -47,6 +47,8 @@
 #define VERSION_STRING "Info Beamer " VERSION
 #define INFO_URL "http://dividuum.de/info-beamer"
 
+#define NODE_CODE_FILE "node.lua"
+
 #define MAX_CODE_SIZE 16384 // byte
 #define MAX_LOADFILE_SIZE 16384 // byte
 #define MAX_MEM 2000000 // KB
@@ -63,6 +65,8 @@
 #define MAX_RUNAWAY_TIME 1 // sec
 #define MAX_PCALL_TIME  1000000 // usec
 #endif
+
+#define GREEN(string) "[32m" string "[0m"
 
 #ifdef DEBUG_OPENGL
 #define print_render_state() \
@@ -95,8 +99,8 @@
 typedef struct node_s {
     int wd; // inotify watch descriptor
 
-    const char *name; // local node name
-    const char *path; // full path (including node name)
+    char *name; // local node name
+    char *path; // full path (including node name)
 
     lua_State *L;
 
@@ -142,6 +146,7 @@ GLuint default_tex; // white default texture
 static void client_write(client_t *client, const char *data, size_t data_size);
 static void client_close(client_t *client);
 static void node_printf(node_t *node, const char *fmt, ...);
+static int node_render_to_image(lua_State *L, node_t *node);
 static void node_init(node_t *node, node_t *parent, const char *path, const char *name);
 static void node_free(node_t *node);
 
@@ -253,7 +258,7 @@ static void lua_node_enter(node_t *node, int args) {
     assert(lua_gettop(L) == old_top);
 }
 
-/*======= Node =======*/
+/*======= Lua entry points =======*/
 
 // reinit sandbox, load usercode and user code
 static void node_boot(node_t *node) {
@@ -261,9 +266,17 @@ static void node_boot(node_t *node) {
     lua_node_enter(node, 1);
 }
 
+// notify of child update 
+static void node_child_update(node_t *node, const char *name, int added) {
+    lua_pushliteral(node->L, "child_update");
+    lua_pushstring(node->L, name);
+    lua_pushboolean(node->L, added);
+    lua_node_enter(node, 3);
+}
+
 // notify of content update 
-static void node_update_content(node_t *node, const char *name, int added) {
-    lua_pushliteral(node->L, "update_content");
+static void node_content_update(node_t *node, const char *name, int added) {
+    lua_pushliteral(node->L, "content_update");
     lua_pushstring(node->L, name);
     lua_pushboolean(node->L, added);
     lua_node_enter(node, 3);
@@ -286,70 +299,7 @@ static void node_render_self(node_t *node, int width, int height) {
     lua_node_enter(node, 3);
 }
 
-static int node_render_to_image(lua_State *L, node_t *node) {
-    if (!node->width) {
-        luaL_error(L, "node not initialized with gl.setup()");
-        return 0;
-    }
-
-    print_render_state();
-
-    // Vorherigen Framebuffer und Shader speichern
-    int prev_fbo, prev_prog;
-    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_fbo);
-    glGetIntegerv(GL_CURRENT_PROGRAM, &prev_prog);
-
-    // Shader deaktivieren
-    glUseProgram(0);
-
-    // Neuen Framebuffer aus dem Recycler holen
-    unsigned int fbo, tex;
-    make_framebuffer(node->width, node->height, &tex, &fbo);
-    print_render_state();
-
-    // Clear with transparent color
-    glClearColor(1, 1, 1, 0);
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    glPushClientAttrib(GL_CLIENT_ALL_ATTRIB_BITS);
-    glPushAttrib(GL_ALL_ATTRIB_BITS);
-    glPushMatrix();
-
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
-    glViewport(0, 0, node->width, node->height);
-    glOrtho(0, node->width,
-            node->height, 0,
-            -1000, 1000);
-
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-
-    node->gl_matrix_depth = 0;
-
-    node_event(node, "render", 0);
-
-    while (node->gl_matrix_depth-- > 0)
-        glPopMatrix();
-    node->gl_matrix_depth = NO_GL_PUSHPOP;
-
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
-    glMatrixMode(GL_MODELVIEW);
-    glPopMatrix();
-
-    glBindFramebuffer(GL_FRAMEBUFFER, prev_fbo);
-
-    // Shader zuruecksetzen
-    glUseProgram(prev_prog);
-
-    glPopAttrib();
-    glPopClientAttrib();
-
-    print_render_state();
-    return image_create(L, tex, fbo, node->width, node->height);
-}
+/*===== Lua bindings ======*/
 
 static int luaRenderSelf(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
@@ -363,22 +313,8 @@ static int luaRenderChild(lua_State *L) {
     node_t *child;
     HASH_FIND(by_name, node->childs, name, strlen(name), child);
     if (!child)
-        luaL_error(L, "child not found");
+        luaL_error(L, "child %s not found", name);
     return node_render_to_image(L, child);
-}
-
-static int luaSendChild(lua_State *L) {
-    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
-    const char *name = luaL_checkstring(L, 1);
-    const char *msg = luaL_checkstring(L, 2);
-
-    node_t *child;
-    HASH_FIND(by_name, node->childs, name, strlen(name), child);
-    if (!child)
-        luaL_error(L, "child not found");
-    lua_pushstring(child->L, msg);
-    node_event(child, "msg", 1);
-    return 0;
 }
 
 static int luaSetup(lua_State *L) {
@@ -576,11 +512,72 @@ static int luaNow(lua_State *L) {
     return 1;
 }
 
-#define lua_register_node_func(node,name,func) \
-    (lua_pushliteral((node)->L, name), \
-     lua_pushlightuserdata((node)->L, node), \
-     lua_pushcclosure((node)->L, func, 1), \
-     lua_settable((node)->L, LUA_GLOBALSINDEX))
+/*==== Node functions =====*/
+
+static int node_render_to_image(lua_State *L, node_t *node) {
+    if (!node->width) {
+        luaL_error(L, "node not initialized with gl.setup()");
+        return 0;
+    }
+
+    print_render_state();
+
+    // Vorherigen Framebuffer und Shader speichern
+    int prev_fbo, prev_prog;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_fbo);
+    glGetIntegerv(GL_CURRENT_PROGRAM, &prev_prog);
+
+    // Shader deaktivieren
+    glUseProgram(0);
+
+    // Neuen Framebuffer aus dem Recycler holen
+    unsigned int fbo, tex;
+    make_framebuffer(node->width, node->height, &tex, &fbo);
+    print_render_state();
+
+    // Clear with transparent color
+    glClearColor(1, 1, 1, 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glPushClientAttrib(GL_CLIENT_ALL_ATTRIB_BITS);
+    glPushAttrib(GL_ALL_ATTRIB_BITS);
+    glPushMatrix();
+
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glViewport(0, 0, node->width, node->height);
+    glOrtho(0, node->width,
+            node->height, 0,
+            -1000, 1000);
+
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    node->gl_matrix_depth = 0;
+
+    node_event(node, "render", 0);
+
+    while (node->gl_matrix_depth-- > 0)
+        glPopMatrix();
+    node->gl_matrix_depth = NO_GL_PUSHPOP;
+
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+
+    glBindFramebuffer(GL_FRAMEBUFFER, prev_fbo);
+
+    // Shader zuruecksetzen
+    glUseProgram(prev_prog);
+
+    glPopAttrib();
+    glPopClientAttrib();
+
+    print_render_state();
+    return image_create(L, tex, fbo, node->width, node->height);
+}
 
 static void node_printf(node_t *node, const char *fmt, ...) {
     char buffer[16384];
@@ -588,7 +585,7 @@ static void node_printf(node_t *node, const char *fmt, ...) {
     va_start(ap, fmt);
     size_t buffer_size = vsnprintf(buffer, sizeof(buffer), fmt, ap);
     va_end(ap);
-    fprintf(stderr, "%s: %s", node->path, buffer);
+    fprintf(stderr, GREEN("[%s]")" %s", node->path, buffer);
     client_t *client;
     DL_FOREACH(node->clients, client) {
         client_write(client, buffer, buffer_size);
@@ -613,6 +610,7 @@ static void node_tree_gc(node_t *node) {
 }
 
 static node_t *node_add_child(node_t* node, const char *path, const char *name) {
+    fprintf(stderr, "adding new node %s to %s\n", name, node->path);
     node_t *child = xmalloc(sizeof(node_t));
     node_init(child, node, path, name);
     HASH_ADD_KEYPTR(by_name, node->childs, child->name, strlen(child->name), child);
@@ -620,6 +618,8 @@ static node_t *node_add_child(node_t* node, const char *path, const char *name) 
 }
 
 static void node_remove_child(node_t* node, node_t* child) {
+    fprintf(stderr, "removing node %s from %s\n", child->name, node->path);
+    node_child_update(node, child->name, 0);
     HASH_DELETE(by_name, node->childs, child);
     node_free(child);
     free(child);
@@ -633,9 +633,13 @@ static void node_remove_child_by_name(node_t* node, const char *name) {
     node_remove_child(node, child); 
 }
 
-static void node_init(node_t *node, node_t *parent, const char *path, const char *name) {
-    fprintf(stderr, ">>> node add %s in %s\n", name, path);
+#define lua_register_node_func(node,name,func) \
+    (lua_pushliteral((node)->L, name), \
+     lua_pushlightuserdata((node)->L, node), \
+     lua_pushcclosure((node)->L, func, 1), \
+     lua_settable((node)->L, LUA_GLOBALSINDEX))
 
+static void node_init(node_t *node, node_t *parent, const char *path, const char *name) {
     // add directory watcher
     node->wd = inotify_add_watch(inotify_fd, path, 
         IN_CLOSE_WRITE|IN_CREATE|IN_DELETE|IN_DELETE_SELF|
@@ -678,7 +682,6 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "setup", luaSetup);
     lua_register_node_func(node, "render_self", luaRenderSelf);
     lua_register_node_func(node, "render_child", luaRenderChild);
-    lua_register_node_func(node, "send_child", luaSendChild);
     lua_register_node_func(node, "list_childs", luaListChilds);
     lua_register_node_func(node, "load_image", luaLoadImage);
     lua_register_node_func(node, "load_video", luaLoadVideo);
@@ -703,18 +706,20 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
 
     lua_pushlstring(node->L, userlib, userlib_size);
     lua_setglobal(node->L, "USERLIB");
+
+    lua_pushliteral(node->L, NODE_CODE_FILE);
+    lua_setglobal(node->L, "NODE_CODE_FILE");
 }
 
 static void node_free(node_t *node) {
-    fprintf(stderr, "<<< node del %s in %s\n", node->name, node->path);
     node_t *child, *tmp; 
     HASH_ITER(by_name, node->childs, child, tmp) {
         node_remove_child(node, child);
     }
     HASH_DELETE(by_wd, nodes_by_wd, node);
     HASH_DELETE(by_path, nodes_by_path, node);
-    free((void*)node->path);
-    free((void*)node->name);
+    free(node->path);
+    free(node->name);
 
     client_t *client, *tmp_client;
     DL_FOREACH_SAFE(node->clients, client, tmp_client) {
@@ -729,12 +734,13 @@ static void node_free(node_t *node) {
     free(node->mem);
 }
 
-
 static void node_init_all(node_t *root, const char *base_path) {
     void init_recursive(node_t *node, node_t *parent, const char *path) {
         DIR *dp = opendir(node->path);
         if (!dp)
             die("cannot open directory %s", node->path);
+
+        node_boot(node);
 
         struct dirent *ep;
         while ((ep = readdir(dp))) {
@@ -748,11 +754,13 @@ static void node_init_all(node_t *root, const char *base_path) {
             if (ep->d_type == DT_DIR) {
                 node_t *child = node_add_child(node, child_path, child_name);
                 init_recursive(child, node, child_path);
+                node_child_update(node, child->name, 1);
+            } else if (ep->d_type == DT_REG && strcmp(child_name, NODE_CODE_FILE)) {
+                node_content_update(node, child_name, 1);
             }
         }
         closedir(dp);
 
-        node_boot(node);
     }
 
     node_init(root, NULL, base_path, base_path);
@@ -796,6 +804,7 @@ static void check_inotify() {
 
             char path[PATH_MAX];
             snprintf(path, sizeof(path), "%s/%s", node->path, event->name);
+            // fprintf(stderr, "event for %s (%s)\n", path, event->name);
 
             if (event->mask & IN_CREATE) {
                 struct stat stat_buf;
@@ -809,27 +818,29 @@ static void check_inotify() {
                 if (S_ISDIR(stat_buf.st_mode)) {
                     node_t *child = node_add_child(node, path, event->name);
                     node_boot(child);
+                    node_child_update(node, child->name, 1);
                 }
             } else if (event->mask & IN_CLOSE_WRITE) {
-                node_update_content(node, event->name, 1);
+                node_content_update(node, event->name, 1);
             } else if (event->mask & IN_DELETE_SELF) {
                 if (!node->parent)
                     die("root node deleted. cannot continue");
                 node_remove_child(node->parent, node);
             } else if (event->mask & IN_DELETE && !(event->mask & IN_ISDIR)) {
-                node_update_content(node, event->name, 0);
+                node_content_update(node, event->name, 0);
             } else if (event->mask & IN_MOVED_FROM) {
                 if (event->mask & IN_ISDIR) {
                     node_remove_child_by_name(node, event->name);
                 } else {
-                    node_update_content(node, event->name, 0);
+                    node_content_update(node, event->name, 0);
                 }
             } else if (event->mask & IN_MOVED_TO) {
                 if (event->mask & IN_ISDIR) {
                     node_t *child = node_add_child(node, path, event->name);
                     node_boot(child);
+                    node_child_update(node, child->name, 1);
                 } else {
-                    node_update_content(node, event->name, 1);
+                    node_content_update(node, event->name, 1);
                 }
             }
         }
@@ -929,6 +940,8 @@ static void udp_read(int fd, short event, void *arg) {
 
         // split a/b/c into first matching prefix:
         // a/b -> suffix: c if node a/b exists
+
+        fprintf(stderr, "udp event: %s: %*s\n", path, data_len, data);
 
         char *suffix = sep;
         node_t *node;
@@ -1068,7 +1081,6 @@ static void open_tcp(struct event *event) {
         die("event_add failed");
 }
 
-
 #ifdef DEBUG_PERFORMANCE
 #define test(point) \
     do {\
@@ -1152,9 +1164,9 @@ static void update_now() {
 static void init_default_texture() {
     glGenTextures(1, &default_tex);
     glBindTexture(GL_TEXTURE_2D, default_tex);
-    unsigned char pixels[] = {255, 255, 255, 255};
+    unsigned char white_pixel[] = {255, 255, 255, 255};
     glTexImage2D(GL_TEXTURE_2D, 0, 4, 1, 1, 0, 
-        GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+        GL_RGBA, GL_UNSIGNED_BYTE, white_pixel);
 }
 
 int main(int argc, char *argv[]) {

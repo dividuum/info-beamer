@@ -17,9 +17,20 @@ do
     end
 end
 
+function kprint(msg)
+    print("kernel: " .. msg)
+end
+
 --=============
 -- Sandboxing
 --=============
+
+-- list of childs/contents for this node.
+local CHILDS = {}
+local CONTENTS = {}
+
+-- "persistent" table for this node. survives reloads
+local N = {}
 
 function create_sandbox()
     local sandbox = {
@@ -154,68 +165,81 @@ function create_sandbox()
 
         sys = {
             now = now;
-            list_childs = list_childs;
-            send_child = send_child;
         };
 
-        event = {
-            content_update = function(name) 
-            end;
+        events = {
+            child_add = {};
+            child_remove = {};
+            content_update = {};
+            content_remove = {};
 
-            content_remove = function(name)
-            end;
+            osc = {};
+            data = {};
 
-            render = function()
-            end;
-
-            raw_data = function(data, is_osc, suffix)
-                if is_osc then
-                    if string.byte(data, 1, 1) ~= 44 then
-                        print("no osc type tag string")
-                        return
-                    end
-                    local typetags, offset = struct.unpack(">!4s", data)
-                    local tags = {string.byte(typetags, 1, offset)}
-                    local fmt = ">!4"
-                    for idx, tag in ipairs(tags) do
-                        if tag == 44 then -- ,
-                            fmt = fmt .. "s"
-                        elseif tag == 105 then -- i
-                            fmt = fmt .. "i4"
-                        elseif tag == 102 then -- f
-                            fmt = fmt .. "f"
-                        elseif tag == 98 then -- b
-                            print("no blob support")
-                            return
-                        else
-                            print("unknown type tag " .. string.char(tag))
+            raw_data = {
+                function(data, is_osc, suffix)
+                    if is_osc then
+                        if string.byte(data, 1, 1) ~= 44 then
+                            kprint("no osc type tag string")
                             return
                         end
+                        local typetags, offset = struct.unpack(">!4s", data)
+                        local tags = {string.byte(typetags, 1, offset)}
+                        local fmt = ">!4"
+                        for idx, tag in ipairs(tags) do
+                            if tag == 44 then -- ,
+                                fmt = fmt .. "s"
+                            elseif tag == 105 then -- i
+                                fmt = fmt .. "i4"
+                            elseif tag == 102 then -- f
+                                fmt = fmt .. "f"
+                            elseif tag == 98 then -- b
+                                kprint("no blob support")
+                                return
+                            else
+                                kprint("unknown type tag " .. string.char(tag))
+                                return
+                            end
+                        end
+                        local unpacked = {struct.unpack(fmt, data)}
+                        table.remove(unpacked, 1) -- remove typetags
+                        table.remove(unpacked, #unpacked) -- remove trailing offset
+                        sandbox.node.dispatch("osc", suffix, unpack(unpacked))
+                    else
+                        sandbox.node.dispatch("data", data, suffix)
                     end
-                    local unpacked = {struct.unpack(fmt, data)}
-                    table.remove(unpacked, 1) -- remove typetags
-                    table.remove(unpacked, #unpacked) -- remove trailing offset
-                    return sandbox.event.osc(suffix, unpack(unpacked))
-                else
-                    return sandbox.event.data(data, suffix)
+                end;
+            };
+
+            render = {
+                function()
+                    sandbox.node.render()
+                end
+            };
+        };
+
+        node = {
+            event = function(event, handler)
+                table.insert(sandbox.events[event], handler)
+            end;
+
+            dispatch = function(event, ...)
+                for _, handler in ipairs(sandbox.events[event]) do
+                    handler(...)
                 end
             end;
 
-            data = function(...)
-                print(PATH, "data", ...)
-            end;
-
-            osc = function(...)
-                print(PATH, "osc", ...)
-            end;
-
-            msg = function(...)
-                print(PATH, "msg", ...)
+            render = function()
             end;
         };
 
         NAME = NAME;
         PATH = PATH;
+
+        CHILDS = CHILDS;
+        CONTENTS = CONTENTS;
+
+        N = N;
     }
     sandbox._G = sandbox
     return sandbox
@@ -228,8 +252,6 @@ function load_into_sandbox(code, chunkname)
     )()
 end
 
-NODE_CODE_FILE = "node.lua"
-
 function reload(usercode_file)
     sandbox = create_sandbox()
 
@@ -239,6 +261,14 @@ function reload(usercode_file)
     if usercode_file then
         local node_code = load_file(usercode_file)
         load_into_sandbox(node_code, "=" .. PATH .. "/" .. NODE_CODE_FILE)
+    end
+
+    -- send child / content events
+    for name, added in pairs(CHILDS) do
+        sandbox.node.dispatch("child_add", name)
+    end
+    for name, added in pairs(CONTENTS) do
+        sandbox.node.dispatch("content_update", name)
     end
 end
 
@@ -251,32 +281,36 @@ do
 
     registry.execute = function(cmd, ...)
         if cmd == "boot" then
-            print "booting node"
+            kprint("booting node")
             reload(NODE_CODE_FILE)
         elseif cmd == "event" then
-            setfenv(
-                function(event_name, ...)
-                    event[event_name](...)
-                end,
-                sandbox
-            )(...)
-        elseif cmd == "update_content" then
+            sandbox.node.dispatch(...)
+        elseif cmd == "child_update" then
+            local name, added = ...
+            if added then
+                CHILDS[name] = now()
+                sandbox.node.dispatch("child_add", name)
+            else
+                CHILDS[name] = nil
+                sandbox.node.dispatch("child_remove", name)
+            end
+        elseif cmd == "content_update" then
             local name, added = ...
             if name == NODE_CODE_FILE then
                 if added then
-                    print "updating node code"
+                    kprint("node code updated. reloading...")
                     reload(NODE_CODE_FILE)
                 else
-                    print "removing node code"
+                    kprint("node code removed. resetting...")
                     reload()
                 end
             else
                 if added then
-                    print("content updated: " .. name)
-                    sandbox.event.content_update(name)
+                    CONTENTS[name] = now()
+                    sandbox.node.dispatch("content_update", name)
                 else
-                    print("content removed: " .. name)
-                    sandbox.event.content_remove(name)
+                    CONTENTS[name] = nil
+                    sandbox.node.dispatch("content_remove", name)
                 end
             end
         elseif cmd == "render_self" then

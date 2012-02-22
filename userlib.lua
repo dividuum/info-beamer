@@ -2,6 +2,63 @@
 
 util = {}
 
+function util.resource_loader(resources)
+    local loaders = {
+        png = resource.load_image;
+        jpg = resource.load_image;
+        jpeg = resource.load_image;
+        ttf = resource.load_font;
+        avi = util.videoplayer;
+        mpg = util.videoplayer;
+        ogg = util.videoplayer;
+        flv = util.videoplayer;
+        mkv = util.videoplayer;
+        mp4 = util.videoplayer;
+        frag = util.shaderpair_loader;
+        vert = util.shaderpair_loader;
+    }
+    local resource_handlers = {}
+    node.event("content_update", function(name)
+        local handler = resource_handlers[name]
+        if handler then
+            local target, loader = unpack(handler)
+            _G[target] = loader(name)
+            print("resource_loader: updated _G." .. target .. " (triggered by " .. name .. ")")
+        end
+    end)
+    for idx, resource in ipairs(resources) do
+        local name, suffix = resource:match("(.*)[.]([^.]+)$")
+        if not name then
+            error("invalid resource name " .. resource)
+        end
+        local loader = loaders[suffix]
+        if not loader then
+            error("no resource loader for suffix " .. suffix)
+        end
+        resource_handlers[resource] = {
+            name, loader
+        }
+    end
+end
+
+function util.shaderpair_loader(any_name)
+    local name, suffix = any_name:match("(.*)[.]([^.]+)$")
+    return resource.create_shader(
+        resource.load_file(name .. ".vert"),
+        resource.load_file(name .. ".frag")
+    )
+end
+
+function util.content_watch(resources, handler)
+    node.event("content_update", function(name)
+        for idx, resource in ipairs(resources) do
+            if name == resource then
+                return handler(name)
+            end
+        end
+    end)
+end
+
 function util.videoplayer(name, opt)
     local stream, start, fps, frame, width, height
 
@@ -24,7 +81,7 @@ function util.videoplayer(name, opt)
     local done = false
 
     return {
-        play = function(_, x1, y1, x2, y2, alpha)
+        draw = function(_, x1, y1, x2, y2, alpha)
             if done then return end
             local now = sys.now()
             local target_frame = (now - start) * fps
