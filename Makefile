@@ -10,7 +10,7 @@ endif
 
 CFLAGS += -DVERSION='$(VERSION)'
 CFLAGS +=-I/usr/include/lua5.1 -I/usr/include/freetype2/ -I/usr/include/ffmpeg -std=c99 -Wall -Wno-unused-function -Wno-unused-variable -Wno-deprecated-declarations 
-LDFLAGS=-llua5.1 -levent -lglfw -lGL -lGLU -lGLEW -lftgl -lpng -ljpeg -lavformat -lavcodec -lavutil -lswscale -lz 
+LDFLAGS=-llua -levent -lglfw -lGL -lGLU -lGLEW -lftgl -lpng -ljpeg -lavformat -lavcodec -lavutil -lswscale -lz 
 
 all: info-beamer
 

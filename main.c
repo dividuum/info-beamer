@@ -941,7 +941,7 @@ static void udp_read(int fd, short event, void *arg) {
         // split a/b/c into first matching prefix:
         // a/b -> suffix: c if node a/b exists
 
-        fprintf(stderr, "udp event: %s: %*s\n", path, data_len, data);
+        // fprintf(stderr, "udp event: %s: %*s\n", path, data_len, data);
 
         char *suffix = sep;
         node_t *node;

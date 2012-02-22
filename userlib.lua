@@ -59,6 +59,36 @@ function util.content_watch(resources, handler)
     end)
 end
 
+function util.osc_mapper(routes)
+    node.event("osc", function(suffix, ...)
+        for pattern, callback in pairs(routes) do
+            local match = {suffix:match(pattern)}
+            if #match > 0 then
+                if match[1] == suffix then
+                    return callback(...)
+                else
+                    return callback(unpack(match), ...)
+                end
+            end
+        end
+    end)
+end
+
+function util.data_mapper(routes)
+    node.event("data", function(data, suffix)
+        for pattern, callback in pairs(routes) do
+            local match = {suffix:match(pattern)}
+            if #match > 0 then
+                if match[1] == suffix then
+                    return callback(data)
+                else
+                    return callback(unpack(match), data)
+                end
+            end
+        end
+    end)
+end
+
 function util.videoplayer(name, opt)
     local stream, start, fps, frame, width, height
 
@@ -113,7 +143,10 @@ function util.videoplayer(name, opt)
             )
             stream:draw(x1 + sx1, y1 + sy1, x1 + sx2, y1 + sy2, alpha)
             return true
-        end
+        end;
+        texid = function()
+            return stream:texid()
+        end;
     }
 end
 

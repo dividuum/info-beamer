@@ -37,7 +37,7 @@ static int font_write(lua_State *L) {
 
         glColor4f(r,g,b,a);
         glBindTexture(GL_TEXTURE_2D, default_tex);
-    } else if (type == LUA_TUSERDATA) {
+    } else if (type == LUA_TUSERDATA || type == LUA_TTABLE) {
         lua_pushliteral(L, "texid");
         lua_gettable(L, 6);
         if (lua_type(L, -1) != LUA_TFUNCTION)
@@ -52,7 +52,7 @@ static int font_write(lua_State *L) {
         glColor4f(1,1,1,1);
         glBindTexture(GL_TEXTURE_2D, tex_id);
     } else {
-        return luaL_error(L, "missing color/texture argument");
+        return luaL_error(L, "unsupported value type %s", lua_typename(L, type));
     }
 
     glPushMatrix();

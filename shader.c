@@ -74,7 +74,7 @@ static int shader_use(lua_State *L) {
         if (type == LUA_TNUMBER) {
             GLfloat value = lua_tonumber(L, -2);
             glUniform1f(loc, value);
-        } else if (type == LUA_TUSERDATA) {
+        } else if (type == LUA_TUSERDATA || type == LUA_TTABLE) {
             lua_pushliteral(L, "texid");
             lua_gettable(L, -3);                // texid aus metatable holen
             if (lua_type(L, -1) != LUA_TFUNCTION)
