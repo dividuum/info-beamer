@@ -189,7 +189,7 @@ function util.running_text(opt)
     }
 end
 
-function util.scale_into(source_width, source_height, target_width, target_height)
+function util.scale_into(target_width, target_height, source_width, source_height)
     local prop_height = source_height * target_width / source_width
     local prop_width  = source_width * target_height / source_height
     local x1, y1, x2, y2
