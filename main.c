@@ -66,6 +66,7 @@
 #define MAX_PCALL_TIME  1000000 // usec
 #endif
 
+#define YELLOW(string) "[33m" string "[0m"
 #define GREEN(string) "[32m" string "[0m"
 
 #ifdef DEBUG_OPENGL
@@ -276,6 +277,7 @@ static void node_child_update(node_t *node, const char *name, int added) {
 
 // notify of content update 
 static void node_content_update(node_t *node, const char *name, int added) {
+    fprintf(stderr, YELLOW("[%s]")" update %c%s\n", node->path, added ? '+' : '-', name);
     lua_pushliteral(node->L, "content_update");
     lua_pushstring(node->L, name);
     lua_pushboolean(node->L, added);
@@ -804,7 +806,7 @@ static void check_inotify() {
 
             char path[PATH_MAX];
             snprintf(path, sizeof(path), "%s/%s", node->path, event->name);
-            // fprintf(stderr, "event for %s (%s)\n", path, event->name);
+            // fprintf(stderr, "event for %s (%s), mask: %08x\n", path, event->name, event->mask);
 
             if (event->mask & IN_CREATE) {
                 struct stat stat_buf;
@@ -819,6 +821,8 @@ static void check_inotify() {
                     node_t *child = node_add_child(node, path, event->name);
                     node_boot(child);
                     node_child_update(node, child->name, 1);
+                } else if (S_ISREG(stat_buf.st_mode)) {
+                    node_content_update(node, event->name, 1);
                 }
             } else if (event->mask & IN_CLOSE_WRITE) {
                 node_content_update(node, event->name, 1);

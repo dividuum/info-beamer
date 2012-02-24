@@ -167,6 +167,9 @@ failed:
     return 0;
 }
 
+static void video_flip(AVFrame* pFrame) {
+}
+
 static int video_next_frame(video_t *video) {
     AVPacket packet;
     av_init_packet(&packet);
@@ -197,6 +200,21 @@ again:
         goto again;
     }
 
+    /* Flip vertically
+     * XXX: This feels wrong. What's the right way to do this?
+     */
+    int heights[] = {
+        video->codec_context->height     - 1,
+        video->codec_context->height / 2 - 1,
+        video->codec_context->height / 2 - 1,
+        0,
+    };
+
+    for (int i = 0; i < 4; i++) { 
+        video->raw_frame->data[i] += video->raw_frame->linesize[i] * heights[i];
+        video->raw_frame->linesize[i] = -video->raw_frame->linesize[i]; 
+    } 
+
     sws_scale(
         video->scaler, 
         (const uint8_t* const *)video->raw_frame->data, 
@@ -207,7 +225,6 @@ again:
         video->scaled_frame->linesize
     );
     av_free_packet(&packet);
-    // fprintf(stderr, "got next frame\n");
     return 1;
 }
 
@@ -271,10 +288,10 @@ static int video_draw(lua_State *L) {
     glColor4f(1.0, 1.0, 1.0, alpha);
 
     glBegin(GL_QUADS); 
-        glTexCoord2f(0.0, 0.0); glVertex3f(x1, y1, 0);
-        glTexCoord2f(1.0, 0.0); glVertex3f(x2, y1, 0);
-        glTexCoord2f(1.0, 1.0); glVertex3f(x2, y2, 0);
-        glTexCoord2f(0.0, 1.0); glVertex3f(x1, y2, 0);
+        glTexCoord2f(0.0, 1.0); glVertex3f(x1, y1, 0);
+        glTexCoord2f(1.0, 1.0); glVertex3f(x2, y1, 0);
+        glTexCoord2f(1.0, 0.0); glVertex3f(x2, y2, 0);
+        glTexCoord2f(0.0, 0.0); glVertex3f(x1, y2, 0);
     glEnd();
     return 0;
 }
