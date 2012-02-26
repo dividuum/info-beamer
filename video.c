@@ -261,15 +261,15 @@ static int video_next(lua_State *L) {
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
     glTexSubImage2D(
-            GL_TEXTURE_2D,
-            0,
-            0,
-            0,
-            video->width,
-            video->height,
-            GL_RGB,
-            GL_UNSIGNED_BYTE,
-            video->buffer 
+        GL_TEXTURE_2D,
+        0,
+        0,
+        0,
+        video->width,
+        video->height,
+        GL_RGB,
+        GL_UNSIGNED_BYTE,
+        video->buffer 
     );
 
     lua_pushboolean(L, 1);

@@ -146,6 +146,7 @@ function create_sandbox()
             load_font = load_font;
             load_file = load_file;
             create_shader = create_shader;
+            create_vnc = create_vnc;
         };
 
         gl = {

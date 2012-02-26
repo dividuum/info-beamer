@@ -27,6 +27,7 @@
 #include <GL/glfw.h>
 #include <libavformat/avformat.h>
 #include <event.h>
+#include <event2/dns.h>
 #include <lualib.h>
 #include <lauxlib.h>
 
@@ -38,6 +39,7 @@
 #include "video.h"
 #include "font.h"
 #include "shader.h"
+#include "vnc.h"
 #include "framebuffer.h"
 #include "struct.h"
 
@@ -67,10 +69,6 @@
 #define MAX_PCALL_TIME  200000 // usec
 #endif
 
-#define RED(string) "[31m" string "[0m"
-#define GREEN(string) "[32m" string "[0m"
-#define YELLOW(string) "[33m" string "[0m"
-
 #ifdef DEBUG_OPENGL
 #define print_render_state() \
     {\
@@ -97,8 +95,6 @@
 } while(0)
 
 #define NO_GL_PUSHPOP -1
-#define LITERAL_SIZE(x) (sizeof(x) - 1)
-#define LITERAL_AND_SIZE(x) x, LITERAL_SIZE(x)
 
 typedef struct node_s {
     int wd; // inotify watch descriptor
@@ -149,6 +145,8 @@ static double now;
 static int running = 1;
 
 GLuint default_tex; // white default texture
+struct event_base *event_base;
+struct evdns_base *dns_base;
 
 /*=== Forward declarations =====*/
 
@@ -481,11 +479,16 @@ static int luaLoadFile(lua_State *L) {
 
 static int luaCreateShader(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
-    // if (node->parent)
-    //     luaL_error(L, "shader only allowed in toplevel node");
     const char *vertex = luaL_checkstring(L, 1);
     const char *fragment = luaL_checkstring(L, 2);
     return shader_new(L, vertex, fragment);
+}
+
+static int luaCreateVnc(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    const char *host = luaL_checkstring(L, 1);
+    int port = luaL_checknumber(L, 2);
+    return vnc_create(L, host, port);
 }
 
 static int luaPrint(lua_State *L) {
@@ -731,6 +734,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     video_register(node->L);
     font_register(node->L);
     shader_register(node->L);
+    vnc_register(node->L);
     luaopen_struct(node->L);
 
     lua_register_node_func(node, "setup", luaSetup);
@@ -744,6 +748,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "load_font", luaLoadFont);
     lua_register_node_func(node, "load_file", luaLoadFile);
     lua_register_node_func(node, "create_shader", luaCreateShader);
+    lua_register_node_func(node, "create_vnc", luaCreateVnc);
     lua_register_node_func(node, "print", luaPrint);
     lua_register_node_func(node, "glPushMatrix", luaGlPushMatrix);
     lua_register_node_func(node, "glPopMatrix", luaGlPopMatrix);
@@ -943,7 +948,9 @@ static void GLFWCALL keypressed(int key, int action) {
     }
 }
 
-int create_socket(int type) {
+/*===== Util ========*/
+
+static int create_socket(int type) {
     int one = 1;
     struct sockaddr_in sin;
     int fd = socket(AF_INET, type, 0);
@@ -1056,10 +1063,6 @@ static void open_udp(struct event *event) {
 
 /*===== TCP Handler ========*/
 
-static void setnonblock(int fd) {
-    fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
-}
-
 static void client_write(client_t *client, const char *data, size_t data_size) {
     bufferevent_write(client->buf_ev, data, data_size);
 }
@@ -1134,7 +1137,7 @@ static void accept_callback(int fd, short ev, void *arg) {
         return;
     }
 
-    setnonblock(client_fd);
+    evutil_make_socket_nonblocking(client_fd);
     client_create(client_fd);
 }
 
@@ -1144,7 +1147,7 @@ static void open_tcp(struct event *event) {
     if (listen(fd, 5) < 0)
         die("cannot listen");
 
-    setnonblock(fd);
+    evutil_make_socket_nonblocking(fd);
 
     struct event accept_event;
     event_set(&accept_event,
@@ -1264,7 +1267,8 @@ int main(int argc, char *argv[]) {
 
     av_register_all();
 
-    event_init();
+    event_base = event_init();
+    dns_base = evdns_base_new(event_base, 1);
 
     struct event udp_event;
     open_udp(&udp_event);
