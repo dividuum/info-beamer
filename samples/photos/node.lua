@@ -35,7 +35,7 @@ end
 local effect = 0
 local ps = PictureSource()
 
-COUNTDOWN = 3
+COUNTDOWN = 10
 
 local current_image = resource.load_image(ps.get_next_image())
 local next_image

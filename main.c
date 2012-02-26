@@ -53,6 +53,7 @@
 #define MAX_LOADFILE_SIZE 16384 // byte
 #define MAX_MEM 2000000 // KB
 #define MAX_GL_PUSH 20 // glPushMatrix depth
+#define MAX_CHILD_RENDERS 20 // maximum childs rendered per node
 
 // Default host/port (both udp & tcp)
 #define HOST "0.0.0.0"
@@ -60,14 +61,15 @@
 
 #ifdef DEBUG
 #define MAX_RUNAWAY_TIME 10 // sec
-#define MAX_PCALL_TIME  100000000 // usec
+#define MAX_PCALL_TIME  900000 // usec
 #else
 #define MAX_RUNAWAY_TIME 1 // sec
-#define MAX_PCALL_TIME  1000000 // usec
+#define MAX_PCALL_TIME  200000 // usec
 #endif
 
-#define YELLOW(string) "[33m" string "[0m"
+#define RED(string) "[31m" string "[0m"
 #define GREEN(string) "[32m" string "[0m"
+#define YELLOW(string) "[33m" string "[0m"
 
 #ifdef DEBUG_OPENGL
 #define print_render_state() \
@@ -100,14 +102,16 @@
 typedef struct node_s {
     int wd; // inotify watch descriptor
 
-    char *name; // local node name
-    char *path; // full path (including node name)
+    char *name;   // local node name
+    char *path;   // full path (including node name)
+    char *alias;  // alias path
 
     lua_State *L;
 
-    UT_hash_handle by_wd;   // global handle for search by watch descriptor
-    UT_hash_handle by_name; // handle for childs by name
-    UT_hash_handle by_path; // handle search by path
+    UT_hash_handle by_wd;    // global handle for search by watch descriptor
+    UT_hash_handle by_name;  // childs by name
+    UT_hash_handle by_path;  // node by path
+    UT_hash_handle by_alias; // node by alias
 
     struct node_s *parent;
     struct node_s *childs;
@@ -121,11 +125,14 @@ typedef struct node_s {
     tlsf_pool pool;
 
     struct client_s *clients;
+
+    int child_render_quota;
 } node_t;
 
 static node_t *nodes_by_wd = NULL;
 static node_t *nodes_by_path = NULL;
-static node_t root;
+static node_t *nodes_by_alias = NULL;
+static node_t root = {0};
 
 typedef struct client_s {
     int fd;
@@ -180,6 +187,8 @@ static void deadline_signal(int i) {
     if (!global_node)
         die("urg. timer expired and no global_node");
 
+    fprintf(stderr, RED("[%s]") " timeout\n", global_node->path);
+
     if (timers_expired == 0) {
         // Beim ersten expiren wird versucht das Problem
         // innerhalb von Lua zu loesen.
@@ -196,21 +205,22 @@ static void deadline_signal(int i) {
 static int lua_timed_pcall(node_t *node, int in, int out,
         int error_handler_pos)
 {
+    node_t *old_global_node = global_node;
+    struct itimerval old_timer;
+
     struct itimerval deadline;
     deadline.it_interval.tv_sec = MAX_RUNAWAY_TIME;
     deadline.it_interval.tv_usec = 0;
     deadline.it_value.tv_sec = 0;
     deadline.it_value.tv_usec = MAX_PCALL_TIME;
-    setitimer(ITIMER_VIRTUAL, &deadline, NULL);
+    setitimer(ITIMER_VIRTUAL, &deadline, &old_timer);
 
     global_node = node;
     timers_expired = 0;
-
     int ret = lua_pcall(node->L, in, out, error_handler_pos);
 
-    deadline.it_value.tv_usec = 0;
-    setitimer(ITIMER_VIRTUAL, &deadline, NULL);
-    global_node = NULL;
+    setitimer(ITIMER_VIRTUAL, &old_timer, NULL);
+    global_node = old_global_node;
     return ret;
 }
 
@@ -226,7 +236,12 @@ static const char *lua_safe_error_message(lua_State *L) {
     return message;
 }
 
+static void lua_reset_quota(node_t *node) {
+    node->child_render_quota = MAX_CHILD_RENDERS;
+}
+
 static void lua_node_enter(node_t *node, int args) {
+    lua_reset_quota(node);
     lua_State *L = node->L;
     int old_top = lua_gettop(L) - args;
     lua_pushliteral(L, "execute");              // [args] "execute"
@@ -310,6 +325,9 @@ static int luaRenderSelf(lua_State *L) {
 
 static int luaRenderChild(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    if (node->child_render_quota-- <= 0)
+        return luaL_error(L, "too many childs rendered");
+
     const char *name = luaL_checkstring(L, 1);
 
     node_t *child;
@@ -359,6 +377,33 @@ static int luaGlPerspective(lua_State *L) {
               center_x, center_y, center_z,
               0, -1, 0);
     glMatrixMode(GL_MODELVIEW);
+    return 0;
+}
+
+static int luaSetAlias(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    const char *alias = luaL_checkstring(L, 1);
+
+    // already exists?
+    node_t *existing_node;
+    HASH_FIND(by_alias, nodes_by_alias, alias, strlen(alias), existing_node);
+    if (existing_node) {
+        if (existing_node == node) {
+            return 0;
+        } else {
+            return luaL_error(L, "alias already taken by %s", existing_node->path);
+        }
+    }
+
+    // remove old alias
+    if (node->alias) {
+        HASH_DELETE(by_alias, nodes_by_alias, node);
+        free(node->alias);
+    }
+
+    // set new alias
+    node->alias = strdup(alias);
+    HASH_ADD_KEYPTR(by_alias, nodes_by_alias, node->alias, strlen(node->alias), node);
     return 0;
 }
 
@@ -653,6 +698,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     node->parent = parent;
     node->path = strdup(path);
     node->name = strdup(name);
+    node->alias = NULL;
 
     node->mem = malloc(MAX_MEM);
     node->pool = tlsf_create(node->mem, MAX_MEM);
@@ -676,14 +722,10 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     shader_register(node->L);
     luaopen_struct(node->L);
 
-   if (luaL_loadbuffer(node->L, kernel, kernel_size, "kernel.lua") != 0)
-       die("kernel load");
-   if (lua_pcall(node->L, 0, 0, 0) != 0)
-       die("kernel run %s", lua_tostring(node->L, 1));
-
     lua_register_node_func(node, "setup", luaSetup);
     lua_register_node_func(node, "render_self", luaRenderSelf);
     lua_register_node_func(node, "render_child", luaRenderChild);
+    lua_register_node_func(node, "set_alias", luaSetAlias);
     lua_register_node_func(node, "list_childs", luaListChilds);
     lua_register_node_func(node, "load_image", luaLoadImage);
     lua_register_node_func(node, "load_video", luaLoadVideo);
@@ -711,6 +753,11 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
 
     lua_pushliteral(node->L, NODE_CODE_FILE);
     lua_setglobal(node->L, "NODE_CODE_FILE");
+
+    if (luaL_loadbuffer(node->L, kernel, kernel_size, "kernel.lua") != 0)
+        die("kernel load");
+    if (lua_pcall(node->L, 0, 0, 0) != 0)
+        die("kernel run %s", lua_tostring(node->L, 1));
 }
 
 static void node_free(node_t *node) {
@@ -722,6 +769,11 @@ static void node_free(node_t *node) {
     HASH_DELETE(by_path, nodes_by_path, node);
     free(node->path);
     free(node->name);
+
+    if (node->alias) {
+        HASH_DELETE(by_alias, nodes_by_alias, node);
+        free(node->alias);
+    }
 
     client_t *client, *tmp_client;
     DL_FOREACH_SAFE(node->clients, client, tmp_client) {
@@ -742,8 +794,6 @@ static void node_init_all(node_t *root, const char *base_path) {
         if (!dp)
             die("cannot open directory %s", node->path);
 
-        node_boot(node);
-
         struct dirent *ep;
         while ((ep = readdir(dp))) {
             if (ep->d_name[0] == '.') 
@@ -763,10 +813,21 @@ static void node_init_all(node_t *root, const char *base_path) {
         }
         closedir(dp);
 
+        node_boot(node);
     }
 
     node_init(root, NULL, base_path, base_path);
     init_recursive(root, NULL, base_path);
+}
+
+static node_t *node_find_by_path_or_alias(const char *needle) {
+    size_t needle_size = strlen(needle);
+    node_t *node;
+    HASH_FIND(by_path, nodes_by_path, needle, needle_size, node);
+    if (node)
+        return node;
+    HASH_FIND(by_alias, nodes_by_alias, needle, needle_size, node);
+    return node;
 }
 
 /*======= inotify ==========*/
@@ -950,7 +1011,7 @@ static void udp_read(int fd, short event, void *arg) {
         char *suffix = sep;
         node_t *node;
         while (1) {
-            HASH_FIND(by_path, nodes_by_path, path, strlen(path), node);
+            node = node_find_by_path_or_alias(path);
             if (node)
                 break;
 
@@ -1010,8 +1071,7 @@ static void client_read(struct bufferevent *bev, void *arg) {
         return;
 
     if (!client->node) {
-        node_t *node;
-        HASH_FIND(by_path, nodes_by_path, line, strlen(line), node);
+        node_t *node = node_find_by_path_or_alias(line);
         if (!node) {
             client_write(client, "404\n", 4);
             goto done;
@@ -1220,6 +1280,11 @@ int main(int argc, char *argv[]) {
     glfwSetKeyCallback(keypressed);
     glfwDisable(GLFW_AUTO_POLL_EVENTS);
 
+
+    struct itimerval initial_timer;
+    initial_timer.it_value.tv_sec = 0;
+    initial_timer.it_value.tv_usec = 0;
+    setitimer(ITIMER_VIRTUAL, &initial_timer, NULL);
     signal(SIGVTALRM, deadline_signal);
 
     update_now();

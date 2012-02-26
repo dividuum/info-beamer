@@ -219,6 +219,8 @@ function create_sandbox()
         };
 
         node = {
+            alias = set_alias;
+
             event = function(event, handler)
                 table.insert(sandbox.events[event], handler)
             end;
@@ -343,3 +345,5 @@ debug = {
     traceback = debug.traceback;
     getinfo = debug.getinfo;
 }
+
+reload()
