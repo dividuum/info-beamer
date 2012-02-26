@@ -1,3 +1,5 @@
+/* See Copyright Notice in LICENSE.txt */
+
 #ifndef VNC_H
 #define VNC_H
 

@@ -1,3 +1,5 @@
+/* See Copyright Notice in LICENSE.txt */
+
 #define _BSD_SOURCE
 #include <assert.h>
 #include <stdlib.h>
@@ -10,6 +12,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <GL/glew.h>
 #include <GL/gl.h>
 #include <lauxlib.h>
 #include <lualib.h>
@@ -215,6 +218,7 @@ static int vnc_decode(vnc_t *vnc, const unsigned char *pixels) {
         GL_UNSIGNED_BYTE,
         converted 
     );
+    glGenerateMipmap(GL_TEXTURE_2D);
     return 1;
 }
 
@@ -389,8 +393,8 @@ static void vnc_read_server_init(vnc_t *vnc) {
     glGenTextures(1, &vnc->tex);
     glBindTexture(GL_TEXTURE_2D, vnc->tex);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexImage2D(
         GL_TEXTURE_2D, 
         0, 

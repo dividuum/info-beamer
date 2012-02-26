@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include <GL/glew.h>
 #include <GL/gl.h>
 #include <lauxlib.h>
 #include <lualib.h>
@@ -271,6 +272,7 @@ static int video_next(lua_State *L) {
         GL_UNSIGNED_BYTE,
         video->buffer 
     );
+    glGenerateMipmap(GL_TEXTURE_2D);
 
     lua_pushboolean(L, 1);
     return 1;
@@ -323,8 +325,8 @@ int video_load(lua_State *L, const char *path, const char *name) {
     glGenTextures(1, &video.tex);
     glBindTexture(GL_TEXTURE_2D, video.tex);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexImage2D(
         GL_TEXTURE_2D,  
         0,
