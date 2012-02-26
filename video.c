@@ -321,20 +321,20 @@ int video_load(lua_State *L, const char *path, const char *name) {
         luaL_error(L, "cannot open video %s", name);
 
     glGenTextures(1, &video.tex);
-
     glBindTexture(GL_TEXTURE_2D, video.tex);
+
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexImage2D(
-            GL_TEXTURE_2D,  
-            0,
-            GL_RGB, 
-            video.width,
-            video.height,
-            0,
-            GL_RGB,
-            GL_UNSIGNED_BYTE,
-            NULL 
+        GL_TEXTURE_2D,  
+        0,
+        GL_RGB, 
+        video.width,
+        video.height,
+        0,
+        GL_RGB,
+        GL_UNSIGNED_BYTE,
+        NULL 
     );
 
     *push_video(L) = video;

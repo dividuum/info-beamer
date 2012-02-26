@@ -1,4 +1,5 @@
 #define _BSD_SOURCE
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -79,10 +80,10 @@ static int vnc_draw(lua_State *L) {
     glColor4f(1.0, 1.0, 1.0, alpha);
 
     glBegin(GL_QUADS); 
-        glTexCoord2f(0.0, 0.0); glVertex3f(x1, y1, 0);
-        glTexCoord2f(1.0, 0.0); glVertex3f(x2, y1, 0);
-        glTexCoord2f(1.0, 1.0); glVertex3f(x2, y2, 0);
-        glTexCoord2f(0.0, 1.0); glVertex3f(x1, y2, 0);
+        glTexCoord2f(0.0, 1.0); glVertex3f(x1, y1, 0);
+        glTexCoord2f(1.0, 1.0); glVertex3f(x2, y1, 0);
+        glTexCoord2f(1.0, 0.0); glVertex3f(x2, y2, 0);
+        glTexCoord2f(0.0, 0.0); glVertex3f(x1, y2, 0);
     glEnd();
 
     return 0;
@@ -175,39 +176,44 @@ static int vnc_decode(vnc_t *vnc, const unsigned char *pixels) {
     // fprintf(stderr, "bpp: %d\n", vnc->pixelformat.bpp);
     // fprintf(stderr, "%dx%d\n", vnc->rect_w, vnc->rect_h);
 
-    uint32_t *pixel = (uint32_t*)pixels;
-    int i;
-    for (i = 0; i < vnc->rect_w * vnc->rect_h; i++) {
-        uint32_t raw = *pixel;
-        if (is_bigendian() ^ vnc->pixelformat.bigendian) {
-            raw = swap32(raw);
+    unsigned char converted[vnc->rect_w * vnc->rect_h * 4];
+
+    assert(vnc->pixelformat.bpp == 32);
+    int row_size = vnc->rect_w * 4;
+
+    for (int row = 0; row < vnc->rect_h; row++) {
+        uint32_t *src = (uint32_t*)(pixels + row * row_size);
+        uint32_t *dest = (uint32_t*)(converted + (vnc->rect_h - row - 1) * row_size);
+        for (int col = 0; col < vnc->rect_w; col++) {
+            uint32_t raw = *src;
+            if (is_bigendian() ^ vnc->pixelformat.bigendian) {
+                raw = swap32(raw);
+            }
+            uint32_t r = 
+                (raw >> vnc->pixelformat.red_shift) & 
+                vnc->pixelformat.red_max;
+            uint32_t g = 
+                (raw >> vnc->pixelformat.green_shift) & 
+                vnc->pixelformat.green_max;
+            uint32_t b = 
+                (raw >> vnc->pixelformat.blue_shift) & 
+                vnc->pixelformat.blue_max;
+            *dest = 255 << 24 | b << 16 | g << 8 | r;
+            dest++, src++;
         }
-        uint32_t r = 
-            (raw >> vnc->pixelformat.red_shift) & 
-            vnc->pixelformat.red_max;
-        uint32_t g = 
-            (raw >> vnc->pixelformat.green_shift) & 
-            vnc->pixelformat.green_max;
-        uint32_t b = 
-            (raw >> vnc->pixelformat.blue_shift) & 
-            vnc->pixelformat.blue_max;
-        *pixel = 255 << 24 | b << 16 | g << 8 | r;
-        pixel++;
     }
 
     glBindTexture(GL_TEXTURE_2D, vnc->tex);
-    glPixelStorei(GL_UNPACK_SWAP_BYTES, GL_FALSE);
-    glPixelStorei(GL_UNPACK_LSB_FIRST,  GL_TRUE);
     glTexSubImage2D(
         GL_TEXTURE_2D,
         0,
         vnc->rect_x,
-        vnc->rect_y,
+        vnc->height - vnc->rect_y - vnc->rect_h,
         vnc->rect_w,
         vnc->rect_h,
         GL_RGBA,
         GL_UNSIGNED_BYTE,
-        pixels
+        converted 
     );
     return 1;
 }
@@ -380,14 +386,22 @@ static void vnc_read_server_init(vnc_t *vnc) {
         return vnc_close(vnc);
     }
 
-    GLuint tex;
     glGenTextures(1, &vnc->tex);
     glBindTexture(GL_TEXTURE_2D, vnc->tex);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, vnc->width, vnc->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D(
+        GL_TEXTURE_2D, 
+        0, 
+        GL_RGBA, 
+        vnc->width, 
+        vnc->height, 
+        0, 
+        GL_RGBA, 
+        GL_UNSIGNED_BYTE,
+        NULL
+    );
     
     vnc_printf(vnc, "got screen: %dx%d\n", ntohs(server_init.width), ntohs(server_init.height));
 
