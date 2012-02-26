@@ -260,6 +260,9 @@ function reload(usercode_file)
     -- load userlib
     load_into_sandbox(USERLIB, "userlib.lua")
 
+    -- remove existing node alias
+    remove_alias()
+
     if usercode_file then
         local node_code = load_file(usercode_file)
         load_into_sandbox(node_code, "=" .. PATH .. "/" .. NODE_CODE_FILE)

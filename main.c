@@ -98,6 +98,7 @@
 
 #define NO_GL_PUSHPOP -1
 #define LITERAL_SIZE(x) (sizeof(x) - 1)
+#define LITERAL_AND_SIZE(x) x, LITERAL_SIZE(x)
 
 typedef struct node_s {
     int wd; // inotify watch descriptor
@@ -404,6 +405,16 @@ static int luaSetAlias(lua_State *L) {
     // set new alias
     node->alias = strdup(alias);
     HASH_ADD_KEYPTR(by_alias, nodes_by_alias, node->alias, strlen(node->alias), node);
+    return 0;
+}
+
+static int luaRemoveAlias(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    if (node->alias) {
+        HASH_DELETE(by_alias, nodes_by_alias, node);
+        free(node->alias);
+        node->alias = NULL;
+    }
     return 0;
 }
 
@@ -726,6 +737,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "render_self", luaRenderSelf);
     lua_register_node_func(node, "render_child", luaRenderChild);
     lua_register_node_func(node, "set_alias", luaSetAlias);
+    lua_register_node_func(node, "remove_alias", luaRemoveAlias);
     lua_register_node_func(node, "list_childs", luaListChilds);
     lua_register_node_func(node, "load_image", luaLoadImage);
     lua_register_node_func(node, "load_video", luaLoadVideo);
@@ -983,7 +995,7 @@ static void udp_read(int fd, short event, void *arg) {
 
         char *sep = memchr(buf, payload_separator, len);
         if (!sep) {
-            sendto(fd, "fmt\n", 4, 0, (struct sockaddr *)&client_addr, size);
+            sendto(fd, LITERAL_AND_SIZE("fmt\n"), 0, (struct sockaddr *)&client_addr, size);
             return;
         }
 
@@ -999,7 +1011,7 @@ static void udp_read(int fd, short event, void *arg) {
 
         int data_len = buf + len - data;
         if (data_len < 0) {
-            sendto(fd, "wtf\n", 4, 0, (struct sockaddr *)&client_addr, size);
+            sendto(fd, LITERAL_AND_SIZE("wtf\n"), 0, (struct sockaddr *)&client_addr, size);
             return;
         }
 
@@ -1017,7 +1029,7 @@ static void udp_read(int fd, short event, void *arg) {
 
             char *next_split = memrchr(path, '/', suffix - path);
             if (!next_split) {
-                sendto(fd, "404\n", 4, 0, (struct sockaddr *)&client_addr, size);
+                sendto(fd, LITERAL_AND_SIZE("404\n"), 0, (struct sockaddr *)&client_addr, size);
                 return;
             }
             if (suffix != sep)
@@ -1073,7 +1085,7 @@ static void client_read(struct bufferevent *bev, void *arg) {
     if (!client->node) {
         node_t *node = node_find_by_path_or_alias(line);
         if (!node) {
-            client_write(client, "404\n", 4);
+            client_write(client, LITERAL_AND_SIZE("404\n"));
             goto done;
         }
 
@@ -1081,7 +1093,7 @@ static void client_read(struct bufferevent *bev, void *arg) {
         DL_APPEND(node->clients, client);
         client->node = node;
 
-        client_write(client, "ok!\n", 4);
+        client_write(client, LITERAL_AND_SIZE("ok!\n"));
     } 
 done:
     free(line);
@@ -1102,9 +1114,9 @@ static void client_create(int fd) {
             client_error,
             client);
     bufferevent_enable(client->buf_ev, EV_READ);
-    client_write(client, VERSION_STRING, LITERAL_SIZE(VERSION_STRING));
+    client_write(client, LITERAL_AND_SIZE(VERSION_STRING));
     client_write(client, " (", 2);
-    client_write(client, INFO_URL, LITERAL_SIZE(INFO_URL));
+    client_write(client, LITERAL_AND_SIZE(INFO_URL));
     client_write(client, ")", 2);
     client_write(client, ". Select your channel!\n", 23);
 }
@@ -1280,11 +1292,6 @@ int main(int argc, char *argv[]) {
     glfwSetKeyCallback(keypressed);
     glfwDisable(GLFW_AUTO_POLL_EVENTS);
 
-
-    struct itimerval initial_timer;
-    initial_timer.it_value.tv_sec = 0;
-    initial_timer.it_value.tv_usec = 0;
-    setitimer(ITIMER_VIRTUAL, &initial_timer, NULL);
     signal(SIGVTALRM, deadline_signal);
 
     update_now();
