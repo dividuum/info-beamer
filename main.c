@@ -805,36 +805,59 @@ static void node_free(node_t *node) {
     free(node->mem);
 }
 
-static void node_init_all(node_t *root, const char *base_path) {
-    void init_recursive(node_t *node, node_t *parent, const char *path) {
-        DIR *dp = opendir(node->path);
-        if (!dp)
-            die("cannot open directory %s", node->path);
-
-        struct dirent *ep;
-        while ((ep = readdir(dp))) {
-            if (ep->d_name[0] == '.') 
-                continue;
-
-            const char *child_name = ep->d_name;
-            char child_path[PATH_MAX];
-            snprintf(child_path, sizeof(child_path), "%s/%s", path, child_name);
-
-            if (ep->d_type == DT_DIR) {
-                node_t *child = node_add_child(node, child_path, child_name);
-                init_recursive(child, node, child_path);
-                node_child_update(node, child->name, 1);
-            } else if (ep->d_type == DT_REG && strcmp(child_name, NODE_CODE_FILE)) {
-                node_content_update(node, child_name, 1);
-            }
-        }
-        closedir(dp);
-
-        node_boot(node);
+static void node_search_content(node_t *node) {
+    DIR *dp = opendir(node->path);
+    if (!dp) {
+        fprintf(stderr, "node directory not found\n");
+        return;
     }
 
+    struct dirent *ep;
+    while ((ep = readdir(dp))) {
+        if (ep->d_name[0] == '.') 
+            continue;
+
+        const char *child_name = ep->d_name;
+        char child_path[PATH_MAX];
+        snprintf(child_path, sizeof(child_path), "%s/%s", node->path, child_name);
+
+        if (ep->d_type == DT_REG && strcmp(child_name, NODE_CODE_FILE)) {
+            node_content_update(node, child_name, 1);
+        }
+    }
+    closedir(dp);
+}
+
+static void node_init_recursive(node_t *node) {
+    DIR *dp = opendir(node->path);
+    if (!dp)
+        die("cannot open directory %s", node->path);
+
+    struct dirent *ep;
+    while ((ep = readdir(dp))) {
+        if (ep->d_name[0] == '.') 
+            continue;
+
+        const char *child_name = ep->d_name;
+        char child_path[PATH_MAX];
+        snprintf(child_path, sizeof(child_path), "%s/%s", node->path, child_name);
+
+        if (ep->d_type == DT_DIR) {
+            node_t *child = node_add_child(node, child_path, child_name);
+            node_init_recursive(child);
+            node_child_update(node, child->name, 1);
+        } else if (ep->d_type == DT_REG && strcmp(child_name, NODE_CODE_FILE)) {
+            node_content_update(node, child_name, 1);
+        }
+    }
+    closedir(dp);
+
+    node_boot(node);
+}
+
+static void node_init_all(node_t *root, const char *base_path) {
     node_init(root, NULL, base_path, base_path);
-    init_recursive(root, NULL, base_path);
+    node_init_recursive(root);
 }
 
 static node_t *node_find_by_path_or_alias(const char *needle) {
@@ -919,7 +942,7 @@ static void check_inotify() {
             } else if (event->mask & IN_MOVED_TO) {
                 if (event->mask & IN_ISDIR) {
                     node_t *child = node_add_child(node, path, event->name);
-                    node_boot(child);
+                    node_init_recursive(child);
                     node_child_update(node, child->name, 1);
                 } else {
                     node_content_update(node, event->name, 1);
