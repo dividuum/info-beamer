@@ -920,7 +920,7 @@ static void check_inotify() {
 
                 if (S_ISDIR(stat_buf.st_mode)) {
                     node_t *child = node_add_child(node, path, event->name);
-                    node_boot(child);
+                    node_init_recursive(child);
                     node_child_update(node, child->name, 1);
                 } else if (S_ISREG(stat_buf.st_mode)) {
                     node_content_update(node, event->name, 1);
