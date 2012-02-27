@@ -176,6 +176,7 @@ function create_sandbox()
 
             osc = {};
             data = {};
+            input = {};
 
             raw_data = {
                 function(data, is_osc, suffix)

@@ -120,7 +120,7 @@ static void vnc_printf(vnc_t *vnc, const char *fmt, ...) {
     va_start(ap, fmt);
     vsnprintf(buffer, sizeof(buffer), fmt, ap);
     va_end(ap);
-    fprintf(stderr, CYAN("vnc %s:%d")" %s", vnc->host, vnc->port, buffer);
+    fprintf(stderr, CYAN("[vnc@%s:%d]")" %s", vnc->host, vnc->port, buffer);
 }
 
 static void vnc_set_handler(vnc_t *vnc, protocol_handler handler, int num_bytes) {
@@ -175,11 +175,7 @@ static const int endian_test = 1;
                    (((v) & 0x000000ff) << 24))
 
 static int vnc_decode(vnc_t *vnc, const unsigned char *pixels) {
-    // fprintf(stderr, "%d byte of pixels\n", vnc->num_bytes);
-    // fprintf(stderr, "bpp: %d\n", vnc->pixelformat.bpp);
-    // fprintf(stderr, "%dx%d\n", vnc->rect_w, vnc->rect_h);
-
-    unsigned char converted[vnc->rect_w * vnc->rect_h * 4];
+    unsigned char *converted = malloc(vnc->rect_w * vnc->rect_h * 4);
 
     assert(vnc->pixelformat.bpp == 32);
     int row_size = vnc->rect_w * 4;
@@ -219,6 +215,7 @@ static int vnc_decode(vnc_t *vnc, const unsigned char *pixels) {
         converted 
     );
     glGenerateMipmap(GL_TEXTURE_2D);
+    free(converted);
     return 1;
 }
 

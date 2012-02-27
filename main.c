@@ -1108,20 +1108,20 @@ static void client_read(struct bufferevent *bev, void *arg) {
     if (!line)
         return;
 
-    if (!client->node) {
+    if (client->node) {
+        lua_pushstring(client->node->L, line);
+        node_event(client->node, "input", 1);
+    } else {
         node_t *node = node_find_by_path_or_alias(line);
         if (!node) {
             client_write(client, LITERAL_AND_SIZE("404\n"));
-            goto done;
+        } else {
+            // Link client & node
+            DL_APPEND(node->clients, client);
+            client->node = node;
+            client_write(client, LITERAL_AND_SIZE("ok!\n"));
         }
-
-        // Link client & node
-        DL_APPEND(node->clients, client);
-        client->node = node;
-
-        client_write(client, LITERAL_AND_SIZE("ok!\n"));
     } 
-done:
     free(line);
 }
 
