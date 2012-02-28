@@ -132,11 +132,11 @@ static void vnc_set_handler(vnc_t *vnc, protocol_handler handler, int num_bytes)
 
 static void vnc_close(vnc_t *vnc) {
     if (vnc->buf_ev) {
+        vnc_printf(vnc, "connection closed\n");
         bufferevent_free(vnc->buf_ev);
         vnc->buf_ev = NULL;
     }
     if (vnc->tex) {
-        vnc_printf(vnc, "freeing vnc texture\n");
         glDeleteTextures(1, &vnc->tex);
         vnc->tex = 0;
     }
@@ -445,7 +445,6 @@ static void vnc_read_handshake(vnc_t *vnc) {
 /* Lifecycle */
 
 int vnc_create(lua_State *L, const char *host, int port) {
-
     int one = 1;
     int fd = socket(AF_INET, SOCK_STREAM, 0);
 
