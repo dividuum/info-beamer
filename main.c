@@ -478,14 +478,12 @@ static int luaLoadFile(lua_State *L) {
 }
 
 static int luaCreateShader(lua_State *L) {
-    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
     const char *vertex = luaL_checkstring(L, 1);
     const char *fragment = luaL_checkstring(L, 2);
     return shader_new(L, vertex, fragment);
 }
 
 static int luaCreateVnc(lua_State *L) {
-    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
     const char *host = luaL_checkstring(L, 1);
     int port = luaL_checknumber(L, 2);
     return vnc_create(L, host, port);
@@ -747,8 +745,6 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "load_video", luaLoadVideo);
     lua_register_node_func(node, "load_font", luaLoadFont);
     lua_register_node_func(node, "load_file", luaLoadFile);
-    lua_register_node_func(node, "create_shader", luaCreateShader);
-    lua_register_node_func(node, "create_vnc", luaCreateVnc);
     lua_register_node_func(node, "print", luaPrint);
     lua_register_node_func(node, "glPushMatrix", luaGlPushMatrix);
     lua_register_node_func(node, "glPopMatrix", luaGlPopMatrix);
@@ -756,6 +752,8 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "glTranslate", luaGlTranslate);
     lua_register_node_func(node, "glOrtho", luaGlOrtho);
     lua_register_node_func(node, "glPerspective", luaGlPerspective);
+    lua_register(node->L, "create_shader", luaCreateShader);
+    lua_register(node->L, "create_vnc", luaCreateVnc);
     lua_register(node->L, "clear", luaClear);
     lua_register(node->L, "now", luaNow);
 
@@ -1183,17 +1181,6 @@ static void open_tcp(struct event *event) {
         die("event_add failed");
 }
 
-#ifdef DEBUG_PERFORMANCE
-#define test(point) \
-    do {\
-        double next = glfwGetTime();\
-        fprintf(stdout, " %7.2f", (next - now)*100000);\
-        now = next;\
-    } while(0);
-#else
-#define test(point)
-#endif
-
 static void print_free_video_mem() {
     int mem;
     glGetIntegerv(0x9049, &mem);
@@ -1201,15 +1188,9 @@ static void print_free_video_mem() {
 }
 
 static void tick() {
-    double now = glfwGetTime();
-    // static int loop = 1;
-    // fprintf(stdout, "%d", loop++);
-
     check_inotify();
-    test("inotify");
 
     event_loop(EVLOOP_NONBLOCK);
-    test("io loop");
 
     glDisable(GL_CULL_FACE);
     glDisable(GL_DEPTH_TEST);
@@ -1220,7 +1201,6 @@ static void tick() {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    // glBindTexture(GL_TEXTURE_2D, default_tex);
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
@@ -1231,36 +1211,25 @@ static void tick() {
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
-    test("render setup");
-
     glClearColor(0.05, 0.05, 0.05, 1);
     glClear(GL_COLOR_BUFFER_BIT);
     node_render_self(&root, win_w, win_h);
 
-    test("render");
-
     glfwSwapBuffers();
-    test("swap buffer");
-
     glfwPollEvents();
-    test("eventloop");
 
     node_tree_gc(&root);
-    test("gc");
-
-    test("complete");
-    // fprintf(stdout, "\n");
-    // node_tree_print(&root, 0);
 
     if (!glfwGetWindowParam(GLFW_OPENED))
         running = 0;
 }
 
 static void update_now() {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    now = tv.tv_sec;
-    now += 1.0 / 1000000 * tv.tv_usec;
+    // struct timeval tv;
+    // gettimeofday(&tv, NULL);
+    // now = tv.tv_sec;
+    // now += 1.0 / 1000000 * tv.tv_usec;
+    now = glfwGetTime();
 }
 
 static void init_default_texture() {
@@ -1326,7 +1295,6 @@ int main(int argc, char *argv[]) {
 
     node_init_all(&root, argv[1]);
 
-    double last = glfwGetTime();
     while (running) {
         update_now();
         tick();

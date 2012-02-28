@@ -423,8 +423,9 @@ static void vnc_read_security_type(vnc_t *vnc) {
 
     struct {
         uint8_t shared;
-    } client_init;
-    client_init.shared = 1;
+    } client_init = {
+        .shared = 1
+    };
 
     bufferevent_write(vnc->buf_ev, &client_init, sizeof(client_init));
     return vnc_set_handler(vnc, vnc_read_server_init, 24);
@@ -445,7 +446,6 @@ static void vnc_read_handshake(vnc_t *vnc) {
 /* Lifecycle */
 
 int vnc_create(lua_State *L, const char *host, int port) {
-    int one = 1;
     int fd = socket(AF_INET, SOCK_STREAM, 0);
 
     if (fd < 0)
