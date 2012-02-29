@@ -219,6 +219,68 @@ static int vnc_decode(vnc_t *vnc, const unsigned char *pixels) {
     return 1;
 }
 
+/* Packet definitions */
+typedef struct {
+    uint16_t x;
+    uint16_t y;
+    uint16_t w;
+    uint16_t h;
+    uint32_t encoding;
+} pkt_server_rect;
+
+typedef struct {
+    uint8_t msg_type;
+#define SERVER_MSG_TYPE_FRAMEBUFFER_UPDATE 0
+#define SERVER_MSG_TYPE_BELL               2
+#define SERVER_MSG_TYPE_CUT_TEXT           3
+} pkt_server_base_msg;
+
+typedef struct { /* extends pkt_server_base_msg */
+    uint8_t msg_type;
+    uint8_t padding[1];
+    uint16_t num_rects;
+} pkt_server_frameupdate;
+
+typedef struct { /* extends pkt_server_base_msg */
+    uint8_t msg_type;
+    uint8_t padding[3];
+    uint32_t text_len;
+} pkt_server_cut_text;
+
+typedef struct {
+    uint16_t width;
+    uint16_t height;
+    pixelformat_t pixelformat;
+    uint32_t name_len;
+} pkt_server_init;
+
+typedef struct {
+    uint32_t security_type;
+#define SERVER_SECURITY_NO_AUTH 1
+} pkt_server_auth;
+
+typedef struct {
+    uint8_t R;
+    uint8_t F;
+    uint8_t B;
+    uint8_t handshake[9];
+} pkt_server_handshake;
+
+typedef struct {
+    uint8_t msg_type;
+#define CLIENT_MSG_TYPE_UPDATE_REQUEST 3
+    uint8_t incremental;
+    uint16_t x;
+    uint16_t y;
+    uint16_t w;
+    uint16_t h;
+} pkt_client_update_request;
+
+typedef struct {
+    uint8_t shared;
+} pkt_client_init;
+
+
 /* Protocol */
 static void vnc_read_msg_header(vnc_t *vnc);
 static void vnc_read_rect(vnc_t *vnc);
@@ -226,19 +288,14 @@ static void vnc_send_update_request(vnc_t *vnc, int x, int y, int w, int h, int 
 
 static void vnc_read_cut_text(vnc_t *vnc) {
     evbuffer_drain(vnc->buf_ev->input, vnc->num_bytes);
-    return vnc_set_handler(vnc, vnc_read_msg_header, 1);
+    return vnc_set_handler(vnc, vnc_read_msg_header, sizeof(pkt_server_base_msg));
 }
 
 static void vnc_read_cut(vnc_t *vnc) {
-    struct {
-        uint8_t msg_type;
-        uint8_t padding[3];
-        uint32_t text_len;
-    } server_cut_text;
+    pkt_server_cut_text in_pkt;
+    evbuffer_remove(vnc->buf_ev->input, &in_pkt, sizeof(in_pkt));
 
-    evbuffer_remove(vnc->buf_ev->input, &server_cut_text, sizeof(server_cut_text));
-
-    uint32_t text_len = ntohl(server_cut_text.text_len);
+    uint32_t text_len = ntohl(in_pkt.text_len);
     if (text_len > 2048) {
         vnc_printf(vnc, "too large server cut text\n");
         return vnc_close(vnc);
@@ -259,25 +316,18 @@ static void vnc_read_rect_data(vnc_t *vnc) {
     if (--vnc->num_rects == 0) {
         return vnc_send_update_request(vnc, 0, 0, vnc->width, vnc->height, 1);
     } else {
-        return vnc_set_handler(vnc, vnc_read_rect, 12);
+        return vnc_set_handler(vnc, vnc_read_rect, sizeof(pkt_server_rect));
     }
 }
 
 static void vnc_read_rect(vnc_t *vnc) {
-    struct {
-        uint16_t x;
-        uint16_t y;
-        uint16_t w;
-        uint16_t h;
-        uint32_t encoding;
-    } server_rect;
+    pkt_server_rect in_pkt;
+    evbuffer_remove(vnc->buf_ev->input, &in_pkt, sizeof(in_pkt));
 
-    evbuffer_remove(vnc->buf_ev->input, &server_rect, sizeof(server_rect));
-
-    vnc->rect_x = ntohs(server_rect.x);
-    vnc->rect_y = ntohs(server_rect.y);
-    vnc->rect_w = ntohs(server_rect.w);
-    vnc->rect_h = ntohs(server_rect.h);
+    vnc->rect_x = ntohs(in_pkt.x);
+    vnc->rect_y = ntohs(in_pkt.y);
+    vnc->rect_w = ntohs(in_pkt.w);
+    vnc->rect_h = ntohs(in_pkt.h);
 
     if ((vnc->rect_x + vnc->rect_w > vnc->width) ||
         (vnc->rect_y + vnc->rect_h > vnc->height)) {
@@ -288,40 +338,31 @@ static void vnc_read_rect(vnc_t *vnc) {
 }
 
 static void vnc_read_rects(vnc_t *vnc) {
-    struct {
-        uint8_t msg_type;
-        uint8_t padding[1];
-        uint16_t num_rects;
-    } server_frameupdate;
+    pkt_server_frameupdate in_pkt;
+    evbuffer_remove(vnc->buf_ev->input, &in_pkt, sizeof(in_pkt));
 
-    evbuffer_remove(vnc->buf_ev->input, &server_frameupdate, sizeof(server_frameupdate));
-
-    vnc->num_rects = ntohs(server_frameupdate.num_rects);
+    vnc->num_rects = ntohs(in_pkt.num_rects);
     if (vnc->num_rects == 0) {
         vnc_printf(vnc, "zero rect update\n");
         return vnc_close(vnc);
     }
 
-    return vnc_set_handler(vnc, vnc_read_rect, 12);
+    return vnc_set_handler(vnc, vnc_read_rect, sizeof(pkt_server_rect));
 }
 
 static void vnc_read_msg_header(vnc_t *vnc) {
-    // get without removing
-    unsigned char *header = evbuffer_pullup(vnc->buf_ev->input, 1);
+    // peek into header without removing it
+    pkt_server_base_msg in_pkt = *(pkt_server_base_msg *)evbuffer_pullup(
+            vnc->buf_ev->input, sizeof(pkt_server_base_msg));
 
-    uint8_t msg_type = header[0];
-#define SERVER_MSG_TYPE_FRAMEBUFFER_UPDATE 0
-#define SERVER_MSG_TYPE_BELL               2
-#define SERVER_MSG_TYPE_CUT_TEXT           3
-
-    if (msg_type == SERVER_MSG_TYPE_FRAMEBUFFER_UPDATE) {
-        return vnc_set_handler(vnc, vnc_read_rects, 4);
-    } else if (msg_type == SERVER_MSG_TYPE_BELL) {
+    if (in_pkt.msg_type == SERVER_MSG_TYPE_FRAMEBUFFER_UPDATE) {
+        return vnc_set_handler(vnc, vnc_read_rects, sizeof(pkt_server_frameupdate));
+    } else if (in_pkt.msg_type == SERVER_MSG_TYPE_BELL) {
         // ignore the bell
-        evbuffer_drain(vnc->buf_ev->input, 1);
-        return vnc_set_handler(vnc, vnc_read_msg_header, 1);
-    } else if (msg_type == SERVER_MSG_TYPE_CUT_TEXT) {
-        return vnc_set_handler(vnc, vnc_read_cut, 4);
+        evbuffer_drain(vnc->buf_ev->input, sizeof(in_pkt));
+        return vnc_set_handler(vnc, vnc_read_msg_header, sizeof(pkt_server_base_msg));
+    } else if (in_pkt.msg_type == SERVER_MSG_TYPE_CUT_TEXT) {
+        return vnc_set_handler(vnc, vnc_read_cut, sizeof(pkt_server_cut_text));
     } else {
         vnc_printf(vnc, "unexpected msg_type\n");
         return vnc_close(vnc);
@@ -329,15 +370,7 @@ static void vnc_read_msg_header(vnc_t *vnc) {
 }
 
 static void vnc_send_update_request(vnc_t *vnc, int x, int y, int w, int h, int incremental) {
-    struct {
-        uint8_t msg_type;
-#define CLIENT_MSG_TYPE_UPDATE_REQUEST 3
-        uint8_t incremental;
-        uint16_t x;
-        uint16_t y;
-        uint16_t w;
-        uint16_t h;
-    } update_request = {
+    pkt_client_update_request out_pkt = {
         .msg_type = CLIENT_MSG_TYPE_UPDATE_REQUEST,
         .incremental = incremental,
         .x = htons(x),
@@ -345,8 +378,8 @@ static void vnc_send_update_request(vnc_t *vnc, int x, int y, int w, int h, int 
         .w = htons(w),
         .h = htons(h),
     };
-    bufferevent_write(vnc->buf_ev, &update_request, sizeof(update_request));
-    return vnc_set_handler(vnc, vnc_read_msg_header, 1);
+    bufferevent_write(vnc->buf_ev, &out_pkt, sizeof(out_pkt));
+    return vnc_set_handler(vnc, vnc_read_msg_header, sizeof(pkt_server_base_msg));
 }
 
 static void vnc_read_server_name(vnc_t *vnc) {
@@ -355,29 +388,23 @@ static void vnc_read_server_name(vnc_t *vnc) {
 }
 
 static void vnc_read_server_init(vnc_t *vnc) {
-    struct {
-        uint16_t width;
-        uint16_t height;
-        pixelformat_t pixelformat;
-        uint32_t name_len;
-    } server_init;
+    pkt_server_init in_pkt;
+    evbuffer_remove(vnc->buf_ev->input, &in_pkt, sizeof(in_pkt));
 
-    evbuffer_remove(vnc->buf_ev->input, &server_init, sizeof(server_init));
-
-    uint32_t name_len = ntohl(server_init.name_len);
+    uint32_t name_len = ntohl(in_pkt.name_len);
     if (name_len > 512) {
         vnc_printf(vnc, "name too long\n");
         return vnc_close(vnc);
     }
 
-    if (server_init.pixelformat.bpp != 32) {
+    if (in_pkt.pixelformat.bpp != 32) {
         vnc_printf(vnc, "invalid bpp (only 32bit supported)\n");
         return vnc_close(vnc);
     }
 
-    vnc->width = ntohs(server_init.width);
-    vnc->height = ntohs(server_init.height);
-    vnc->pixelformat = server_init.pixelformat;
+    vnc->width = ntohs(in_pkt.width);
+    vnc->height = ntohs(in_pkt.height);
+    vnc->pixelformat = in_pkt.pixelformat;
     vnc->pixelformat.red_max = ntohs(vnc->pixelformat.red_max);
     vnc->pixelformat.green_max = ntohs(vnc->pixelformat.green_max);
     vnc->pixelformat.blue_max = ntohs(vnc->pixelformat.blue_max);
@@ -404,43 +431,37 @@ static void vnc_read_server_init(vnc_t *vnc) {
         NULL
     );
     
-    vnc_printf(vnc, "got screen: %dx%d\n", ntohs(server_init.width), ntohs(server_init.height));
-
+    vnc_printf(vnc, "got screen: %dx%d\n", vnc->width, vnc->height);
     return vnc_set_handler(vnc, vnc_read_server_name, name_len);
 }
 
-static void vnc_read_security_type(vnc_t *vnc) {
-    struct {
-        uint32_t security_type;
-#define SECURITY_NO_AUTH 1
-    } auth;
+static void vnc_read_server_auth(vnc_t *vnc) {
+    pkt_server_auth in_pkt;
+    evbuffer_remove(vnc->buf_ev->input, &in_pkt, sizeof(in_pkt));
 
-    evbuffer_remove(vnc->buf_ev->input, &auth, sizeof(auth));
-    if (ntohl(auth.security_type) != SECURITY_NO_AUTH) {
+    if (ntohl(in_pkt.security_type) != SERVER_SECURITY_NO_AUTH) {
         vnc_printf(vnc, "unexpected security type\n");
         return vnc_close(vnc);
     }
 
-    struct {
-        uint8_t shared;
-    } client_init = {
+    pkt_client_init out_pkt = {
         .shared = 1
     };
-
-    bufferevent_write(vnc->buf_ev, &client_init, sizeof(client_init));
-    return vnc_set_handler(vnc, vnc_read_server_init, 24);
+    bufferevent_write(vnc->buf_ev, &out_pkt, sizeof(out_pkt));
+    return vnc_set_handler(vnc, vnc_read_server_init, sizeof(pkt_server_init));
 }
 
 static void vnc_read_handshake(vnc_t *vnc) {
-    uint8_t handshake[12];
-    evbuffer_remove(vnc->buf_ev->input, handshake, sizeof(handshake));
-    if (handshake[0] != 'R' || handshake[1] != 'F' || handshake[2] != 'B') {
+    pkt_server_handshake in_pkt;
+    evbuffer_remove(vnc->buf_ev->input, &in_pkt, sizeof(in_pkt));
+
+    if (in_pkt.R != 'R' || in_pkt.F != 'F' || in_pkt.B != 'B') {
         vnc_printf(vnc, "unexpected handshake packet\n");
         return vnc_close(vnc);
     }
 
     bufferevent_write(vnc->buf_ev, LITERAL_AND_SIZE("RFB 003.003\n"));
-    return vnc_set_handler(vnc, vnc_read_security_type, 4);
+    return vnc_set_handler(vnc, vnc_read_server_auth, sizeof(pkt_server_auth));
 }
 
 /* Lifecycle */
@@ -471,7 +492,7 @@ int vnc_create(lua_State *L, const char *host, int port) {
 
     vnc_printf(vnc, "connecting...\n");
     vnc->buf_ev = bufferevent_socket_new(event_base, -1, BEV_OPT_CLOSE_ON_FREE);
-    vnc_set_handler(vnc, vnc_read_handshake, 12);
+    vnc_set_handler(vnc, vnc_read_handshake, sizeof(pkt_server_handshake));
 
     bufferevent_setcb(vnc->buf_ev, vnc_read, NULL, vnc_event, vnc);
     bufferevent_enable(vnc->buf_ev, EV_READ | EV_WRITE);

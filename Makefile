@@ -13,6 +13,7 @@ CFLAGS +=-I/usr/include/lua5.1 -I/usr/include/freetype2/ -I/usr/include/ffmpeg -
 LDFLAGS=-llua5.1 -levent -lglfw -lGL -lGLU -lGLEW -lftgl -lpng -ljpeg -lavformat -lavcodec -lavutil -lswscale -lz 
 
 all: info-beamer
+	$(MAKE) -C doc
 
 main.o: main.c kernel.h userlib.h
 
@@ -37,3 +38,4 @@ performance: performance.csv
 
 clean:
 	rm -f *.o info-beamer kernel.h userlib.h bin2c *.compiled
+	$(MAKE) -C doc clean
