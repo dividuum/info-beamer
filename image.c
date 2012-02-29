@@ -40,28 +40,28 @@ LUA_TYPE_DECL(image);
 
 /* Helper functions */
 
+/* JPEG error manager */
+struct my_error_mgr {
+    /* "public" fields */
+    struct jpeg_error_mgr pub;
+    /* for return to caller */
+    jmp_buf setjmp_buffer;
+};
+
+typedef struct my_error_mgr* my_error_ptr;
+
+static void err_exit(j_common_ptr cinfo) {
+    /* Get error manager */
+    my_error_ptr jerr = (my_error_ptr)(cinfo->err);
+
+    /* Display error message */
+    (*cinfo->err->output_message) (cinfo);
+
+    /* Return control to the setjmp point */
+    longjmp(jerr->setjmp_buffer, 1);
+}
+
 static int load_jpeg(const char *filename, int *width, int *height) {
-    /* JPEG error manager */
-    struct my_error_mgr {
-        /* "public" fields */
-        struct jpeg_error_mgr pub;
-        /* for return to caller */
-        jmp_buf setjmp_buffer;
-    };
-
-    typedef struct my_error_mgr* my_error_ptr;
-
-    void err_exit (j_common_ptr cinfo) {
-        /* Get error manager */
-        my_error_ptr jerr = (my_error_ptr)(cinfo->err);
-
-        /* Display error message */
-        (*cinfo->err->output_message) (cinfo);
-
-        /* Return control to the setjmp point */
-        longjmp (jerr->setjmp_buffer, 1);
-    }
-
     GLint internalFormat;
     GLenum format;
     struct jpeg_decompress_struct cinfo;

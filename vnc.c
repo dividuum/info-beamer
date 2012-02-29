@@ -37,7 +37,7 @@ typedef struct {
     uint8_t padding[3];
 } pixelformat_t;
 
-typedef struct vnc_s {
+struct vnc_s {
     GLuint tex;
     int width;
     int height;
@@ -58,7 +58,7 @@ typedef struct vnc_s {
     int rect_y;
     int rect_w;
     int rect_h;
-} vnc_t;
+};
 
 LUA_TYPE_DECL(vnc);
 
