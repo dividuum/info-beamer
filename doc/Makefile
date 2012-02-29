@@ -1,7 +1,11 @@
-index.html: index.md header.html footer.html
+DOCS = userguide.html installation.html developer.html
+
+%.html: %.md header.html footer.html
 	(cat header.html; markdown $<; cat footer.html) > $@
+
+all: $(DOCS)
 
 .PHONY: clean
 clean:
-	@rm -f index.html
+	rm -f $(DOCS)
 

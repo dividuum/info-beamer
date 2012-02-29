@@ -1187,6 +1187,8 @@ static void print_free_video_mem() {
 }
 
 static void tick() {
+	now = glfwGetTime();
+
     check_inotify();
 
     event_loop(EVLOOP_NONBLOCK);
@@ -1221,14 +1223,6 @@ static void tick() {
 
     if (!glfwGetWindowParam(GLFW_OPENED))
         running = 0;
-}
-
-static void update_now() {
-    // struct timeval tv;
-    // gettimeofday(&tv, NULL);
-    // now = tv.tv_sec;
-    // now += 1.0 / 1000000 * tv.tv_usec;
-    now = glfwGetTime();
 }
 
 static void init_default_texture() {
@@ -1289,13 +1283,12 @@ int main(int argc, char *argv[]) {
 
     signal(SIGVTALRM, deadline_signal);
 
-    update_now();
     init_default_texture();
 
+    now = glfwGetTime();
     node_init_all(&root, argv[1]);
 
     while (running) {
-        update_now();
         tick();
     }
 
