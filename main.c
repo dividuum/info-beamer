@@ -51,7 +51,6 @@
 
 #define NODE_CODE_FILE "node.lua"
 
-#define MAX_CODE_SIZE 16384 // byte
 #define MAX_LOADFILE_SIZE 16384 // byte
 #define MAX_MEM 2000000 // KB
 #define MAX_GL_PUSH 20 // glPushMatrix depth
@@ -485,7 +484,7 @@ static int luaCreateShader(lua_State *L) {
 
 static int luaCreateVnc(lua_State *L) {
     const char *host = luaL_checkstring(L, 1);
-    int port = luaL_checknumber(L, 2);
+    int port = luaL_optnumber(L, 2, 5900);
     return vnc_create(L, host, port);
 }
 
@@ -514,7 +513,7 @@ static int luaPrint(lua_State *L) {
 static int luaGlPushMatrix(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
     if (node->gl_matrix_depth == NO_GL_PUSHPOP)
-        return luaL_error(L, "only callable in event.render");
+        return luaL_error(L, "only callable in node.render");
     if (node->gl_matrix_depth > MAX_GL_PUSH)
         return luaL_error(L, "Too may pushes");
     glPushMatrix();
@@ -525,7 +524,7 @@ static int luaGlPushMatrix(lua_State *L) {
 static int luaGlPopMatrix(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
     if (node->gl_matrix_depth == NO_GL_PUSHPOP)
-        return luaL_error(L, "only callable in event.render");
+        return luaL_error(L, "only callable in node.render");
     if (node->gl_matrix_depth == 0)
         return luaL_error(L, "Nothing to pop");
     glPopMatrix();
@@ -536,7 +535,7 @@ static int luaGlPopMatrix(lua_State *L) {
 static int luaGlRotate(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
     if (node->gl_matrix_depth == NO_GL_PUSHPOP)
-        return luaL_error(L, "only callable in event.render");
+        return luaL_error(L, "only callable in node.render");
     double angle = luaL_checknumber(L, 1);
     double x = luaL_checknumber(L, 2);
     double y = luaL_checknumber(L, 3);
@@ -548,7 +547,7 @@ static int luaGlRotate(lua_State *L) {
 static int luaGlTranslate(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
     if (node->gl_matrix_depth == NO_GL_PUSHPOP)
-        return luaL_error(L, "only callable in event.render");
+        return luaL_error(L, "only callable in node.render");
     double x = luaL_checknumber(L, 1);
     double y = luaL_checknumber(L, 2);
     double z = luaL_optnumber(L, 3, 0.0);

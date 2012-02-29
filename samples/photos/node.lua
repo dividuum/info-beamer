@@ -22,16 +22,6 @@ PictureSource = function()
     }
 end
 
-function draw_proportional(image, x1, y1, x2, y2, alpha)
-    local nx1, ny1, nx2, ny2 = util.scale_into(
-        x2 - x1, y2 - y1,
-        image:size()
-    )
-    -- print(nx1, ny1, nx2, ny2)
-    image:draw(x1 + nx1, y1 + ny1, x1 + nx2, y1 + ny2, alpha)
-end
-
-
 local effect = 0
 local ps = PictureSource()
 
@@ -59,7 +49,7 @@ function node.render()
         current_image = next_image
         next_image = nil
         next_image_time = sys.now() + COUNTDOWN
-        draw_proportional(current_image, 0,0,WIDTH,HEIGHT)
+        util.draw_correct(current_image, 0,0,WIDTH,HEIGHT)
         effect = effect + math.floor(math.random() * 10)
     elseif time_to_next < 1 then
         local xoff = (1 - time_to_next) * WIDTH
@@ -68,13 +58,13 @@ function node.render()
             local current_effect = effect % 3
             if current_effect < 0.5 then
                 gl.rotate(200 * (1-time_to_next), 0,1,0)
-                draw_proportional(current_image, 0 + xoff, 0, WIDTH + xoff, HEIGHT, time_to_next)
+                util.draw_correct(current_image, 0 + xoff, 0, WIDTH + xoff, HEIGHT, time_to_next)
             elseif current_effect < 1.5 then
                 gl.rotate(60 * (1-time_to_next), 0,0,1)
-                draw_proportional(current_image, 0 + xoff, 0, WIDTH + xoff, HEIGHT, time_to_next)
+                util.draw_correct(current_image, 0 + xoff, 0, WIDTH + xoff, HEIGHT, time_to_next)
             else
                 gl.rotate(300 * (1-time_to_next), -1,0.2,0.4)
-                draw_proportional(current_image, 0 + xoff, 0, WIDTH + xoff, HEIGHT, time_to_next)
+                util.draw_correct(current_image, 0 + xoff, 0, WIDTH + xoff, HEIGHT, time_to_next)
             end
         gl.popMatrix()
 
@@ -83,10 +73,10 @@ function node.render()
             xoff = time_to_next * -WIDTH
             if current_effect < 0.5 then
                 gl.rotate(100 * (time_to_next), 1,-1,0)
-                draw_proportional(next_image, 0 + xoff, 0,WIDTH + xoff, HEIGHT, 1-time_to_next)
+                util.draw_correct(next_image, 0 + xoff, 0,WIDTH + xoff, HEIGHT, 1-time_to_next)
             elseif current_effect < 1.5 then 
                 gl.rotate(100 * (time_to_next), 0,0,-1)
-                draw_proportional(next_image, 0 + xoff, 0,WIDTH + xoff, HEIGHT, 1-time_to_next)
+                util.draw_correct(next_image, 0 + xoff, 0,WIDTH + xoff, HEIGHT, 1-time_to_next)
             else
                 local half_width = WIDTH/2
                 local half_height = HEIGHT/2
@@ -94,7 +84,7 @@ function node.render()
                 gl.translate(half_width, half_height)
                 gl.rotate(100 * time_to_next, 0,0,-1)
                 gl.translate(-half_width, -half_height)
-                draw_proportional(next_image,
+                util.draw_correct(next_image,
                     half_width - half_width*percent, half_height - half_height*percent, 
                     half_width + half_width*percent, half_height + half_height*percent, 
                     1-time_to_next
@@ -107,8 +97,8 @@ function node.render()
                 ps.get_next_image()
             )
         end
-        draw_proportional(current_image, 0,0,WIDTH,HEIGHT)
+        util.draw_correct(current_image, 0,0,WIDTH,HEIGHT)
     else
-        draw_proportional(current_image, 0,0,WIDTH,HEIGHT)
+        util.draw_correct(current_image, 0,0,WIDTH,HEIGHT)
     end
 end

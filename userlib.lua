@@ -26,6 +26,14 @@ function util.resource_loader(resources)
             print("resource_loader: updated _G." .. target .. " (triggered by " .. name .. ")")
         end
     end)
+    node.event("content_remove", function(name)
+        local handler = resource_handlers[name]
+        if handler then
+            local target, loader = unpack(handler)
+            print("resource_loader: unloaded _G." .. target)
+            _G[target] = nil
+        end
+    end)
     for idx, resource in ipairs(resources) do
         local name, suffix = resource:match("(.*)[.]([^.]+)$")
         if not name then
@@ -47,16 +55,6 @@ function util.shaderpair_loader(any_name)
         resource.load_file(name .. ".vert"),
         resource.load_file(name .. ".frag")
     )
-end
-
-function util.content_watch(resources, handler)
-    node.event("content_update", function(name)
-        for idx, resource in ipairs(resources) do
-            if name == resource then
-                return handler(name)
-            end
-        end
-    end)
 end
 
 function util.osc_mapper(routes)
@@ -211,7 +209,12 @@ function util.scale_into(target_width, target_height, source_width, source_heigh
     return x1, y1, x2, y2
 end
 
-
+function util.draw_correct(obj, x1, y1, x2, y2, ...)
+    local ox1, oy1, ox2, oy2 = util.scale_into(
+        x2 - x1, y2 - y1, obj:size()
+    )
+    obj:draw(x1 + ox1, y1 + oy1, x1 + ox2, y1 + oy2, ...)
+end
 
 -- Based on http://lua-users.org/wiki/TableSerialization
 -- Modified to *not* use debug.getinfo
@@ -249,13 +252,6 @@ function table.show(t, name, indent)
    local cart     -- a container
    local autoref  -- for self references
 
-   --[[ counts the number of elements in a table
-   local function tablecount(t)
-      local n = 0
-      for _, _ in pairs(t) do n = n+1 end
-      return n
-   end
-   ]]
    -- (RiciLake) returns true if the table is empty
    local function isemptytable(t) return next(t) == nil end
 

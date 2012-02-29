@@ -9,7 +9,7 @@ util.resource_loader{
 function node.render()
     gl.clear(1,1,1,1)
     shader:use{
-        Scale = math.cos(sys.now()*2)*3
+        Effect = math.cos(sys.now()*2)*3
     }
     lua:draw(120, 40, 520, 440)
 end

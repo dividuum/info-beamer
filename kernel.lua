@@ -322,13 +322,10 @@ do
             end
         elseif cmd == "render_self" then
             local screen_width, screen_height = ...
-            local self = render_self()
-            local root_width, root_height = self:size()
-            local x1, y1, x2, y2 = sandbox.util.scale_into(
-                screen_width, screen_height,
-                root_width, root_height
+            sandbox.util.draw_correct(
+                render_self(),
+                0, 0, screen_width, screen_height
             )
-            self:draw(x1, y1, x2, y2)
         end
     end
 
