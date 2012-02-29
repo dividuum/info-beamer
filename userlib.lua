@@ -6,7 +6,6 @@ function util.resource_loader(resources)
     local loaders = {
         png = resource.load_image;
         jpg = resource.load_image;
-        jpeg = resource.load_image;
         ttf = resource.load_font;
         avi = util.videoplayer;
         mpg = util.videoplayer;

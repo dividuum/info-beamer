@@ -10,7 +10,7 @@ realtime visualisations using the Lua programming language.
 
 XXX uses directories as presentable units. A minimal example consists of a
 single directory (called a node) containing a font file and a control file
-**node.lua**. Let's look at the example code in `samples/hello`:
+`node.lua`. Let's look at the example code in `samples/hello`:
 
     gl.setup(1024, 768)
 
@@ -19,6 +19,8 @@ single directory (called a node) containing a font file and a control file
     function node.render()
         font:write(120, 320, "Hello World", 100, 1,1,1,1)
     end
+
+![hello world](hello.png)
 
 Let's look at each line:
 
@@ -47,9 +49,11 @@ position. `y` is the vertical position. The value 0 is the topmost
 position. Therefore `x=0, y=0` is in the topleft corner of the virtual
 screen.
 
+![coordinate system](coordinates.png)
+
 `"Hello World"` is obviously the value we want to put on the virtual
 screen.  `100` is the size of the output in screen units. `1,1,1,1` is
-color in RGBA format.
+color in RGBA format (a bright white).
 
 To display this example using XXX, switch into the `samples` directory and
 type 
@@ -91,6 +95,9 @@ coordinates `0, 0` (top left corner of the virtualscreen) to `WIDTH,
 HEIGHT` (bottom right corner of the screen). WIDTH and HEIGHT will be
 initializes with the values from the `gl.setup` call.
 
+Please note, that image loading is case sensitive. XXX will only support
+the file extensions `jpg` and `png`. A file called `FOO.JPG` won't load.
+
 ### Videos
 
 You can load videos and display them. Doing so is quite similar to image
@@ -105,14 +112,14 @@ loading:
         video:draw(0, 0, WIDTH, HEIGHT)
     end
 
-`video` now contains a video object. `video:next` will read the next frame
-from video. `video:draw` will then display this frame. You'll notice that
-video playback will be too fast. Since `node.render` is called for each
-frame XXX wants to display, it's most likely that this function will be
-called 60 times per seconds (the refresh rate of your monitor). Likewise
-your video might have 25 frames per seconds. So you'll have to slow down
-decoding to the actual framerate of the video. `util.videoplayer` will do
-all of this for you:
+`video` now contains a video object. Calling `video:next` will read the
+next frame from video. `video:draw` will then display this frame. You'll
+notice that video playback will be too fast. Since `node.render` is called
+for each frame XXX wants to display, it's most likely that this function
+will be called 60 times per seconds (the refresh rate of your monitor).
+Likewise your video might have 25 frames per seconds. So you'll have to
+slow down decoding to the actual framerate of the video. `util.videoplayer`
+will do all of this for you:
 
     gl.setup(1024, 768)
 
@@ -130,45 +137,80 @@ correct framerate.
 
 A directory (called a node) can contain subdirectories. Each subdirectory
 is then loaded as a child node. The parent node can render child nodes like
-any other resource. Let's look at `samples/nested`:
+any other resource. Let's say we create two nodes called *Blue* and *Red*.
+We can let XXX play each of them individually. But what if we want to
+combine them for our presentation? This is where the nesting feature of XXX
+becomes useful. You start by creating another node called *Green*. Then you
+just move the directories for node *Blue* and *Red* into the directory
+*Green*. The file tree will the look like this:
 
-    gl.setup(1024, 768)
+    -+- green -+- node.lua
+               |
+               +- red ---- node.lua
+               |
+               '- blue --- node.lua
+
+Inside of *Green* you can then render both *Red* and *Blue* into an image
+object using `resource.render_child` and display them on *Green*s virtual screen.
+
+![nested rendering](nested.png)
+
+The above setup is available in the directory `samples/blue`. It contains
+`node.lua` and two child directories called `red` and `blue`.  Let's look at
+`green/node.lua`:
+
+    gl.setup(800, 600)
 
     function node.render()
-        gl.clear(1,1,1,1)
+        gl.clear(0, 1, 0, 1) -- green
 
-        local child = resource.render_child("child")
-        child:draw(100, 100, 400, 400)
+        -- render to image object and draw
+        local red = resource.render_child("red")
+        red:draw(640, 20, 780, 580)
+
+        -- render an draw without creating an intermediate value
+        resource.render_child("blue"):draw(50, 200, 300, 380)
     end
 
-It creates a new virtual screen sized 1024x768. For each frame it clears
-the screen using `gl.clear`. `1,1,1,1` is the color white.
+It creates a new virtual screen sized 800x600. For each frame it clears the
+screen using `gl.clear` with a bright green.
 
-Then is renders the child node `child` (aka the subdirectory `child`) into
-a new object called `child` and draws it into the square from `100,100` to
-`400,400`. The sourcecode for `child/node.lua` looks like this:
+Then is renders the child node `red` (aka the subdirectory `red`) into
+a new image object called `red` and draws it into the square from `640,20` to
+`780,580`. The sourcecode for `green/red/node.lua` looks like
+this:
 
-    gl.setup(100, 100)
+    gl.setup(100, 800)
 
     function node.render()
-        if sys.now() % 2 < 1 then
-            gl.clear(1,0,0,1)
-        else
-            gl.clear(0,1,0,1)
-        end
+        gl.clear(1, 0, 0, 1) -- red
     end
 
-It starts by setting up a 100x100 screen. Each time the child is rendered
+It starts by setting up a 800x100 screen. Each time it is is rendered
 (which happens if `resource.render_child` is called), the child clears the
-screen either in red or in green, depending in the current time. You can
-start the example like this:
+screen either in red. 
 
-    samples$ ../info-beamer nested
+`green/blue/node.lua` looks almost identical but clears the screen with a
+bright blue:
 
-You can also start the child on its own:
+    gl.setup(640, 480)
 
-    samples$ cd nested
-    samples/nested$ ../../info-beamer child
+    function node.render()
+        gl.clear(0, 0, 1, 1) -- blue
+    end
+
+You can start the example like this:
+
+    samples$ ../info-beamer green
+
+You can also start both childs on their own:
+
+    samples$ cd green
+    samples/green$ ../../info-beamer red
+
+    or 
+
+    samples/green$ ../../info-beamer blue
 
 This is a great feature: You can develop nodes independently and later
 include them in other nodes. 
@@ -232,7 +274,7 @@ which loader is responsible for the given fileformat and load the file into
 a global variable whose name is derived from the filename. The above code
 will load the image `lua.png` into the global variable `lua`. It will also
 load the shader pair `shader.vert` and `shader.frag` into the global
-variable `shader`. The resource loader will also make sure, that changes
+variable `shader`. The resource loader will also make sure, that changed
 files will be reloaded. So if you edit and save for example `shader.frag`,
 XXX will instantly reload the shader. You can see changes to your effect
 immediatelly. This is great for rapidly development of effects.
@@ -248,6 +290,8 @@ Reference
 ### image = resource.load\_image(filename)
 
 Loads the JPG or PNG file specified by `filename` into a texture objects.
+Please note, that image loading is case sensitive. XXX will only support
+the file extensions `jpg` and `png`. A file called `FOO.JPG` won't load.
 
 The returned `image` objects supports the following methods:
 
@@ -356,12 +400,12 @@ like an invalid hostname, a closed connection or invalid VNC packets) it
 will not automatically reconnect. It's up to you to create a new client if
 you need a persistent connection.
 
-### obj = resource.render\_child(name)
+### image = resource.render\_child(name)
 
-Renders a child node into a texture-like object. Rendering will call
+Renders a child node into an `image` object. Rendering will call
 `node.render` within the child.
 
-The returned objects supports the same methods like image objects created
+The returned `image` supports the same methods like images objects created
 by `resource.load_image`.
 
 ### gl.setup(width, height)
@@ -385,14 +429,6 @@ matrices. This should be more than enough for normal visualisations.
 Restores a previously saved matrix. Can only be called inside
 `node.render`.
 
-### gl.rotate(angle, x, y, z)
-
-Produces a rotation of `angle` degrees around the vector `x`, `y`, `z`. 
-
-### gl.translate(x, y, z)
-
-Produces a translation by `x`, `y`, `z`.
-
 ### gl.ortho()
 
 Resets the view to an orthogonal projection. It will create a projection
@@ -405,6 +441,28 @@ This will create a perspective projection. The field of view is given by
 `fov`. The camera (or eye) will be at the coordinates `eyex`, `eyey`,
 `eyez`. It will look at `centerx`, `centery`, `centerz`. The up vector of
 the camera will always be `0`, `-1`, `0`.
+
+Here are some useful values to try if you want to switch from `gl.ortho` to
+`gl.perspective`:
+
+    gl.perspective(
+        60,
+        WIDTH/2, HEIGHT/2, -WIDTH/1.6,
+        WIDTH/2, HEIGHT/2, 0
+    )
+
+
+### gl.rotate(angle, x, y, z)
+
+Produces a rotation of `angle` degrees around the vector `x`, `y`, `z`.
+Consider using `gl.perspective` to see the scene in perspective mode. It
+might look better.
+
+### gl.translate(x, y, z)
+
+Produces a translation by `x`, `y`, `z`. Consider using `gl.perspective` to
+see the scene in perspective mode. It might look better.
+
 
 ### sys.now()
 
@@ -503,17 +561,17 @@ Let's say you have two nodes:
 If you send a packet to `nested`, the `data` callback will be called in the
 node `nested`. If you send a packet to `nested/child/foobar` the `data`
 callback will be called in `nested/child`. `suffix` will have the value
-`foobar`. See `util.data_mapper` for an easier way to receive udp data
-packets. You can give your node a unique alias name using `node.alias`.
-This might be useful if you use OSC clients that don't support changing the
-paths they create.
+`foobar`. See `util.data_mapper` for an easier way to receive and dispatch
+udp data packets. You can give your node a unique alias name using
+`node.alias`.  This might be useful if you use OSC clients that don't
+support changing the paths they create.
 
 #### node.event("osc", function(suffix, ...) ... end)
 
 XXX also supports OSC (open sound control) packets via UDP. If you send an
 OSC packet containing a float to `node/slider/1`, the `osc` callback will
 be called with the suffix `slider/1` and the decoded osc values. See
-`util.osc_mapper` for an easier way to receive osc packets.
+`util.osc_mapper` for an easier way to receive and dispatch osc packets.
 
 #### node.event("input", function(line) ... end)
 
@@ -532,7 +590,8 @@ Utility functions
 ### util.resource\_loader(table\_of\_filenames)
 
 Creates a magic resource loader that will load the resources from the given
-filenames and put them in global variables. Example usage:
+filenames and put them in global variables. It also keeps them updated if
+files change. Example usage:
 
     util.resource_loader{
         "font.ttf",
@@ -574,8 +633,8 @@ trigger the slider callback function:
     
     /example/slider/123
 
-`slider_num` will be a string containing the value `123`. `slider_args`
-will contain the OSC arguments.
+In the callback, the argument `slider_num` will be a string containing the
+value `123`. `slider_args` will contain the OSC arguments.
 
 ### util.data\_mapper(routing\_table)
 
@@ -597,9 +656,9 @@ Draws the current video frame into a rectangle specified by the give coordinates
 
 ### util.draw\_correct(obj, x1, y1, x2, y2, alpha)
 
-It is often necessary to display images or videos using the correct aspect
-ratio (so they don't look stretched). `util.draw_correct` does this for
-you.
+It is often necessary to display images, videos, child nodes or vnc streams
+using the correct aspect ratio (so they don't look stretched).
+`util.draw_correct` does this for you.
 
     -- maybe wrong, stretches the image
     image:draw(0, 0, WIDTH, HEIGHT)

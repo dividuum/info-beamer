@@ -27,6 +27,7 @@ Project Philosophy
 
  * Keep it statefree. It should be possible to develop a node independently
    from other nodes. Composing them shouldn't change their behaviour.
+   OpenGL or other state should not leak into or from child nodes.
 
  * Keep it scriptable. XXX embraces scripting. Not just from the inside but
    also from the outside. It provides several ways to control a running
@@ -47,5 +48,6 @@ Contributing
 ------------
 
 Feel free to fork and enhance XXX. Please judge your changes against the
-philosophy. I your contribution conflicts with one of them, I will probably
-not merge then into the official version. Let's keep XXX clean and simple.
+philosophy. If your contribution conflicts with one of them, I will
+probably not merge then into the official version. Let's keep XXX clean and
+simple.
