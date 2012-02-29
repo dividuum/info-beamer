@@ -220,6 +220,7 @@ static int vnc_decode(vnc_t *vnc, const unsigned char *pixels) {
 }
 
 /* Packet definitions */
+
 typedef struct {
     uint16_t x;
     uint16_t y;
@@ -467,11 +468,6 @@ static void vnc_read_handshake(vnc_t *vnc) {
 /* Lifecycle */
 
 int vnc_create(lua_State *L, const char *host, int port) {
-    int fd = socket(AF_INET, SOCK_STREAM, 0);
-
-    if (fd < 0)
-        return luaL_error(L, "cannot create new client socket");
-
     vnc_t *vnc = push_vnc(L);
     vnc->tex = 0;
     vnc->width = 0;
@@ -481,8 +477,6 @@ int vnc_create(lua_State *L, const char *host, int port) {
 
     vnc->host = strdup(host);
     vnc->port = port;
-
-    evutil_make_socket_nonblocking(fd);
 
     struct sockaddr_in sin;
     memset(&sin, 0, sizeof(sin));
