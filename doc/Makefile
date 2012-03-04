@@ -1,7 +1,7 @@
-DOCS = userguide.html installation.html developer.html
+DOCS = manual.html
 
 %.html: %.md header.html footer.html
-	(cat header.html; markdown $<; cat footer.html) > $@
+	(cat header.html; markdown_py -x toc -x tables -x codehilite $<; cat footer.html) > $@
 
 all: $(DOCS)
 
