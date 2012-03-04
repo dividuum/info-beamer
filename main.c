@@ -415,18 +415,6 @@ static int luaRemoveAlias(lua_State *L) {
     return 0;
 }
 
-static int luaListChilds(lua_State *L) {
-    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
-    int num_childs = HASH_CNT(by_name, node->childs);
-    if (!lua_checkstack(L, num_childs))
-        luaL_error(L, "too many childs");
-    node_t *child, *tmp; 
-    HASH_ITER(by_name, node->childs, child, tmp) {
-        lua_pushstring(L, child->name);
-    }
-    return num_childs;
-}
-
 static int luaLoadImage(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
     const char *name = luaL_checkstring(L, 1);
@@ -739,7 +727,6 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "render_child", luaRenderChild);
     lua_register_node_func(node, "set_alias", luaSetAlias);
     lua_register_node_func(node, "remove_alias", luaRemoveAlias);
-    lua_register_node_func(node, "list_childs", luaListChilds);
     lua_register_node_func(node, "load_image", luaLoadImage);
     lua_register_node_func(node, "load_video", luaLoadVideo);
     lua_register_node_func(node, "load_font", luaLoadFont);
