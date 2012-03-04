@@ -22,9 +22,9 @@ XXX is currently focused on Linux. It has been tested on Ubuntu and Fedora.
 Dependencies
 ------------
 
-XXX tries to have minimal dependencies. It shouldn't be necessary to
-install obscure packages before compiling XXX. Here are the required 3rd
-party packages:
+XXX tries to have dependencies that are available for most linux
+distributions. It shouldn't be necessary to compile obscure packages before
+compiling XXX. Here are the required 3rd party packages:
 
 Dependency          |  Why?
 --------------------|---------------------------
@@ -76,7 +76,12 @@ Installation
 ------------
 
 There is nothing special to do. XXX consists of only a single binary called
-XXX. You can move it to any directory you like (e.g. /usr/local/bin).
+XXX. You can move it to any directory you like (e.g. `/usr/local/bin`). Or
+you can call `make install` to install XXX into `/usr/local/bin`.
+
+    :::console
+    user:~/src/XXX$ sudo make install
+    install -o root -g root -m 755 info-beamer /usr/local/bin/
 
 First Steps
 ===========

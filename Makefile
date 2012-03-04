@@ -22,9 +22,6 @@ all: info-beamer
 info-beamer: main.o image.o font.o video.o shader.o vnc.o framebuffer.o misc.o tlsf.o struct.o
 	$(CC) -o $@ $^ $(LDFLAGS) 
 
-doc:
-	$(MAKE) -C doc
-
 main.o: main.c kernel.h userlib.h
 
 bin2c: bin2c.c
@@ -34,7 +31,13 @@ bin2c: bin2c.c
 	luac -o $<.compiled $<
 	./bin2c $* < $<.compiled > $@
 
-.PHONY: clean doc
+doc:
+	$(MAKE) -C doc
+
+install: info-beamer
+	install -o root -g root -m 755 $< /usr/local/bin/
+
+.PHONY: clean doc install
 
 clean:
 	rm -f *.o info-beamer kernel.h userlib.h bin2c *.compiled
