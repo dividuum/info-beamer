@@ -426,7 +426,7 @@ Returns the size of the video.
 
 #### fps = video:fps()
 
-Returns the frame per seconds as given by the video file.
+Returns the frame per seconds as specified by the video file.
 
 ### font = resource.load\_font(filename)
 
@@ -439,6 +439,9 @@ Writes the provided `text` to the coordinates given in `x` and `y`. The
 color is given by `r`, `g`, `b` and `a`, the red, green, blue and alpha
 values. The call will return the width of the rendered text in screen
 space.
+
+`text` must be `UTF8` encoded, if you intend to use characters outside the
+ascii range.
 
 #### width = font:write(x, y, text, size, texturelike)
 
