@@ -14,7 +14,7 @@ Project Philosophy
    where is no need to include a C-version (unless speed prohibits a
    Lua solution).
 
- * Keep is small. XXX is a simple self-contained binary. It shouldn't
+ * Keep it small. XXX is a simple self-contained binary. It shouldn't
    depend on files somewhere in the filesystem. Keep XXX portable.
 
  * Keep it robust. XXX tries to provide a crash free environment. It

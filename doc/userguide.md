@@ -72,8 +72,8 @@ immediatelly. Let's try this: While XXX is still running and displaying the
 changed and reload it. The output window will now show the text `"Updated
 World"` to you!
 
-Resource loading
-----------------
+Howto Display Content
+---------------------
 
 ### Images
 
@@ -284,8 +284,8 @@ shader, which was automatically created from the files `shader.vert` and
 `shader.frag` by `util.resource_loader`. We pass in a variable `Effect` which
 depends on a time value. This will create a dynamic effect.
 
-Reference
----------
+Resource Loading Functions
+--------------------------
 
 ### image = resource.load\_image(filename)
 
@@ -408,6 +408,9 @@ Renders a child node into an `image` object. Rendering will call
 The returned `image` supports the same methods like images objects created
 by `resource.load_image`.
 
+OpenGL Related Functions
+------------------------
+
 ### gl.setup(width, height)
 
 Initializes the virtual screen of the current node. Will also set the
@@ -463,13 +466,15 @@ might look better.
 Produces a translation by `x`, `y`, `z`. Consider using `gl.perspective` to
 see the scene in perspective mode. It might look better.
 
+Misc Functions
+--------------
 
 ### sys.now()
 
 Returns a timestamp as a floating point number that will increment by 1 for
 each passing second. The timestamp is relative to the start of XXX.
 
-Node functions
+Node Functions
 --------------
 
 ### node.render()
@@ -488,7 +493,11 @@ If you send data to a node using TCP (see the `input` event) or UDP (see
 `node.alias`, you can give your node an alias name. This name must be
 unique in a running XXX instance.
 
-Global variables
+### node.event(event\_name, event\_handler)
+
+Registers a new eventhandler. Possible `event_name`s are described below.
+
+Global Variables
 ----------------
 
 ### WIDTH
@@ -507,22 +516,21 @@ Name of the current node (its directory name)
 
 Complete path of the node
 
-Event Listeners
----------------
+Node Events
+-----------
 
 XXX allows you to listen to various events. All events must be registered
-using `node.event`
-
-### node.event(event\_name, event\_handler)
-
-Registers a new `event_handler` function for the event specified by
-`event_name`. The following events are available:
+using `node.event`. The following events are available:
 
 #### node.event("child\_add", function(child\_name) ... end)
 
 Registers an event handler that is called if XXX detects that a child node
 was added to the current node. The name of the new child node is provided
-in `child_name`.
+in `child_name`. Example usage:
+
+    node.event("child_add", function(child_name)
+        print("new child " .. child_name .. " added")
+    end)
 
 #### node.event("child\_remove", function(child\_name) ... end)
 
@@ -584,8 +592,15 @@ Any text you type while connected will trigger the `input` event. The
 `input` event will be given the provided line. This can be used to feed a
 node with input from outside sources.
 
-Utility functions
+    node.event("input", function(line)
+        print("Input was: " .. line)
+    end)
+
+Utility Functions
 -----------------
+
+All utility functions could be rewritten using the functions decribed
+above. They are provided for your convenience.
 
 ### util.resource\_loader(table\_of\_filenames)
 
