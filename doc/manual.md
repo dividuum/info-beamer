@@ -603,6 +603,8 @@ unique in a running XXX instance.
 ### node.event(event\_name, event\_handler)
 
 Registers a new eventhandler. Possible `event_name`s are described below.
+Event handlers cannot be unregistered. Event handlers will be called in the
+order of registration.
 
 Node Events
 -----------
@@ -777,24 +779,43 @@ using the correct aspect ratio (so they don't look stretched).
     -- keeps aspect ratio
     util.draw_correct(image, 0, 0, WIDTH, HEIGHT)
 
+### pp(variable)
+
+Pretty print the given Lua object.
+
 Global Variables
 ----------------
 
 ### WIDTH
 
-Current width of the virtual screen as set by `gl.setup`.
+Current width of the virtual screen as set by `gl.setup`. Writing to this
+variable has no effect. Use `gl.setup` to change the virtual screen size.
 
 ### HEIGHT
 
-Current height of the virtual screen as set by `gl.setup`.
+Current height of the virtual screen as set by `gl.setup`. Writing to this
+variable has no effect. Use `gl.setup` to change the virtual screen size.
+
 
 ### NAME
 
-Name of the current node (its directory name)
+Name of the current node (its directory name).
 
 ### PATH
 
-Complete path of the node
+Complete path of the node. 
+
+### CONTENTS
+
+Table of available files in the directory of the node. The key contains the
+filename, the value is the timestamp (comparable to `sys.now()`) of the
+last change.
+
+### CHILDS
+
+Table of child nodes. The key contains the childs name. These can the rendered using
+`resource.render_child`. The value is a timestamp (comparable to
+`sys.now()`) of the first detection of the child node.
 
 Contributing to XXX
 ===================
