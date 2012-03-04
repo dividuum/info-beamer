@@ -33,7 +33,7 @@ static int font_write(lua_State *L) {
         GLfloat r = luaL_checknumber(L, 6);
         GLfloat g = luaL_checknumber(L, 7);
         GLfloat b = luaL_checknumber(L, 8);
-        GLfloat a = luaL_checknumber(L, 9);
+        GLfloat a = luaL_optnumber(L, 9, 1.0);
 
         glColor4f(r,g,b,a);
         glBindTexture(GL_TEXTURE_2D, default_tex);
@@ -41,18 +41,18 @@ static int font_write(lua_State *L) {
         lua_pushliteral(L, "texid");
         lua_gettable(L, 6);
         if (lua_type(L, -1) != LUA_TFUNCTION)
-            return luaL_error(L, "no texid() function");
+            return luaL_argerror(L, 6, "no texid() function");
         lua_pushvalue(L, 6);
         lua_call(L, 1, 1);
         if (lua_type(L, -1) != LUA_TNUMBER)
-            return luaL_error(L, "texid() did not return number");
+            return luaL_argerror(L, 6, "texid() did not return number");
         int tex_id = lua_tonumber(L, -1);
         lua_pop(L, 1);
 
         glColor4f(1,1,1,1);
         glBindTexture(GL_TEXTURE_2D, tex_id);
     } else {
-        return luaL_error(L, "unsupported value type %s", lua_typename(L, type));
+        return luaL_argerror(L, 6, "unsupported value. must be RGBA or texturelike");
     }
 
     glPushMatrix();
@@ -75,11 +75,10 @@ static const luaL_reg font_methods[] = {
 
 int font_new(lua_State *L, const char *path, const char *name) {
     FTGLfont *ftgl_font = ftglCreatePolygonFont(path);
-    ftglSetFontDisplayList(ftgl_font, 1);
-
     if (!ftgl_font)
         luaL_error(L, "cannot load font file %s", name);
 
+    ftglSetFontDisplayList(ftgl_font, 1);
     ftglSetFontFaceSize(ftgl_font, 1000, 1000);
     ftglSetFontCharMap(ftgl_font, ft_encoding_unicode);
 

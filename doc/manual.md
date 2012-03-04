@@ -433,12 +433,12 @@ Returns the frame per seconds as specified by the video file.
 Loads the given Truetype font file and returns a `font` objects. It
 supports the following methods:
 
-#### width = font:write(x, y, text, size, r, g, b, a)
+#### width = font:write(x, y, text, size, r, g, b, [a])
 
 Writes the provided `text` to the coordinates given in `x` and `y`. The
 color is given by `r`, `g`, `b` and `a`, the red, green, blue and alpha
-values. The call will return the width of the rendered text in screen
-space.
+values. alpha is an optional value. default is 1.0 (opaque). The call will
+return the width of the rendered text in screen space.
 
 `text` must be `UTF8` encoded, if you intend to use characters outside the
 ascii range.

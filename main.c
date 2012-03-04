@@ -340,9 +340,9 @@ static int luaSetup(lua_State *L) {
     int width = (int)luaL_checknumber(L, 1);
     int height = (int)luaL_checknumber(L, 2);
     if (width < 32 || width > 2048)
-        luaL_error(L, "invalid width [32,2048]");
+        luaL_argerror(L, 1, "invalid width. must be within [32,2048]");
     if (height < 32 || height > 2048)
-        luaL_error(L, "invalid height [32,2048]");
+        luaL_argerror(L, 2, "invalid height. must be within [32,2048]");
     node->width = width;
     node->height = height;
     return 0;
@@ -419,7 +419,7 @@ static int luaLoadImage(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
     const char *name = luaL_checkstring(L, 1);
     if (index(name, '/'))
-        luaL_error(L, "invalid resource name");
+        luaL_argerror(L, 1, "invalid resource name");
     char path[PATH_MAX];
     snprintf(path, sizeof(path), "%s/%s", node->path, name);
     return image_load(L, path, name);
@@ -429,7 +429,7 @@ static int luaLoadVideo(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
     const char *name = luaL_checkstring(L, 1);
     if (index(name, '/'))
-        luaL_error(L, "invalid resource name");
+        luaL_argerror(L, 1, "invalid resource name");
     char path[PATH_MAX];
     snprintf(path, sizeof(path), "%s/%s", node->path, name);
     return video_load(L, path, name);
@@ -439,7 +439,7 @@ static int luaLoadFont(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
     const char *name = luaL_checkstring(L, 1);
     if (index(name, '/'))
-        luaL_error(L, "invalid resource name");
+        luaL_argerror(L, 1, "invalid resource name");
     char path[PATH_MAX];
     snprintf(path, sizeof(path), "%s/%s", node->path, name);
     return font_new(L, path, name);
@@ -449,7 +449,7 @@ static int luaLoadFile(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
     const char *name = luaL_checkstring(L, 1);
     if (index(name, '/'))
-        luaL_error(L, "invalid resource name");
+        luaL_argerror(L, 1, "invalid resource name");
     char path[PATH_MAX];
     snprintf(path, sizeof(path), "%s/%s", node->path, name);
 

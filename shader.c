@@ -78,11 +78,11 @@ static int shader_use(lua_State *L) {
             lua_pushliteral(L, "texid");
             lua_gettable(L, -3);                // texid aus metatable holen
             if (lua_type(L, -1) != LUA_TFUNCTION)
-                return luaL_error(L, "no texid() function");
+                return luaL_argerror(L, 2, "value has no texid() function");
             lua_pushvalue(L, -3);               // value kopieren (als self)
             lua_call(L, 1, 1);                  // obj:texid()
             if (lua_type(L, -1) != LUA_TNUMBER)
-                return luaL_error(L, "texid() did not return number");
+                return luaL_argerror(L, 2, "texid() did not return number");
             int tex_id = lua_tonumber(L, -1);
             lua_pop(L, 1);
 
@@ -97,7 +97,7 @@ static int shader_use(lua_State *L) {
 
         //     num_textures++;
         } else {
-            return luaL_error(L, "unsupported value type %s", lua_typename(L, type));
+            return luaL_argerror(L, 2, "unsupported value. must be number or texturelike");
         }
         lua_pop(L, 2);
     }
