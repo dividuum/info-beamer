@@ -135,14 +135,14 @@ function util.videoplayer(name, opt)
                     frame = frame + 1
                 end
             end
-            local sx1, sy1, sx2, sy2 = util.scale_into(
-                width, height, x2 - x1, y2 - y1
-            )
-            stream:draw(x1 + sx1, y1 + sy1, x1 + sx2, y1 + sy2, alpha)
+            stream:draw(x1, y1, x2, y2, alpha)
             return true
         end;
         texid = function()
             return stream:texid()
+        end;
+        size = function()
+            return stream:size()
         end;
     }
 end

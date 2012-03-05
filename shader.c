@@ -54,10 +54,6 @@ static int shader_use(lua_State *L) {
     
     luaL_checktype(L, 2, LUA_TTABLE);
 
-    // GLint old_active_texture;
-    // glGetIntegerv (GL_ACTIVE_TEXTURE, &selected);
-    // fprintf(stderr, "> active: %d\n", selected);
-
     lua_pushnil(L);
     while (lua_next(L, -2)) {
         // name kopieren und nach string konvertieren
@@ -67,38 +63,54 @@ static int shader_use(lua_State *L) {
 
         GLint loc = glGetUniformLocation(shader->po, name);
         if (loc == -1)
-            return luaL_error(L, "unknown uniform name %s", name);
+            return luaL_error(L, "unknown uniform name %s. "
+                "maybe it is not used in the shader?", name);
 
         int type = lua_type(L, -2);
+        int len = lua_objlen(L, -2);
 
         if (type == LUA_TNUMBER) {
             GLfloat value = lua_tonumber(L, -2);
             glUniform1f(loc, value);
+        } else if (type == LUA_TTABLE && 2 <= len && len <= 4) {
+            GLfloat values[4];
+            for (int idx = 1; idx <= len; idx++) {
+                lua_rawgeti(L, -2, idx);
+                if (lua_type(L, -1) != LUA_TNUMBER)
+                    return luaL_error(L, "only numbers supported in %s at index %d", 
+                        name, idx);
+                values[idx -1] = lua_tonumber(L, -1);
+                lua_pop(L, 1);
+            }
+            switch (len) {
+                case 4: glUniform4f(loc, values[0], values[1], values[2], values[3]); break;
+                case 3: glUniform3f(loc, values[0], values[1], values[2]); break;
+                case 2: glUniform2f(loc, values[0], values[1]); break;
+            }
         } else if (type == LUA_TUSERDATA || type == LUA_TTABLE) {
             lua_pushliteral(L, "texid");
             lua_gettable(L, -3);                // texid aus metatable holen
             if (lua_type(L, -1) != LUA_TFUNCTION)
-                return luaL_argerror(L, 2, "value has no texid() function");
+                return luaL_error(L, "value %s has no texid() function", name);
             lua_pushvalue(L, -3);               // value kopieren (als self)
             lua_call(L, 1, 1);                  // obj:texid()
             if (lua_type(L, -1) != LUA_TNUMBER)
-                return luaL_argerror(L, 2, "texid() did not return number");
+                return luaL_error(L, "%s's texid() did not return number", name);
             int tex_id = lua_tonumber(L, -1);
             lua_pop(L, 1);
 
             glActiveTexture(GL_TEXTURE0 + num_textures);
             glBindTexture(GL_TEXTURE_2D, tex_id);
             glUniform1i(loc, num_textures);
-            // fprintf(stderr, "bound tex id %d to %d: loc: %d\n", tex_id, num_textures, loc);
-            //
-            // int MaxTextureImageUnits;
-            // glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &MaxTextureImageUnits);
-            // fprintf(stderr, "max: %d\n", MaxTextureImageUnits);
-
-        //     num_textures++;
+            num_textures++;
         } else {
-            return luaL_argerror(L, 2, "unsupported value. must be number or texturelike");
+            return luaL_error(L, "unsupported value for %s. "
+                "must be number, vector or texturelike", name);
         }
+        // if (glGetError() == GL_INVALID_OPERATION)
+        //     return luaL_error(L, "unsupported assignment to %s "
+        //         "incompatible values?", name);
+
         lua_pop(L, 2);
     }
     lua_pop(L, 1);
