@@ -4,15 +4,18 @@ util = {}
 
 function util.resource_loader(resources)
     local loaders = {
-        png = resource.load_image;
-        jpg = resource.load_image;
-        ttf = resource.load_font;
-        avi = util.videoplayer;
-        mpg = util.videoplayer;
-        ogg = util.videoplayer;
-        flv = util.videoplayer;
-        mkv = util.videoplayer;
-        mp4 = util.videoplayer;
+        png  = resource.load_image;
+        jpg  = resource.load_image;
+        jpeg = resource.load_image;
+        gif  = resource.load_image;
+        bmp  = resource.load_image;
+        ttf  = resource.load_font;
+        avi  = util.videoplayer;
+        mpg  = util.videoplayer;
+        ogg  = util.videoplayer;
+        flv  = util.videoplayer;
+        mkv  = util.videoplayer;
+        mp4  = util.videoplayer;
         frag = util.shaderpair_loader;
         vert = util.shaderpair_loader;
     }

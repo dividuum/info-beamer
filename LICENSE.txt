@@ -7,12 +7,13 @@ This program is licensed under the BSD 2-Clause License:
     modification, are permitted provided that the following conditions are
     met:
 
-    Redistributions of source code must retain the above copyright notice,
-    this list of conditions and the following disclaimer. 
+        Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer. 
 
-    Redistributions in binary form must reproduce the above copyright notice,
-    this list of conditions and the following disclaimer in the documentation
-    and/or other materials provided with the distribution.  
+        Redistributions in binary form must reproduce the above copyright
+        notice, this list of conditions and the following disclaimer in the
+        documentation and/or other materials provided with the
+        distribution.  
 
     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
     IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
@@ -29,11 +30,6 @@ This program is licensed under the BSD 2-Clause License:
 Some files include external code. License information about these
 files in included in their header.
 
-    image.c
-        PNG & JPEG loading based on example code
-        http://tfc.duke.free.fr/
-        http://files.slembcke.net/misc/PNGTexture.tar.gz
-
     video.c
         Includes code from ffmpeg example code
         http://bit.ly/w3iOvz
@@ -46,7 +42,7 @@ files in included in their header.
         Includes code based on lua-users wiki:
         http://lua-users.org/wiki/TableSerialization
 
-3rd Party code:
+Included 3rd Party code:
 
     tlsf.c tlsf.h tlsfbits.h
         TLSF memory allocator

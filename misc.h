@@ -8,11 +8,11 @@
 #define LITERAL_SIZE(x) (sizeof(x) - 1)
 #define LITERAL_AND_SIZE(x) x, LITERAL_SIZE(x)
 
-#define RED(string) "[31m" string "[0m"
-#define GREEN(string) "[32m" string "[0m"
+#define RED(string)    "[31m" string "[0m"
+#define GREEN(string)  "[32m" string "[0m"
 #define YELLOW(string) "[33m" string "[0m"
-#define BLUE(string) "[34m" string "[0m"
-#define CYAN(string) "[36m" string "[0m"
+#define BLUE(string)   "[34m" string "[0m"
+#define CYAN(string)   "[36m" string "[0m"
 
 void die(const char *fmt, ...);
 void *xmalloc(size_t size);

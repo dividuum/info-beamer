@@ -25,6 +25,9 @@
 #include <GL/gl.h>
 #include <GL/glext.h>
 #include <GL/glfw.h>
+#include <IL/il.h>
+#include <IL/ilu.h>
+#include <IL/ilut.h>
 #include <libavformat/avformat.h>
 #include <event.h>
 #include <event2/dns.h>
@@ -1267,6 +1270,10 @@ int main(int argc, char *argv[]) {
     glfwSetWindowSizeCallback(reshape);
     glfwSetKeyCallback(keypressed);
     glfwDisable(GLFW_AUTO_POLL_EVENTS);
+
+    ilInit();
+    iluInit();
+    ilutRenderer(ILUT_OPENGL);
 
     signal(SIGVTALRM, deadline_signal);
 

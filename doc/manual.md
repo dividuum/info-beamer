@@ -34,8 +34,7 @@ glfw                |  opengl initialization
 GL & GLU            |  opengl & utility functions
 GLEW                |  accessing opengl extensions
 ftgl                |  truetype font rendering for opengl
-libpng              |  reading png files
-libjpeg             |  reading jpeg files
+DevIL               |  reading image files
 libavformat         |  video decoding
 libavcodec          | 
 libavutil           | 
@@ -50,8 +49,7 @@ Ubuntu provides all required packages. Just execute the following command:
     :::console
 	user:~$ apt-get install liblua5.1-dev libevent-dev libglfw-dev \
 		libglew1.5-dev libftgl-dev libavcodec-dev libswscale-dev \
-		libavformat-dev libpng-dev libjpeg-dev
-
+		libavformat-dev libdevil-dev
 
 Building From Source
 --------------------
@@ -830,11 +828,9 @@ Project Philosophy
 ------------------
 
  * Keep it simple. XXX avoids unnecessary clutter. If a simple external 
-   Script could solve a problem, there is no need to do it in XXX. For
-   example a GIF file can be converted to PNG very easily. There is no need
-   to include a gif format reader. If a problem is solvable within Lua,
-   there is no need to include a C-version (unless speed prohibits a
-   Lua solution).
+   Script could solve a problem, there is no need to do it in XXX. If a
+   problem is solvable within Lua, there is no need to include a C-version
+   (unless speed prohibits a Lua solution).
 
  * Keep it small. XXX is a simple self-contained binary. It shouldn't
    depend on files somewhere in the filesystem. Keep XXX portable.

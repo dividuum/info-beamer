@@ -21,10 +21,10 @@
 
 #include <GL/glew.h>
 #include <GL/gl.h>
+#include <IL/il.h>
+#include <IL/ilu.h>
 #include <lauxlib.h>
 #include <lualib.h>
-#include <png.h>
-#include <jpeglib.h>
 
 #include "framebuffer.h"
 #include "misc.h"
@@ -38,240 +38,6 @@ typedef struct {
 
 LUA_TYPE_DECL(image);
 
-/* Helper functions */
-
-/* JPEG error manager */
-struct my_error_mgr {
-    /* "public" fields */
-    struct jpeg_error_mgr pub;
-    /* for return to caller */
-    jmp_buf setjmp_buffer;
-};
-
-typedef struct my_error_mgr* my_error_ptr;
-
-static void err_exit(j_common_ptr cinfo) {
-    /* Get error manager */
-    my_error_ptr jerr = (my_error_ptr)(cinfo->err);
-
-    /* Display error message */
-    (*cinfo->err->output_message) (cinfo);
-
-    /* Return control to the setjmp point */
-    longjmp(jerr->setjmp_buffer, 1);
-}
-
-static int load_jpeg(const char *filename, int *width, int *height) {
-    GLint internalFormat;
-    GLenum format;
-    struct jpeg_decompress_struct cinfo;
-    struct my_error_mgr jerr;
-    JSAMPROW j;
-    int i;
-    GLubyte *pixels = NULL;
-
-    /* Open image file */
-    FILE *fp = fopen(filename, "rb"); 
-    if (!fp) {
-        fprintf(stderr, "error: couldn't open \"%s\"!\n", filename);
-        return 0;
-    }
-
-    /* Create and configure decompressor */
-    jpeg_create_decompress (&cinfo);
-    cinfo.err = jpeg_std_error (&jerr.pub);
-    jpeg_stdio_src(&cinfo, fp);
-
-    jerr.pub.error_exit = err_exit;
-
-    if (setjmp(jerr.setjmp_buffer)) {
-        jpeg_destroy_decompress (&cinfo);
-        if (pixels) 
-            free(pixels);
-        return 0;
-    }
-
-    /* Read header and prepare for decompression */
-    jpeg_read_header (&cinfo, TRUE);
-    jpeg_start_decompress (&cinfo);
-
-    /* Initialize image's member variables */
-    *width = cinfo.image_width;
-    *height = cinfo.image_height;
-    internalFormat = cinfo.num_components;
-
-    if (cinfo.num_components == 1)
-        format = GL_LUMINANCE;
-    else
-        format = GL_RGB;
-
-    pixels = (GLubyte *)xmalloc(
-        sizeof (GLubyte) * (*width) * (*height) * internalFormat
-    );
-
-    /* Extract each scanline of the image */
-    for (i = 0; i < *height; ++i) {
-        j = (pixels + (
-            (*height - (i + 1)) * (*width) * internalFormat
-        ));
-        jpeg_read_scanlines(&cinfo, &j, 1);
-    }
-
-    /* Finish decompression and release memory */
-    jpeg_finish_decompress (&cinfo);
-    jpeg_destroy_decompress (&cinfo);
-
-    fclose(fp);
-
-    GLuint tex;
-    /* Generate texture */
-    glGenTextures(1, &tex);
-    glBindTexture(GL_TEXTURE_2D, tex);
-
-    /* Setup some parameters for texture filters and mipmapping */
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    GLint alignment;
-    glGetIntegerv (GL_UNPACK_ALIGNMENT, &alignment);
-    glPixelStorei (GL_UNPACK_ALIGNMENT, 1);
-
-#if 0
-    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat,
-            *width, *height, 0, format,
-            GL_UNSIGNED_BYTE, pixels);
-#else
-    gluBuild2DMipmaps(GL_TEXTURE_2D, internalFormat,
-            *width, *height, format, GL_UNSIGNED_BYTE, pixels);
-#endif
-
-    /* OpenGL has its own copy of texture data */
-    free(pixels);
-
-    glPixelStorei(GL_UNPACK_ALIGNMENT, alignment);
-
-    fprintf(stderr, "jpeg loaded. size is %dx%d\n", *width, *height);
-    return tex;
-}
-
-static int load_png(const char *filename, int *width, int *height) {
-    FILE *png_file = fopen(filename, "rb");
-    if (!png_file) {
-        fprintf(stderr, "cannot open %s\n", filename);
-        return 0;
-    }
-
-    const int PNG_SIG_BYTES = 8;
-    unsigned char header[PNG_SIG_BYTES];
-
-    if (fread(header, 1, PNG_SIG_BYTES, png_file) != PNG_SIG_BYTES) {
-        fprintf(stderr, "cannot read header\n");
-        goto error_info;
-    }
-
-    if (png_sig_cmp(header, 0, PNG_SIG_BYTES)) {
-        fprintf(stderr, "no png?\n");
-        goto error_info;
-    }
-
-    png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-    if (!png_ptr) {
-        fprintf(stderr, "cannot create read_struct?\n");
-        goto error_info;
-    }
-
-    png_infop info_ptr = png_create_info_struct(png_ptr);
-    if (!info_ptr) {
-        fprintf(stderr, "cannot create info_struct?\n");
-        goto error_info;
-    }
-
-    png_infop end_info = png_create_info_struct(png_ptr);
-    if (!end_info) {
-        fprintf(stderr, "cannot create info_struct?\n");
-        goto error_info;
-    }
-
-    if (setjmp(png_jmpbuf(png_ptr))) {
-        fprintf(stderr, "cannot read file\n");
-        goto error_read;
-    }
-
-    png_init_io(png_ptr, png_file);
-    png_set_sig_bytes(png_ptr, PNG_SIG_BYTES);
-    png_read_info(png_ptr, info_ptr);
-
-    *width = png_get_image_width(png_ptr, info_ptr);
-    *height = png_get_image_height(png_ptr, info_ptr);
-
-    png_uint_32 bit_depth, color_type;
-    bit_depth = png_get_bit_depth(png_ptr, info_ptr);
-    color_type = png_get_color_type(png_ptr, info_ptr);
-
-    if(color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8)
-        png_set_gray_1_2_4_to_8(png_ptr);
-
-    if (bit_depth == 16)
-        png_set_strip_16(png_ptr);
-
-    if(color_type == PNG_COLOR_TYPE_PALETTE)
-        png_set_palette_to_rgb(png_ptr);
-    else if(color_type == PNG_COLOR_TYPE_GRAY ||
-            color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
-    {
-        png_set_gray_to_rgb(png_ptr);
-    }
-
-    if (png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS))
-        png_set_tRNS_to_alpha(png_ptr);
-    else
-        png_set_filler(png_ptr, 0xff, PNG_FILLER_AFTER);
-
-    png_read_update_info(png_ptr, info_ptr);
-
-    png_uint_32 rowbytes = png_get_rowbytes(png_ptr, info_ptr);
-    png_uint_32 numbytes = rowbytes*(*height);
-    png_byte* pixels = malloc(numbytes);
-    png_byte** row_ptrs = malloc((*height) * sizeof(png_byte*));
-
-    int i;
-    for (i=0; i<(*height); i++)
-        row_ptrs[i] = pixels + ((*height) - 1 - i)*rowbytes;
-
-    png_read_image(png_ptr, row_ptrs);
-
-    free(row_ptrs);
-    png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
-    fclose(png_file);
-
-    GLint alignment;
-    glGetIntegerv (GL_UNPACK_ALIGNMENT, &alignment);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-
-    GLuint tex;
-    glGenTextures(1, &tex);
-    glBindTexture(GL_TEXTURE_2D, tex);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, *width, *height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-    glGenerateMipmap(GL_TEXTURE_2D);
-    free(pixels);
-
-    glPixelStorei (GL_UNPACK_ALIGNMENT, alignment);
-
-    fprintf(stderr, "png loaded. size is %dx%d\n", *width, *height);
-    return tex;
-    // XXX: Fehlerhandling scheint mir noch inkorrekt
-error_read:
-    png_destroy_read_struct(&png_ptr, &info_ptr, &end_info);
-error_info:
-    fclose(png_file);
-    return 0;
-}
 
 /* Instance methods */
 
@@ -320,7 +86,6 @@ static const luaL_reg image_methods[] = {
 
 int image_create(lua_State *L, GLuint tex, GLuint fbo, int width, int height) {
     image_t *image = push_image(L);
-    // printf("creating image %d,%d %dx%d\n", tex, fbo, width, height);
     image->tex = tex;
     image->fbo = fbo;
     image->width = width;
@@ -329,24 +94,46 @@ int image_create(lua_State *L, GLuint tex, GLuint fbo, int width, int height) {
 }
 
 int image_load(lua_State *L, const char *path, const char *name) {
-    int width, height;
-    GLuint tex = 0;
+    ILuint imageID;
+    ilGenImages(1, &imageID);
+    ilBindImage(imageID);
+ 
+    if (!ilLoadImage(path)) {
+        ilDeleteImages(1, &imageID);
+        return luaL_error(L, "image loading failed: %s", 
+            iluErrorString(ilGetError()));
+    }
+ 
+    ILinfo ImageInfo;
+    iluGetImageInfo(&ImageInfo);
 
-    char *pos = strstr(name, ".png");
-    if (pos && pos == name + strlen(name) - 4) {
-        fprintf(stderr, "loading png %s\n", path);
-        tex = load_png(path, &width, &height);
+    if (ImageInfo.Origin == IL_ORIGIN_UPPER_LEFT)
+        iluFlipImage();
+ 
+    if (!ilConvertImage(IL_RGBA, IL_UNSIGNED_BYTE)) {
+        ilDeleteImages(1, &imageID);
+        return luaL_error(L, "converting image failed: %s", 
+            iluErrorString(ilGetError()));
     }
 
-    pos = strstr(name, ".jpg");
-    if (pos && pos == name + strlen(name) - 4) {
-        fprintf(stderr, "loading jpg %s\n", path);
-        tex = load_jpeg(path, &width, &height);
-    }
+    int width = ilGetInteger(IL_IMAGE_WIDTH);
+    int height = ilGetInteger(IL_IMAGE_HEIGHT);
 
-    if (!tex)
-        luaL_error(L, "cannot load image file %s", name);
+    GLuint tex;
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
 
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, ilGetInteger(IL_IMAGE_BPP), width, height, 0,
+                 ilGetInteger(IL_IMAGE_FORMAT), GL_UNSIGNED_BYTE, ilGetData());
+    glGenerateMipmap(GL_TEXTURE_2D);
+ 
+    ilDeleteImages(1, &imageID);
+ 
     image_t *image = push_image(L);
     image->tex = tex;
     image->fbo = 0;

@@ -8,10 +8,9 @@ Dependencies:
  * GLEW - opengl extensions
  * FTGL - freetype rendering for opengl
  * ffmpeg - video decoding
- * libpng - loading png
- * libjpeg - loading jpeg
+ * DevIL - image loading
 
  Ubuntu packages:
 
   liblua5.1-dev libevent-dev libglfw-dev libglew1.5-dev libftgl-dev 
-  libavcodec-dev libswscale-dev libavformat-dev libpng-dev libjpeg-dev
+  libavcodec-dev libswscale-dev libavformat-dev libdevil-dev
