@@ -16,6 +16,7 @@ function util.resource_loader(resources)
         flv  = util.videoplayer;
         mkv  = util.videoplayer;
         mp4  = util.videoplayer;
+        mov  = util.videoplayer;
         frag = util.shaderpair_loader;
         vert = util.shaderpair_loader;
     }
@@ -49,6 +50,14 @@ function util.resource_loader(resources)
             name, loader
         }
     end
+end
+
+function util.file_watch(filename, handler)
+    node.event("content_update", function(name)
+        if name == filename then
+            handler(resource.load_file(name))
+        end
+    end)
 end
 
 function util.shaderpair_loader(any_name)
@@ -216,6 +225,24 @@ function util.draw_correct(obj, x1, y1, x2, y2, ...)
         x2 - x1, y2 - y1, obj:size()
     )
     obj:draw(x1 + ox1, y1 + oy1, x1 + ox2, y1 + oy2, ...)
+end
+
+function table.filter(t, predicate)
+    local j = 1
+
+    for i, v in ipairs(t) do
+        if predicate(v) then
+            t[j] = v
+            j = j + 1
+        end
+    end
+
+    while t[j] ~= nil do
+        t[j] = nil
+        j = j + 1
+    end
+
+    return t
 end
 
 -- Based on http://lua-users.org/wiki/TableSerialization

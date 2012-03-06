@@ -118,8 +118,14 @@ static int shader_use(lua_State *L) {
     return 0;
 }
 
+static int shader_deactivate(lua_State *L) {
+    glUseProgram(0);
+    return 0;
+}
+
 static const luaL_reg shader_methods[] = {
-    {"use",       shader_use},
+    {"use",         shader_use},
+    {"deactivate",  shader_deactivate},
     {0,0}
 };
 

@@ -485,7 +485,11 @@ will be available as a 2d sampler:
     uniform sampler2d some_texture;
 
 The shader will be active for the rest of execution of the `node.render`
-call. Currently there is no way do deativate an activated shader.
+call unless deactivated using `:deactivate`.
+
+#### shader:deactivate()
+
+Deactivates the active shader.
 
 ### vnc = resource.create\_vnc(hostname, [port])
 
