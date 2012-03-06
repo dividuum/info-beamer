@@ -50,7 +50,7 @@
 #include "userlib.h"
 
 #define VERSION_STRING "Info Beamer " VERSION
-#define INFO_URL "http://dividuum.de/info-beamer"
+#define INFO_URL "http://dividuum.de/info-beamer/"
 
 #define NODE_CODE_FILE "node.lua"
 
