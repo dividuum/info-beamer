@@ -4,27 +4,29 @@ Introduction
 About
 -----
 
-XXX is an interactive multimedia presentation framework. It is somewhat
-similar to [fluxus](http://www.pawfal.org/fluxus/) or
-[processing](http://processing.org/). XXX allows you to create impressive
-realtime visualisations using the Lua programming language.
+`info-beamer` is an interactive multimedia presentation framework. It is
+somewhat similar to [fluxus](http://www.pawfal.org/fluxus/) or
+[processing](http://processing.org/). `info-beamer` allows you to create
+impressive realtime visualisations using the [Lua programming
+language](http://www.lua.org/).
 
 Table of Contents
 -----------------
 
 [TOC]
 
-Installing XXX
-==============
+Installing info-beamer
+======================
 
-XXX is currently focused on Linux. It has been tested on Ubuntu and Fedora.
+`info-beamer` is currently focused on Linux. It has been tested on Ubuntu
+and Fedora.
 
 Dependencies
 ------------
 
-XXX tries to have dependencies that are available for most linux
+`info-beamer` tries to have dependencies that are available for most linux
 distributions. It shouldn't be necessary to compile obscure packages before
-compiling XXX. Here are the required 3rd party packages:
+compiling `info-beamer`. Here are the required 3rd party packages:
 
 Dependency          |  Why?
 --------------------|---------------------------
@@ -54,17 +56,18 @@ Ubuntu provides all required packages. Just execute the following command:
 Building From Source
 --------------------
 
-XXX is provided as a source release on http://github.com/dividuum/XXX. The
-best way to install XXX is to clone the github repository and type `make`
-inside the root directory:
+`info-beamer` is provided as a source release on
+[http://github.com/dividuum/info-beamer](http://github.com/dividuum/info-beamer).
+The best way to install `info-beamer` is to clone the github repository and
+type `make` inside the root directory:
 
     :::console
-    user:~/src$ git clone https://github.com/dividuum/XXX.git
+    user:~/src$ git clone https://github.com/dividuum/info-beamer.git
     [...]
-    user:~/src$ cd XXX
-    user:~/src/XXX$ make
+    user:~/src$ cd info-beamer
+    user:~/src/info-beamer$ make
     [...]
-    user:~/src/XXX$ ./info-beamer 
+    user:~/src/info-beamer$ ./info-beamer 
     Info Beamer rev-foobar (http://dividuum.de/info-beamer)
     Copyright (c) 2012, Florian Wesch <fw@dividuum.de>
 
@@ -73,12 +76,13 @@ inside the root directory:
 Installation
 ------------
 
-There is nothing special to do. XXX consists of only a single binary called
-XXX. You can move it to any directory you like (e.g. `/usr/local/bin`). Or
-you can call `make install` to install XXX into `/usr/local/bin`.
+There is nothing special to do. `info-beamer` consists of only a single
+binary called `info-beamer`. You can move it to any directory you like
+(e.g. `/usr/local/bin`). Or you can call `make install` to install
+`info-beamer` into `/usr/local/bin`.
 
     :::console
-    user:~/src/XXX$ sudo make install
+    user:~/src/info-beamer$ sudo make install
     install -o root -g root -m 755 info-beamer /usr/local/bin/
 
 First Steps
@@ -87,9 +91,9 @@ First Steps
 Hello World
 -----------
 
-XXX uses directories as presentable units. A minimal example consists of a
-single directory (called a node) containing a font file and a control file
-`node.lua`. Let's look at the example code in `samples/hello`:
+`info-beamer` uses directories as presentable units. A minimal example
+consists of a single directory (called a node) containing a font file and a
+control file `node.lua`. Let's look at the example code in `samples/hello`:
 
     :::lua
     gl.setup(1024, 768)
@@ -122,10 +126,10 @@ object `font`. This object can then be used to write output using the font.
         font:write(120, 320, "Hello World", 100, 1,1,1,1)
     end
 
-XXX will call the function `node.render` for each frame it will display on
-the screen. Inside of `node.render` it's up to you to decide what do show
-on each frame. In this example we use the previously create `font` object
-to write `"Hello World"` to the virtual screen.
+`info-beamer` will call the function `node.render` for each frame it will
+display on the screen. Inside of `node.render` it's up to you to decide
+what do show on each frame. In this example we use the previously create
+`font` object to write `"Hello World"` to the virtual screen.
 
 The first two parameters of `write` are the x and y Position on the virtual
 screen. `x` is the horizontal position. A value of 0 is the leftmost
@@ -139,33 +143,34 @@ screen.
 screen.  `100` is the size of the output in screen units. `1,1,1,1` is
 color in RGBA format (a bright white).
 
-To display this example using XXX, switch into the `samples` directory and
-type 
+To display this example using `info-beamer`, switch into the `samples`
+directory and type 
 
     :::console
-    user:~/src/XXX$ cd samples
-    user:~/src/XXX/samples$ ../info-beamer hello
+    user:~/src/info-beamer$ cd samples
+    user:~/src/info-beamer/samples$ ../info-beamer hello
 
-This will start XXX. It will open the directory `hello` (called the `hello`
-node) and look for the file `node.lua`. This should get you a new
-window showing the "Hello World" text in the center to the screen. 
+This will start `info-beamer`. It will open the directory `hello` (called
+the `hello` node) and look for the file `node.lua`. This should get
+you a new window showing the "Hello World" text in the center to the
+screen. 
 
-XXX is a rapid development environment. If you update the code for your
-example and save it, XXX will pickup the changes and show them to you
-immediatelly. Let's try this: While XXX is still running and displaying the
-"Hello World", change the string "Hello World" to "Updated World" in
-`node.lua` and save the file `node.lua`. XXX will notice that the file
-changed and reload it. The output window will now show the text `"Updated
-World"` to you!
+`info-beamer` is a rapid development environment. If you update the code
+for your example and save it, `info-beamer` will pickup the changes and
+show them to you immediatelly. Let's try this: While `info-beamer` is still
+running and displaying the "Hello World", change the string "Hello World"
+to "Updated World" in `node.lua` and save the file `node.lua`.
+`info-beamer` will notice that the file changed and reload it. The output
+window will now show the text `"Updated World"` to you!
 
 Displaying Content
 ------------------
 
 ### Images
 
-XXX can load more than just font files. It will load JPG and PNG files
-using the `resource.load_image` function. Code using this function might
-look like this:
+`info-beamer` can load more than just font files. It will load various
+image formats using the `resource.load_image` function. Code using this
+function might look like this:
 
     :::lua
     gl.setup(1024, 768)
@@ -181,9 +186,6 @@ The image `background.jpg` will be loaded into the image object
 coordinates `0, 0` (top left corner of the virtualscreen) to `WIDTH,
 HEIGHT` (bottom right corner of the screen). WIDTH and HEIGHT will be
 initialized with the values from the `gl.setup` call.
-
-Please note that image loading is case sensitive. XXX will only support
-the file extensions `jpg` and `png`. A file called `FOO.JPG` won't load.
 
 ### Videos
 
@@ -203,11 +205,11 @@ loading:
 `video` now contains a video object. Calling `video:next` will read the
 next frame of the video. `video:draw` will then display this frame. You'll
 notice that video playback will be too fast. Since `node.render` is called
-for each frame XXX wants to display, it's most likely that this function
-will be called 60 times per seconds (the refresh rate of your monitor).
-Likewise your video might have 25 frames per seconds. So you'll have to
-slow down decoding to the actual framerate of the video. `util.videoplayer`
-will do all of this for you:
+for each frame `info-beamer` wants to display, it's most likely that this
+function will be called 60 times per seconds (the refresh rate of your
+monitor).  Likewise your video might have 25 frames per seconds. So
+you'll have to slow down decoding to the actual framerate of the video.
+`util.videoplayer` will do all of this for you:
 
     :::lua
     gl.setup(1024, 768)
@@ -227,11 +229,11 @@ correct framerate.
 A directory (called a node) can contain subdirectories. Each subdirectory
 is then loaded as a child node. The parent node can render child nodes like
 any other resource. Let's say we create two nodes called *Blue* and *Red*.
-We can let XXX play each of them individually. But what if we want to
-combine them for our presentation? This is where the nesting feature of XXX
-becomes useful. You start by creating another node called *Green*. Then you
-just move the directories for node *Blue* and *Red* into the directory
-*Green*. The file tree will the look like this:
+We can let `info-beamer` play each of them individually. But what if we
+want to combine them for our presentation? This is where the nesting
+feature of `info-beamer` becomes useful. You start by creating another node
+called *Green*. Then you just move the directories for node *Blue* and
+*Red* into the directory *Green*. The file tree will the look like this:
 
     :::text
     -+- green -+- node.lua
@@ -295,30 +297,30 @@ bright blue:
 You can start the example like this:
 
     :::console
-    user:~/src/XXX/samples$ ../info-beamer green
+    user:~/src/info-beamer/samples$ ../info-beamer green
 
 You can also start both childs on their own:
 
     :::console
-    user:~/src/XXX/samples$ cd green
-    user:~/src/XXX/samples/green$ ../../info-beamer red
+    user:~/src/info-beamer/samples$ cd green
+    user:~/src/info-beamer/samples/green$ ../../info-beamer red
 
 or 
 
     :::console
-    user:~/src/XXX/samples/green$ ../../info-beamer blue
+    user:~/src/info-beamer/samples/green$ ../../info-beamer blue
 
 This is a great feature: You can develop nodes independently and later
 include them in other nodes. 
 
 ### Rendering from VNC
 
-XXX contains another useful feature for including content. It can act as a
-VNC client. VNC is a cross platform desktop sharing protocol. XXX
-implements the client side of this protocol. If you setup a server on a
-remote machine, XXX can connect to this machine and create a VNC
-object you can use to render the remote desktop in your presentation. Here
-is an example:
+`info-beamer` contains another useful feature for including content. It can
+act as a VNC client. VNC is a cross platform desktop sharing protocol.
+`info-beamer` implements the client side of this protocol. If you setup a
+server on a remote machine, `info-beamer` can connect to this machine and
+create a VNC object you can use to render the remote desktop in your
+presentation. Here is an example:
 
     :::lua
     gl.setup(1024, 768)
@@ -330,22 +332,22 @@ is an example:
     end
 
 This will try to create a connection to a running VNC server on
-`192.168.1.1`. The server must not be password protected (since XXX doesn't
-support any kind of authentication). If you create the server, be sure that
-you are in a secure environment. Inside `node.render` the content of the
-remote desktop is drawn onto the screen.
+`192.168.1.1`. The server must not be password protected (since
+`info-beamer` doesn't support any kind of authentication). If you
+create the server, be sure that you are in a secure environment. Inside
+`node.render` the content of the remote desktop is drawn onto the screen.
 
 ### Using GLSL Shaders
 
-XXX supports GLSL shaders. Shaders are small programs that run on the GPU.
-They enable various realtime effects using the raw power of your GPU.
-Shaders come in pairs: A vertex shader and a fragment shader. Vertex
+`info-beamer` supports GLSL shaders. Shaders are small programs that run on
+the GPU.  They enable various realtime effects using the raw power of your
+GPU.  Shaders come in pairs: A vertex shader and a fragment shader. Vertex
 shaders are responsible for transforming 3D positions. Fragment shaders
 then calculate the color displayed on each visible pixel of the transformed
 object. Fragment shaders can be used to create stunning realtime effects.
-XXX enables you to pass numeric values and additional textures into the
-shader. This allows you to do all kinds of crazy stuff like for example
-blending videos with static textures.
+`info-beamer` enables you to pass numeric values and additional textures
+into the shader. This allows you to do all kinds of crazy stuff like for
+example blending videos with static textures.
 
 `samples/shader` contains a small basic shader example:
 
@@ -374,13 +376,14 @@ will load the image `lua.png` into the global variable `lua`. It will also
 load the shader pair `shader.vert` and `shader.frag` into the global
 variable `shader`. The resource loader will also make sure that changed
 files will be reloaded. So if you edit and save for example `shader.frag`,
-XXX will instantly reload the shader. You can see changes to your effect
-immediatelly. This is great for rapidly development of effects.
+`info-beamer` will instantly reload the shader. You can see changes
+to your effect immediatelly. This is great for rapidly development of
+effects.
 
 Inside of `node.render` we first clear the screen. Then we activate the
 shader, which was automatically created from the files `shader.vert` and
-`shader.frag` by `util.resource_loader`. We pass in a variable `Effect` which
-depends on a time value. This will create a dynamic effect.
+`shader.frag` by `util.resource_loader`. We pass in a variable `Effect`
+which depends on a time value. This will create a dynamic effect.
 
 Reference
 =========
@@ -390,9 +393,9 @@ Resource Loading
 
 ### image = resource.load\_image(filename)
 
-Loads the JPG or PNG file specified by `filename` into a texture objects.
-Please note that image loading is case sensitive. XXX will only support
-the file extensions `jpg` and `png`. A file called `FOO.JPG` won't load.
+Loads the image file specified by `filename` into a texture objects.
+Please note that image loading is case sensitive. `info-beamer` supports
+the most common file formats.
 
 The returned `image` objects supports the following methods:
 
@@ -580,7 +583,7 @@ Misc Functions
 ### sys.now()
 
 Returns a timestamp as a floating point number that will increment by 1 for
-each passing second. The timestamp is relative to the start of XXX.
+each passing second. The timestamp is relative to the start of `info-beamer`.
 
 Node Functions
 --------------
@@ -588,8 +591,8 @@ Node Functions
 ### node.render()
 
 You should overwrite this function with your own code. This function will
-be called by XXX (or by a parent node using `resource.render_child`). It
-should create the current scene.
+be called by `info-beamer` (or by a parent node using
+`resource.render_child`). It should create the current scene.
 
 ### node.alias(new_alias)
 
@@ -599,7 +602,7 @@ node. The `path` is the full path to the node from the toplevel node.
 If you send data to a node using TCP (see the `input` event) or UDP (see
 `osc` and `data` events), you address the node using its full path. Using
 `node.alias`, you can give your node an alias name. This name must be
-unique in a running XXX instance.
+unique in a running `info-beamer` instance.
 
 ### node.event(event\_name, event\_handler)
 
@@ -610,14 +613,14 @@ order of registration.
 Node Events
 -----------
 
-XXX allows you to listen to various events. All events must be registered
-using `node.event`. The following events are available:
+`info-beamer` allows you to listen to various events. All events must be
+registered using `node.event`. The following events are available:
 
 ### node.event("child\_add", function(child\_name) ... end)
 
-Registers an event handler that is called if XXX detects that a child node
-was added to the current node. The name of the new child node is provided
-in `child_name`. Example usage:
+Registers an event handler that is called if `info-beamer` detects that a
+child node was added to the current node. The name of the new child node is
+provided in `child_name`. Example usage:
 
     :::lua
     node.event("child_add", function(child_name)
@@ -626,20 +629,20 @@ in `child_name`. Example usage:
 
 ### node.event("child\_remove", function(child\_name) ... end)
 
-Registers an event handler that is called if XXX detects that a child node
-was removed from the current node. The child name is provided in
+Registers an event handler that is called if `info-beamer` detects that a
+child node was removed from the current node. The child name is provided in
 `child_name`.
 
 ### node.event("content\_update", function(filename) ... end)
 
-Registers an event handler that is called if XXX detects that a file was
+Registers an event handler that is called if `info-beamer` detects that a file was
 created or modified in the current node. This allows you to detect updated
 resources. 
 
 ### node.event("content\_remove", function(filename) ... end)
 
-Registers an event handler that is called if XXX detects that a file was
-removed from the current node.
+Registers an event handler that is called if `info-beamer` detects that a
+file was removed from the current node.
 
 ### node.event("data", function(data, suffix) ... end)
 
@@ -650,11 +653,11 @@ the node. You can send udp data like this:
     user:~$ echo -n "path:data" | netcat -u localhost 4444
 
 Where `path` is the complete path to the node (in case of nested nodes) and
-maybe a suffix. `data` is the data you want to send. XXX listens for
+maybe a suffix. `data` is the data you want to send. `info-beamer` listens for
 incoming UDP packets on port 4444.
 
-XXX will dispatch packets to the node that best matches the specified path.
-Let's say you have two nodes:
+`info-beamer` will dispatch packets to the node that best matches the
+specified path.  Let's say you have two nodes:
 
     :::text
     nested
@@ -670,17 +673,19 @@ support changing the paths they create.
 
 ### node.event("osc", function(suffix, ...) ... end)
 
-XXX also supports OSC (open sound control) packets via UDP. If you send an
-OSC packet containing a float to `node/slider/1`, the `osc` callback will
-be called with the suffix `slider/1` and the decoded osc values. See
-`util.osc_mapper` for an easier way to receive and dispatch osc packets.
+`info-beamer` also supports OSC (open sound control) packets via UDP. If
+you send an OSC packet containing a float to `node/slider/1`, the `osc`
+callback will be called with the suffix `slider/1` and the decoded osc
+values. See `util.osc_mapper` for an easier way to receive and dispatch osc
+packets.
 
 ### node.event("input", function(line) ... end)
 
-XXX allows incoming TCP connections to port 4444. You'll be greeted by a
-welcome line and are expected to provide a node name. XXX will return `ok!`
-if you provide a valid node name. From this moment on, XXX will feed you
-the output of the node. This can be used for debugging a node from remote.
+`info-beamer` allows incoming TCP connections to port 4444. You'll be
+greeted by a welcome line and are expected to provide a node name.
+`info-beamer` will return `ok!` if you provide a valid node name. From this
+moment on, `info-beamer` will feed you the output of the node. This can be
+used for debugging a node from remote.
 
 Any text you type while connected will trigger the `input` event. The
 `input` event will be given the provided line. This can be used to feed a
@@ -814,31 +819,32 @@ last change.
 
 ### CHILDS
 
-Table of child nodes. The key contains the childs name. These can the rendered using
-`resource.render_child`. The value is a timestamp (comparable to
-`sys.now()`) of the first detection of the child node.
+Table of child nodes. The key contains the childs name. These can the
+rendered using `resource.render_child`. The value is a timestamp
+(comparable to `sys.now()`) of the first detection of the child node.
 
-Contributing to XXX
-===================
+Contributing
+============
 
-Thanks for your interest in XXX. XXX tries to be a simple framework for
-building interactive realtime presentations. Lets keep it that way.
+Thanks for your interest in `info-beamer`. `info-beamer` tries to be a
+simple framework for building interactive realtime presentations. Lets keep
+it that way.
 
 Project Philosophy
 ------------------
 
- * Keep it simple. XXX avoids unnecessary clutter. If a simple external 
-   Script could solve a problem, there is no need to do it in XXX. If a
+ * Keep it simple. `info-beamer` avoids unnecessary clutter. If a simple external 
+   Script could solve a problem, there is no need to do it in `info-beamer`. If a
    problem is solvable within Lua, there is no need to include a C-version
    (unless speed prohibits a Lua solution).
 
- * Keep it small. XXX is a simple self-contained binary. It shouldn't
-   depend on files somewhere in the filesystem. Keep XXX portable.
+ * Keep it small. `info-beamer` is a simple self-contained binary. It shouldn't
+   depend on files somewhere in the filesystem. Keep `info-beamer` portable.
 
- * Keep it robust. XXX tries to provide a crash free environment. It
-   shouldn't be possible to crash XXX by using the provided API.
+ * Keep it robust. `info-beamer` tries to provide a crash free environment. It
+   shouldn't be possible to crash `info-beamer` by using the provided API.
 
- * Keep it safe. XXX tries to provide a secure environment. Usercode 
+ * Keep it safe. `info-beamer` tries to provide a secure environment. Usercode 
    is sandboxed and memory and processing time is limited. It should be
    safe to execute random node code without worrying about malicious
    behaviour.
@@ -847,25 +853,23 @@ Project Philosophy
    from other nodes. Composing them shouldn't change their behaviour.
    OpenGL or other state should not leak into or from child nodes.
 
- * Keep it scriptable. XXX embraces scripting. Not just from the inside but
+ * Keep it scriptable. `info-beamer` embraces scripting. Not just from the inside but
    also from the outside. It provides several ways to control a running
    instance: Changing files, sending UDP/OSC packets or using a TCP
    connection. Make it easy to script things.
 
- * Keep it readable. The core XXX code tries to be simple. It should be
+ * Keep it readable. The core `info-beamer` code tries to be simple. It should be
    possible to read and hopefully understand the complete sourcecode
    in one evening.
 
- * Keep it compilable. XXX tries to use libraries that are widely 
+ * Keep it compilable. `info-beamer` tries to use libraries that are widely 
    available. It shouldn't be necessary to build obscure dependencies.
-   XXX uses a simple GNU Makefile. It shouldn't be necessary to 
-   include a buildsystem that creates files larger than all of XXXs
+   `info-beamer` uses a simple GNU Makefile. It shouldn't be necessary to 
+   include a buildsystem that creates files larger than all of `info-beamer`s
    sourcecode combined.
 
 Contributing
 ------------
 
-Feel free to fork and enhance XXX. Please judge your changes against the
-philosophy. If your contribution conflicts with one of them, I will
-probably not merge then into the official version. Let's keep XXX clean and
-simple.
+Feel free to fork and enhance `info-beamer` and send me pull requests.
+Please keep `info-beamer` clean and simple.
