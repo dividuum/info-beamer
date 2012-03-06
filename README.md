@@ -1,5 +1,5 @@
-info-beamer
-===========
+About info-beamer
+=================
 
 info-beamer allows you to develop interactive information displays using
 the Lua programming language. Read more about it on the [main website](http://dividuum.de/info-beamer/).
