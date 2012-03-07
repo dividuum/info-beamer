@@ -227,6 +227,7 @@ function util.draw_correct(obj, x1, y1, x2, y2, ...)
     obj:draw(x1 + ox1, y1 + oy1, x1 + ox2, y1 + oy2, ...)
 end
 
+
 function table.filter(t, predicate)
     local j = 1
 
@@ -338,4 +339,68 @@ end
 
 function pp(t)
     print(table.show(t))
+end
+
+-- Sandboxed package loader
+package = {
+    loadlib = function(libname, funcname)
+        error("no native linking")
+    end;
+
+    seeall = function(module)
+        return setmetatable(module, {
+            __index = _G
+        })
+    end;
+
+    loaded = {
+        string = string;
+        math = math;
+        table = table;
+        coroutine = coroutine;
+        struct = struct;
+        util = util;
+    };
+
+    loaders = {
+        function(modname)
+            return function(modname)
+                local filename = modname .. ".lua"
+                local modulename = PATH .. "/" .. filename
+                return loadstring(resource.load_file(filename), "=" .. modulename)()
+            end
+        end
+    };
+}
+
+function require(modname)
+    local loaded = package.loaded[modname]
+    if loaded then
+        return loaded
+    end
+
+    -- find loader
+    local loader
+    local errors = {}
+    for _, searcher in ipairs(package.loaders) do
+        local searcher_val = searcher(modname)
+        if type(searcher_val) == "function" then
+            loader = searcher_val
+            break
+        elseif type(searcher_val) == "string" then
+            errors[#errors + 1] = searcher_val
+        end
+    end
+    if not loader then
+        error(table.concat(errors, "\n"))
+    end
+
+    -- load module
+    local value = loader(modname)
+    if value then
+        package.loaded[modname] = value
+    elseif not sandbox.package.loaded[modname] then
+        package.loaded[modname] = true
+    end
+    return package.loaded[modname]
 end

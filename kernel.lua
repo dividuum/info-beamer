@@ -50,6 +50,34 @@ function create_sandbox()
         unpack = unpack;
         xpcall = xpcall;
         setmetatable = setmetatable;
+        getmetatable = getmetatable;
+
+        module = function(name, ...)
+            local module = sandbox.package.loaded[name]
+            if not module then
+                module = sandbox._G[name]
+            end
+            if not module then
+                module = {
+                    _NAME = name;
+                    _PACKAGE = name;
+                }
+                module._M = module
+            end
+            -- Make sure setfenv won't change the outer
+            -- environment.
+            if getfenv(2) == _G then
+                error("cannot modify outer environment")
+            end
+            setfenv(2, module)
+            for _, func in ipairs({...}) do
+                module = func(module)
+            end
+            sandbox._G[name] = module
+            sandbox.package.loaded[name] = module
+            return module
+        end;
+
         struct = {
             unpack = struct.unpack;
         };
@@ -245,6 +273,7 @@ function create_sandbox()
 
         N = N;
     }
+
     sandbox._G = sandbox
     return sandbox
 end
@@ -342,7 +371,6 @@ package = nil
 module = nil
 os = nil
 dofile = nil
-getfenv = nil
 debug = {
     traceback = debug.traceback;
     getinfo = debug.getinfo;
