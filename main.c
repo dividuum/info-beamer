@@ -761,7 +761,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     if (luaL_loadbuffer(node->L, kernel, kernel_size, "kernel.lua") != 0)
         die("kernel load");
     if (lua_pcall(node->L, 0, 0, 0) != 0)
-        die("kernel run %s", lua_tostring(node->L, 1));
+        die("kernel run %s", lua_tostring(node->L, -1));
 }
 
 static void node_free(node_t *node) {

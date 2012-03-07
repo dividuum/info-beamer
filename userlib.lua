@@ -3,23 +3,6 @@
 util = {}
 
 function util.resource_loader(resources)
-    local loaders = {
-        png  = resource.load_image;
-        jpg  = resource.load_image;
-        jpeg = resource.load_image;
-        gif  = resource.load_image;
-        bmp  = resource.load_image;
-        ttf  = resource.load_font;
-        avi  = util.videoplayer;
-        mpg  = util.videoplayer;
-        ogg  = util.videoplayer;
-        flv  = util.videoplayer;
-        mkv  = util.videoplayer;
-        mp4  = util.videoplayer;
-        mov  = util.videoplayer;
-        frag = util.shaderpair_loader;
-        vert = util.shaderpair_loader;
-    }
     local resource_handlers = {}
     node.event("content_update", function(name)
         local handler = resource_handlers[name]
@@ -42,7 +25,7 @@ function util.resource_loader(resources)
         if not name then
             error("invalid resource name " .. resource)
         end
-        local loader = loaders[suffix]
+        local loader = util.loaders[suffix]
         if not loader then
             error("no resource loader for suffix " .. suffix)
         end
@@ -52,50 +35,12 @@ function util.resource_loader(resources)
     end
 end
 
-function util.file_watch(filename, handler)
-    node.event("content_update", function(name)
-        if name == filename then
-            handler(resource.load_file(name))
-        end
-    end)
-end
-
 function util.shaderpair_loader(any_name)
     local name, suffix = any_name:match("(.*)[.]([^.]+)$")
     return resource.create_shader(
         resource.load_file(name .. ".vert"),
         resource.load_file(name .. ".frag")
     )
-end
-
-function util.osc_mapper(routes)
-    node.event("osc", function(suffix, ...)
-        for pattern, callback in pairs(routes) do
-            local match = {suffix:match(pattern)}
-            if #match > 0 then
-                if match[1] == suffix then
-                    return callback(...)
-                else
-                    return callback(unpack(match), ...)
-                end
-            end
-        end
-    end)
-end
-
-function util.data_mapper(routes)
-    node.event("data", function(data, suffix)
-        for pattern, callback in pairs(routes) do
-            local match = {suffix:match(pattern)}
-            if #match > 0 then
-                if match[1] == suffix then
-                    return callback(data)
-                else
-                    return callback(unpack(match), data)
-                end
-            end
-        end
-    end)
 end
 
 function util.videoplayer(name, opt)
@@ -157,6 +102,93 @@ function util.videoplayer(name, opt)
             return stream:size()
         end;
     }
+end
+
+util.loaders = {
+    png  = resource.load_image;
+    jpg  = resource.load_image;
+    jpeg = resource.load_image;
+    gif  = resource.load_image;
+    bmp  = resource.load_image;
+    ttf  = resource.load_font;
+    avi  = util.videoplayer;
+    mpg  = util.videoplayer;
+    ogg  = util.videoplayer;
+    flv  = util.videoplayer;
+    mkv  = util.videoplayer;
+    mp4  = util.videoplayer;
+    mov  = util.videoplayer;
+    frag = util.shaderpair_loader;
+    vert = util.shaderpair_loader;
+}
+
+function util.file_watch(filename, handler)
+    node.event("content_update", function(name)
+        if name == filename then
+            handler(resource.load_file(name))
+        end
+    end)
+end
+
+function util.auto_loader(container)
+    container = container or {}
+    node.event("content_update", function(name)
+        local target, suffix = name:match("(.*)[.]([^.]+)$")
+        if not target then
+            print("auto_loader: invalid resource name " .. name .. ". ignoring " .. name)
+            return
+        end
+        local loader = util.loaders[suffix]
+        if not loader then
+            print("auto_loader: no resource loader for suffix " .. suffix .. ". ignoring " .. name)
+            return
+        end
+        local success, res = pcall(loader, name)
+        if not success then
+            print("auto_loader: cannot load " .. name .. ": " .. res)
+        else
+            print("auto_loader: updated " .. target .. " (triggered by " .. name .. ")")
+            container[target] = res
+        end
+    end)
+    node.event("content_remove", function(name)
+        local target, suffix = name:match("(.*)[.]([^.]+)$")
+        if target and util.loaders[suffix] then
+            print("auto_loader: unloaded " .. target .. " (triggered by " .. name .. ")")
+            container[target] = nil
+        end
+    end)
+    return container
+end
+
+function util.osc_mapper(routes)
+    node.event("osc", function(suffix, ...)
+        for pattern, callback in pairs(routes) do
+            local match = {suffix:match(pattern)}
+            if #match > 0 then
+                if match[1] == suffix then
+                    return callback(...)
+                else
+                    return callback(unpack(match), ...)
+                end
+            end
+        end
+    end)
+end
+
+function util.data_mapper(routes)
+    node.event("data", function(data, suffix)
+        for pattern, callback in pairs(routes) do
+            local match = {suffix:match(pattern)}
+            if #match > 0 then
+                if match[1] == suffix then
+                    return callback(data)
+                else
+                    return callback(unpack(match), data)
+                end
+            end
+        end
+    end)
 end
 
 function util.running_text(opt)
