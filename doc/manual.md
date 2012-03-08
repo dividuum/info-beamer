@@ -68,7 +68,7 @@ type `make` inside the root directory:
     user:~/src/info-beamer$ make
     [...]
     user:~/src/info-beamer$ ./info-beamer 
-    Info Beamer rev-foobar (http://dividuum.de/info-beamer)
+    Info Beamer rev-foobar (http://info-beamer.org/)
     Copyright (c) 2012, Florian Wesch <fw@dividuum.de>
 
     usage: ./info-beamer <root_name>

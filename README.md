@@ -2,14 +2,14 @@ About info-beamer
 =================
 
 info-beamer allows you to develop interactive information displays using
-the Lua programming language. Read more about it on the [main website](http://dividuum.de/info-beamer/).
+the Lua programming language. Read more about it on the [main website](http://info-beamer.org/)
 
 Documentation
 -------------
 
-The complete documentation is available on [http://dividuum.de/info-beamer/doc/](http://dividuum.de/info-beamer/doc/)
+The complete documentation is available on [http://info-beamer.org/doc/](http://info-beamer.org/doc/)
 
 Installation
 ------------
 
-See the [documentation](http://dividuum.de/info-beamer/doc/#installing-info-beamer) for more information.
+See the [documentation](http://info-beamer.org/doc/#installing-info-beamer) for more information.
