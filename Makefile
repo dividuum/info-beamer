@@ -41,4 +41,3 @@ install: info-beamer
 
 clean:
 	rm -f *.o info-beamer kernel.h userlib.h bin2c *.compiled
-	$(MAKE) -C doc clean
