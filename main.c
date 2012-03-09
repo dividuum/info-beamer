@@ -71,31 +71,6 @@
 #define MAX_PCALL_TIME  200000 // usec
 #endif
 
-#ifdef DEBUG_OPENGL
-#define print_render_state() \
-    {\
-        int pd, md, fb, tex;\
-        glGetIntegerv(GL_FRAMEBUFFER_BINDING, &fb);\
-        glGetIntegerv(GL_TEXTURE_BINDING_2D, &tex);\
-        glGetIntegerv(GL_PROJECTION_STACK_DEPTH, &pd);\
-        glGetIntegerv(GL_MODELVIEW_STACK_DEPTH, &md);\
-        printf("=== depth: model: %d, projection %d, fbo: %d, tex: %d\n", md, pd, fb, tex);\
-    };
-#else
-#define print_render_state()
-#endif
-
-#define print_lua_stack(L) do { \
-    int idx;\
-    for (idx = 0; idx <= lua_gettop(L); idx++) {\
-        printf("%3d - %s '%s'\n", idx, \
-            lua_typename(L, lua_type(L, idx)),\
-            lua_tostring(L, idx)\
-       );\
-    }\
-    printf("\n");\
-} while(0)
-
 #define NO_GL_PUSHPOP -1
 
 typedef struct node_s {
@@ -244,7 +219,6 @@ static void lua_reset_quota(node_t *node) {
 static void lua_node_enter(node_t *node, int args) {
     lua_reset_quota(node);
     lua_State *L = node->L;
-    int old_top = lua_gettop(L) - args;
     lua_pushliteral(L, "execute");              // [args] "execute"
     lua_rawget(L, LUA_REGISTRYINDEX);           // [args] execute
     lua_insert(L, -1 - args);                   // execute [args]
@@ -256,7 +230,6 @@ static void lua_node_enter(node_t *node, int args) {
         // Erfolgreich ausgefuehrt
         case 0:                                 // traceback
             lua_remove(L, error_handler_pos);   //
-            assert(lua_gettop(L) == old_top);
             return;
         // Fehler beim Ausfuehren
         case LUA_ERRRUN:
@@ -272,7 +245,6 @@ static void lua_node_enter(node_t *node, int args) {
             die("wtf?");
     };                                          // traceback "error"
     lua_pop(L, 2);                              // 
-    assert(lua_gettop(L) == old_top);
 }
 
 /*======= Lua entry points =======*/
@@ -559,8 +531,6 @@ static int node_render_to_image(lua_State *L, node_t *node) {
         return 0;
     }
 
-    print_render_state();
-
     // Vorherigen Framebuffer und Shader speichern
     int prev_fbo, prev_prog;
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_fbo);
@@ -572,7 +542,6 @@ static int node_render_to_image(lua_State *L, node_t *node) {
     // Neuen Framebuffer aus dem Recycler holen
     unsigned int fbo, tex;
     make_framebuffer(node->width, node->height, &tex, &fbo);
-    print_render_state();
 
     // Clear with transparent color
     glClearColor(1, 1, 1, 0);
@@ -614,7 +583,6 @@ static int node_render_to_image(lua_State *L, node_t *node) {
     glPopAttrib();
     glPopClientAttrib();
 
-    print_render_state();
     return image_create(L, tex, fbo, node->width, node->height);
 }
 
@@ -782,30 +750,7 @@ static void node_free(node_t *node) {
     free(node->mem);
 }
 
-static void node_search_content(node_t *node) {
-    DIR *dp = opendir(node->path);
-    if (!dp) {
-        fprintf(stderr, "node directory not found\n");
-        return;
-    }
-
-    struct dirent *ep;
-    while ((ep = readdir(dp))) {
-        if (ep->d_name[0] == '.') 
-            continue;
-
-        const char *child_name = ep->d_name;
-        char child_path[PATH_MAX];
-        snprintf(child_path, sizeof(child_path), "%s/%s", node->path, child_name);
-
-        if (ep->d_type == DT_REG && strcmp(child_name, NODE_CODE_FILE)) {
-            node_content_update(node, child_name, 1);
-        }
-    }
-    closedir(dp);
-}
-
-static void node_init_recursive(node_t *node) {
+static void node_search_and_boot(node_t *node) {
     DIR *dp = opendir(node->path);
     if (!dp)
         die("cannot open directory %s", node->path);
@@ -1158,12 +1103,6 @@ static void open_tcp(struct event *event) {
 
     if (event_add(&accept_event, NULL) == -1)
         die("event_add failed");
-}
-
-static void print_free_video_mem() {
-    int mem;
-    glGetIntegerv(0x9049, &mem);
-    fprintf(stderr, "free video mem: %d\n", mem);
 }
 
 static void tick() {
