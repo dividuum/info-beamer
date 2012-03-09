@@ -291,6 +291,13 @@ static void node_render_self(node_t *node, int width, int height) {
 
 /*===== Lua bindings ======*/
 
+static node_t *get_rendering_node(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    if (node->gl_matrix_depth == NO_GL_PUSHPOP)
+        luaL_error(L, "only callable in node.render");
+    return node;
+}
+
 static int luaRenderSelf(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
     return node_render_to_image(L, node);
@@ -473,10 +480,19 @@ static int luaPrint(lua_State *L) {
     return 0;
 }
 
+static int luaGlClear(lua_State *L) {
+    get_rendering_node(L);
+    GLdouble r = luaL_checknumber(L, 1);
+    GLdouble g = luaL_checknumber(L, 2);
+    GLdouble b = luaL_checknumber(L, 3);
+    GLdouble a = luaL_checknumber(L, 4);
+    glClearColor(r, g, b, a);
+    glClear(GL_COLOR_BUFFER_BIT);
+    return 0;
+}
+
 static int luaGlPushMatrix(lua_State *L) {
-    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
-    if (node->gl_matrix_depth == NO_GL_PUSHPOP)
-        return luaL_error(L, "only callable in node.render");
+    node_t *node = get_rendering_node(L);
     if (node->gl_matrix_depth > MAX_GL_PUSH)
         return luaL_error(L, "Too may pushes");
     glPushMatrix();
@@ -485,9 +501,7 @@ static int luaGlPushMatrix(lua_State *L) {
 }
 
 static int luaGlPopMatrix(lua_State *L) {
-    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
-    if (node->gl_matrix_depth == NO_GL_PUSHPOP)
-        return luaL_error(L, "only callable in node.render");
+    node_t *node = get_rendering_node(L);
     if (node->gl_matrix_depth == 0)
         return luaL_error(L, "Nothing to pop");
     glPopMatrix();
@@ -496,9 +510,7 @@ static int luaGlPopMatrix(lua_State *L) {
 }
 
 static int luaGlRotate(lua_State *L) {
-    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
-    if (node->gl_matrix_depth == NO_GL_PUSHPOP)
-        return luaL_error(L, "only callable in node.render");
+    get_rendering_node(L);
     double angle = luaL_checknumber(L, 1);
     double x = luaL_checknumber(L, 2);
     double y = luaL_checknumber(L, 3);
@@ -508,9 +520,7 @@ static int luaGlRotate(lua_State *L) {
 }
 
 static int luaGlTranslate(lua_State *L) {
-    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
-    if (node->gl_matrix_depth == NO_GL_PUSHPOP)
-        return luaL_error(L, "only callable in node.render");
+    get_rendering_node(L);
     double x = luaL_checknumber(L, 1);
     double y = luaL_checknumber(L, 2);
     double z = luaL_optnumber(L, 3, 0.0);
@@ -600,8 +610,10 @@ static void node_printf(node_t *node, const char *fmt, ...) {
 }
 
 static void node_tree_print(node_t *node, int depth) {
-    fprintf(stderr, "%4d %*s'- %s (%d) %p\n", lua_gc(node->L, LUA_GCCOUNT, 0), 
-        depth*2, "", node->name, HASH_CNT(by_name, node->childs), node->clients);
+    fprintf(stderr, "%4dkb %4d x %4d %*s'- %s (%s)\n", 
+        lua_gc(node->L, LUA_GCCOUNT, 0),
+        node->width, node->height,
+        depth*2, "", node->name, node->alias ? node->alias : "-");
     node_t *child, *tmp; 
     HASH_ITER(by_name, node->childs, child, tmp) {
         node_tree_print(child, depth+1);
@@ -684,24 +696,27 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     luaopen_struct(node->L);
 
     lua_register_node_func(node, "setup", luaSetup);
-    lua_register_node_func(node, "render_self", luaRenderSelf);
-    lua_register_node_func(node, "render_child", luaRenderChild);
+    lua_register_node_func(node, "print", luaPrint);
     lua_register_node_func(node, "set_alias", luaSetAlias);
     lua_register_node_func(node, "remove_alias", luaRemoveAlias);
+
+    lua_register_node_func(node, "render_self", luaRenderSelf);
+    lua_register_node_func(node, "render_child", luaRenderChild);
     lua_register_node_func(node, "load_image", luaLoadImage);
     lua_register_node_func(node, "load_video", luaLoadVideo);
     lua_register_node_func(node, "load_font", luaLoadFont);
     lua_register_node_func(node, "load_file", luaLoadFile);
-    lua_register_node_func(node, "print", luaPrint);
+
+    lua_register_node_func(node, "glClear", luaGlClear);
     lua_register_node_func(node, "glPushMatrix", luaGlPushMatrix);
     lua_register_node_func(node, "glPopMatrix", luaGlPopMatrix);
     lua_register_node_func(node, "glRotate", luaGlRotate);
     lua_register_node_func(node, "glTranslate", luaGlTranslate);
     lua_register_node_func(node, "glOrtho", luaGlOrtho);
     lua_register_node_func(node, "glPerspective", luaGlPerspective);
+
     lua_register(node->L, "create_shader", luaCreateShader);
     lua_register(node->L, "create_vnc", luaCreateVnc);
-    lua_register(node->L, "clear", luaClear);
     lua_register(node->L, "now", luaNow);
 
     lua_pushstring(node->L, path);
@@ -766,7 +781,7 @@ static void node_search_and_boot(node_t *node) {
 
         if (ep->d_type == DT_DIR) {
             node_t *child = node_add_child(node, child_path, child_name);
-            node_init_recursive(child);
+            node_search_and_boot(child);
             node_child_update(node, child->name, 1);
         } else if (ep->d_type == DT_REG && strcmp(child_name, NODE_CODE_FILE)) {
             node_content_update(node, child_name, 1);
@@ -777,9 +792,9 @@ static void node_search_and_boot(node_t *node) {
     node_boot(node);
 }
 
-static void node_init_all(node_t *root, const char *base_path) {
+static void node_init_root(node_t *root, const char *base_path) {
     node_init(root, NULL, base_path, base_path);
-    node_init_recursive(root);
+    node_search_and_boot(root);
 }
 
 static node_t *node_find_by_path_or_alias(const char *needle) {
@@ -842,7 +857,7 @@ static void check_inotify() {
 
                 if (S_ISDIR(stat_buf.st_mode)) {
                     node_t *child = node_add_child(node, path, event->name);
-                    node_init_recursive(child);
+                    node_search_and_boot(child);
                     node_child_update(node, child->name, 1);
                 } else if (S_ISREG(stat_buf.st_mode)) {
                     node_content_update(node, event->name, 1);
@@ -864,7 +879,7 @@ static void check_inotify() {
             } else if (event->mask & IN_MOVED_TO) {
                 if (event->mask & IN_ISDIR) {
                     node_t *child = node_add_child(node, path, event->name);
-                    node_init_recursive(child);
+                    node_search_and_boot(child);
                     node_child_update(node, child->name, 1);
                 } else {
                     node_content_update(node, event->name, 1);
@@ -886,6 +901,9 @@ static void GLFWCALL reshape(int width, int height) {
 static void GLFWCALL keypressed(int key, int action) {
     if (action == GLFW_PRESS) {
         switch (key) {
+            case GLFW_KEY_SPACE:
+                node_tree_print(&root, 0);
+                break;
             case GLFW_KEY_ESC:
                 running = 0;
                 break;
@@ -1154,16 +1172,22 @@ static void init_default_texture() {
 
 int main(int argc, char *argv[]) {
     fprintf(stdout, VERSION_STRING " (" INFO_URL ")\n");
-    fprintf(stdout, "Copyright (c) 2012, Florian Wesch <fw@dividuum.de>\n");
+    fprintf(stdout, "Copyright (c) 2012, Florian Wesch <fw@dividuum.de>\n\n");
 
     if (argc != 2) {
-        fprintf(stderr, "\nusage: %s <root_name>\n", argv[0]);
+        fprintf(stderr, "usage: %s <root_name>\n", argv[0]);
         exit(1);
     }
 
     char *root_name = argv[1];
-    if (index(root_name, '/'))
-        die("<root_name> cannot contain /");
+
+    // strip trailing /
+    if (*root_name != '\0' && root_name[strlen(root_name)-1] == '/')
+        root_name[strlen(root_name)-1] = '\0';
+
+    if (index(root_name, '/')) 
+        die("<root_name> must be the directory name of the root node. "
+            "It cannot contain slashes.");
 
     inotify_fd = inotify_init1(IN_NONBLOCK);
     if (inotify_fd == -1)
@@ -1209,7 +1233,7 @@ int main(int argc, char *argv[]) {
     init_default_texture();
 
     now = glfwGetTime();
-    node_init_all(&root, argv[1]);
+    node_init_root(&root, argv[1]);
 
     while (running) {
         tick();

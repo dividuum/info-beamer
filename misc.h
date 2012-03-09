@@ -24,7 +24,6 @@ extern struct evdns_base *dns_base;
 // Simple Lua binder
 // Based on http://lua-users.org/wiki/UserDataWithPointerExample
 
-
 #define LUA_TYPE_DECL(type) \
 static type##_t *to_##type(lua_State *L, int index);                    \
 static type##_t *checked_##type(lua_State *L, int index);               \

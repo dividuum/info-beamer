@@ -396,10 +396,15 @@ package = {
 
     loaders = {
         function(modname)
-            return function(modname)
-                local filename = modname .. ".lua"
-                local modulename = PATH .. "/" .. filename
-                return loadstring(resource.load_file(filename), "=" .. modulename)()
+            local filename = modname .. ".lua"
+            local status, content = pcall(resource.load_file, filename)
+            if not status then
+                return "no file " .. filename .. ": " .. content
+            else
+                return function(filename)
+                    local modulename = PATH .. "/" .. filename
+                    return loadstring(content, "=" .. modulename)(modname)
+                end, filename
             end
         end
     };
@@ -413,14 +418,14 @@ function require(modname)
 
     -- find loader
     local loader
-    local errors = {}
+    local errors = {"module '" .. modname .. "' not found:"}
     for _, searcher in ipairs(package.loaders) do
         local searcher_val = searcher(modname)
         if type(searcher_val) == "function" then
             loader = searcher_val
             break
         elseif type(searcher_val) == "string" then
-            errors[#errors + 1] = searcher_val
+            errors[#errors + 1] = "\t" .. searcher_val
         end
     end
     if not loader then
