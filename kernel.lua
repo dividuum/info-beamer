@@ -183,7 +183,7 @@ function create_sandbox()
                 sandbox.WIDTH = width
                 sandbox.HEIGHT = height
             end;
-            clear = clear;
+            clear = glClear;
             pushMatrix = glPushMatrix;
             popMatrix = glPopMatrix;
             rotate = glRotate;

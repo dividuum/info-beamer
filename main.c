@@ -546,16 +546,6 @@ static int luaGlTranslate(lua_State *L) {
     return 0;
 }
 
-static int luaClear(lua_State *L) {
-    GLdouble r = luaL_checknumber(L, 1);
-    GLdouble g = luaL_checknumber(L, 2);
-    GLdouble b = luaL_checknumber(L, 3);
-    GLdouble a = luaL_checknumber(L, 4);
-    glClearColor(r, g, b, a);
-    glClear(GL_COLOR_BUFFER_BIT);
-    return 0;
-}
-
 static int luaNow(lua_State *L) {
     lua_pushnumber(L, now);
     return 1;
