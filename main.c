@@ -628,7 +628,7 @@ static void node_tree_gc(node_t *node) {
 }
 
 static node_t *node_add_child(node_t* node, const char *path, const char *name) {
-    fprintf(stderr, "adding new node %s to %s\n", name, node->path);
+    fprintf(stderr, YELLOW("[%s]")" adding new child node %s\n", node->name, name);
     node_t *child = xmalloc(sizeof(node_t));
     node_init(child, node, path, name);
     HASH_ADD_KEYPTR(by_name, node->childs, child->name, strlen(child->name), child);
@@ -636,7 +636,7 @@ static node_t *node_add_child(node_t* node, const char *path, const char *name) 
 }
 
 static void node_remove_child(node_t* node, node_t* child) {
-    fprintf(stderr, "removing node %s from %s\n", child->name, node->path);
+    fprintf(stderr, YELLOW("[%s]")" removing child node %s\n", node->name, child->name);
     node_child_update(node, child->name, 0);
     HASH_DELETE(by_name, node->childs, child);
     node_free(child);
