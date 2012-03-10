@@ -73,6 +73,8 @@
 
 #define NO_GL_PUSHPOP -1
 
+typedef enum { PROFILE_BOOT, PROFILE_UPDATE, PROFILE_EVENT } profiling_bins;
+
 typedef struct node_s {
     int wd; // inotify watch descriptor
 
@@ -92,6 +94,9 @@ typedef struct node_s {
 
     int width;
     int height;
+
+    double profiling[3];
+    double last_profile;
 
     int gl_matrix_depth;
 
@@ -216,7 +221,7 @@ static void lua_reset_quota(node_t *node) {
     node->child_render_quota = MAX_CHILD_RENDERS;
 }
 
-static void lua_node_enter(node_t *node, int args) {
+static void lua_node_enter(node_t *node, int args, profiling_bins bin) {
     lua_reset_quota(node);
     lua_State *L = node->L;
     lua_pushliteral(L, "execute");              // [args] "execute"
@@ -226,11 +231,13 @@ static void lua_node_enter(node_t *node, int args) {
     lua_rawget(L, LUA_REGISTRYINDEX);           // execute [args] traceback
     const int error_handler_pos = lua_gettop(L) - 1 - args;
     lua_insert(L, error_handler_pos);           // traceback execute [args]
+    struct timeval before, after;
+    gettimeofday(&before, NULL);
     switch (lua_timed_pcall(node, args, 0, error_handler_pos)) {
         // Erfolgreich ausgefuehrt
         case 0:                                 // traceback
             lua_remove(L, error_handler_pos);   //
-            return;
+            goto out;
         // Fehler beim Ausfuehren
         case LUA_ERRRUN:
             node_printf(node, "runtime error: %s\n", lua_safe_error_message(L));
@@ -245,6 +252,9 @@ static void lua_node_enter(node_t *node, int args) {
             die("wtf?");
     };                                          // traceback "error"
     lua_pop(L, 2);                              // 
+out:
+    gettimeofday(&after, NULL);
+    node->profiling[bin] += time_delta(&before, &after);
 }
 
 /*======= Lua entry points =======*/
@@ -252,7 +262,7 @@ static void lua_node_enter(node_t *node, int args) {
 // reinit sandbox, load usercode and user code
 static void node_boot(node_t *node) {
     lua_pushliteral(node->L, "boot");
-    lua_node_enter(node, 1);
+    lua_node_enter(node, 1, PROFILE_BOOT);
 }
 
 // notify of child update 
@@ -260,7 +270,7 @@ static void node_child_update(node_t *node, const char *name, int added) {
     lua_pushliteral(node->L, "child_update");
     lua_pushstring(node->L, name);
     lua_pushboolean(node->L, added);
-    lua_node_enter(node, 3);
+    lua_node_enter(node, 3, PROFILE_UPDATE);
 }
 
 // notify of content update 
@@ -269,7 +279,7 @@ static void node_content_update(node_t *node, const char *name, int added) {
     lua_pushliteral(node->L, "content_update");
     lua_pushstring(node->L, name);
     lua_pushboolean(node->L, added);
-    lua_node_enter(node, 3);
+    lua_node_enter(node, 3, PROFILE_UPDATE);
 }
 
 // event.<event_name>(args...)
@@ -278,7 +288,7 @@ static void node_event(node_t *node, const char *name, int args) {
     lua_pushstring(node->L, name);     // [args] "event_name" name
     lua_insert(node->L, -2 - args);    // name [args] "event_name"
     lua_insert(node->L, -2 - args);    // "event_name" name [args]
-    lua_node_enter(node, 2 + args);
+    lua_node_enter(node, 2 + args, PROFILE_EVENT);
 }
 
 // render node
@@ -286,7 +296,7 @@ static void node_render_self(node_t *node, int width, int height) {
     lua_pushliteral(node->L, "render_self");
     lua_pushnumber(node->L, width);
     lua_pushnumber(node->L, height);
-    lua_node_enter(node, 3);
+    lua_node_enter(node, 3, PROFILE_EVENT);
 }
 
 /*===== Lua bindings ======*/
@@ -609,17 +619,6 @@ static void node_printf(node_t *node, const char *fmt, ...) {
     }
 }
 
-static void node_tree_print(node_t *node, int depth) {
-    fprintf(stderr, "%4dkb %4d x %4d %*s'- %s (%s)\n", 
-        lua_gc(node->L, LUA_GCCOUNT, 0),
-        node->width, node->height,
-        depth*2, "", node->name, node->alias ? node->alias : "-");
-    node_t *child, *tmp; 
-    HASH_ITER(by_name, node->childs, child, tmp) {
-        node_tree_print(child, depth+1);
-    };
-}
-
 static void node_tree_gc(node_t *node) {
     lua_gc(node->L, LUA_GCSTEP, 100);
     node_t *child, *tmp; 
@@ -652,6 +651,13 @@ static void node_remove_child_by_name(node_t* node, const char *name) {
     node_remove_child(node, child); 
 }
 
+static void node_reset_profiler(node_t *node) {
+    node->last_profile = now;
+    node->profiling[PROFILE_BOOT] = 0.0;
+    node->profiling[PROFILE_UPDATE] = 0.0;
+    node->profiling[PROFILE_EVENT] = 0.0;
+}
+
 #define lua_register_node_func(node,name,func) \
     (lua_pushliteral((node)->L, name), \
      lua_pushlightuserdata((node)->L, node), \
@@ -666,14 +672,14 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     if (node->wd == -1)
         die("cannot inotify_add_watch on %s", path);
 
-    // init node structure
     node->parent = parent;
     node->path = strdup(path);
     node->name = strdup(name);
     node->alias = NULL;
+    node->width = 0;
+    node->height = 0;
 
-    node->mem = malloc(MAX_MEM);
-    node->pool = tlsf_create(node->mem, MAX_MEM);
+    node_reset_profiler(node);
 
     node->gl_matrix_depth = NO_GL_PUSHPOP;
 
@@ -682,7 +688,14 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     HASH_ADD_KEYPTR(by_path, nodes_by_path, node->path, strlen(node->path), node);
 
     // create lua state
+#ifdef USE_LUAJIT
+    node->L = luaL_newstate();
+#else
+    node->mem = malloc(MAX_MEM);
+    node->pool = tlsf_create(node->mem, MAX_MEM);
     node->L = lua_newstate(lua_alloc, node->pool);
+#endif
+
     if (!node->L)
         die("cannot create lua");
 
@@ -761,8 +774,10 @@ static void node_free(node_t *node) {
     // inotify_rm_watch(inotify_fd, node->wd));
     lua_close(node->L);
 
+#ifndef USE_LUAJIT
     tlsf_destroy(node->pool);
     free(node->mem);
+#endif
 }
 
 static void node_search_and_boot(node_t *node) {
@@ -805,6 +820,30 @@ static node_t *node_find_by_path_or_alias(const char *needle) {
         return node;
     HASH_FIND(by_alias, nodes_by_alias, needle, needle_size, node);
     return node;
+}
+
+static void node_print_profile(node_t *node, int depth) {
+    node_t *child, *tmp; 
+    double delta = (now - node->last_profile) * 1000;
+    fprintf(stderr, "%4dkb %5d  %5d %5.1lf%% %5.1lf%% %5.1lf%% %*s '- %s (%s)\n", 
+        lua_gc(node->L, LUA_GCCOUNT, 0),
+        node->width, node->height,
+        100 / delta * node->profiling[PROFILE_BOOT],
+        100 / delta * node->profiling[PROFILE_UPDATE],
+        100 / delta * node->profiling[PROFILE_EVENT],
+        depth*3, "", node->name, node->alias ? node->alias : "-"
+    );
+    node_reset_profiler(node);
+    HASH_ITER(by_name, node->childs, child, tmp) {
+        node_print_profile(child, depth+1);
+    };
+}
+
+static void node_profiler() {
+    fprintf(stderr, "   mem width height   boot update  event     name (alias)\n");
+    fprintf(stderr, "---------------------------------------------------------------\n");
+    node_print_profile(&root, 0);
+    fprintf(stderr, "---------------------------------------------------------------\n");
 }
 
 /*======= inotify ==========*/
@@ -902,7 +941,7 @@ static void GLFWCALL keypressed(int key, int action) {
     if (action == GLFW_PRESS) {
         switch (key) {
             case GLFW_KEY_SPACE:
-                node_tree_print(&root, 0);
+                node_profiler();
                 break;
             case GLFW_KEY_ESC:
                 running = 0;

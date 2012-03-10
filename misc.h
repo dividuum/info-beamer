@@ -3,7 +3,10 @@
 #ifndef MISC_H
 #define MISC_H
 
+#include <sys/time.h>
+
 #include <GL/gl.h>
+#include <lualib.h>
 
 #define LITERAL_SIZE(x) (sizeof(x) - 1)
 #define LITERAL_AND_SIZE(x) x, LITERAL_SIZE(x)
@@ -14,8 +17,15 @@
 #define BLUE(string)   "[34m" string "[0m"
 #define CYAN(string)   "[36m" string "[0m"
 
+#ifdef LUA_JDIR
+// best luajit detection I found
+#define USE_LUAJIT 1
+#endif
+
+
 void die(const char *fmt, ...);
 void *xmalloc(size_t size);
+double time_delta(struct timeval *before, struct timeval *after);
 
 extern GLuint default_tex;
 extern struct event_base *event_base;

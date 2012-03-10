@@ -10,8 +10,13 @@ else
 CFLAGS ?= -O3 -DNDEBUG
 endif
 
+ifdef USE_LUAJIT
+LUA_CFLAGS  ?= -I/usr/include/luajit-2.0
+LUA_LDFLAGS ?= -lluajit-5.1
+else
 LUA_CFLAGS  ?= $(shell pkg-config lua5.1 --cflags)
 LUA_LDFLAGS ?= $(shell pkg-config lua5.1 --libs)
+endif
 
 CFLAGS += -DVERSION='"$(VERSION)"'
 CFLAGS += $(LUA_CFLAGS) -I/usr/include/freetype2/ -I/usr/include/ffmpeg -std=c99 -Wall -Wno-unused-function -Wno-unused-variable -Wno-deprecated-declarations 
@@ -27,9 +32,15 @@ main.o: main.c kernel.h userlib.h
 bin2c: bin2c.c
 	$(CC) $^ -o $@
 
+ifdef USE_LUAJIT
+%.h: %.lua bin2c $(LUAC)
+	luac -p $<
+	./bin2c $* < $< > $@
+else
 %.h: %.lua bin2c $(LUAC)
 	luac -o $<.compiled $<
 	./bin2c $* < $<.compiled > $@
+endif
 
 doc:
 	$(MAKE) -C doc
