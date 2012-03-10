@@ -93,6 +93,26 @@ int image_create(lua_State *L, GLuint tex, GLuint fbo, int width, int height) {
     return 1;
 }
 
+int image_from_current_framebuffer(lua_State *L, int width, int height) {
+    GLuint tex;
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0,
+                 GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
+
+    image_t *image = push_image(L);
+    image->tex = tex;
+    image->fbo = 0;
+    image->width = width;
+    image->height = height;
+    return 1;
+}
+
 int image_load(lua_State *L, const char *path, const char *name) {
     ILuint imageID;
     ilGenImages(1, &imageID);

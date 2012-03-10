@@ -522,6 +522,18 @@ Renders a child node into an `image` object. Rendering will call
 The returned `image` supports the same methods like images objects created
 by `resource.load_image`.
 
+### image = resource.create_snapshot()
+
+Copies the current framebuffer output (all things drawn up to this point) 
+into a new image. This allows you to feed the output of the node
+into a shader in the next iteration.
+
+This function can only be called inside of `node.render` (or any
+functions called from there). 
+
+The returned `image` supports the same methods like images objects created
+by `resource.load_image`.
+
 OpenGL Related Functions
 ------------------------
 
@@ -532,7 +544,8 @@ global variables `WIDTH` and `HEIGHT`.
 
 ### gl.clear(r, g, b, a)
 
-Clears the virtual screen using the given color.
+Clears the virtual screen using the given color. It also deactivates
+the active shader.
 
 ### gl.pushMatrix()
 

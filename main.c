@@ -456,6 +456,11 @@ static int luaLoadFile(lua_State *L) {
     return 1;
 }
 
+static int luaCreateSnapshot(lua_State *L) {
+    node_t *node = get_rendering_node(L);
+    return image_from_current_framebuffer(L, node->width, node->height);
+}
+
 static int luaCreateShader(lua_State *L) {
     const char *vertex = luaL_checkstring(L, 1);
     const char *fragment = luaL_checkstring(L, 2);
@@ -498,6 +503,7 @@ static int luaGlClear(lua_State *L) {
     GLdouble a = luaL_checknumber(L, 4);
     glClearColor(r, g, b, a);
     glClear(GL_COLOR_BUFFER_BIT);
+    glUseProgram(0);
     return 0;
 }
 
@@ -719,6 +725,9 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "load_video", luaLoadVideo);
     lua_register_node_func(node, "load_font", luaLoadFont);
     lua_register_node_func(node, "load_file", luaLoadFile);
+    lua_register_node_func(node, "create_snapshot", luaCreateSnapshot);
+    lua_register_node_func(node, "create_shader", luaCreateShader);
+    lua_register_node_func(node, "create_vnc", luaCreateVnc);
 
     lua_register_node_func(node, "glClear", luaGlClear);
     lua_register_node_func(node, "glPushMatrix", luaGlPushMatrix);
@@ -728,8 +737,6 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "glOrtho", luaGlOrtho);
     lua_register_node_func(node, "glPerspective", luaGlPerspective);
 
-    lua_register(node->L, "create_shader", luaCreateShader);
-    lua_register(node->L, "create_vnc", luaCreateVnc);
     lua_register(node->L, "now", luaNow);
 
     lua_pushstring(node->L, path);

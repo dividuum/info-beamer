@@ -175,6 +175,7 @@ function create_sandbox()
             load_file = load_file;
             create_shader = create_shader;
             create_vnc = create_vnc;
+            create_snapshot = create_snapshot;
         };
 
         gl = {
