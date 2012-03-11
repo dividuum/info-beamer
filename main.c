@@ -54,10 +54,10 @@
 
 #define NODE_CODE_FILE "node.lua"
 
-#define MAX_LOADFILE_SIZE 16384 // byte
 #define MAX_MEM 2000000 // KB
 #define MAX_GL_PUSH 20 // glPushMatrix depth
 #define MAX_CHILD_RENDERS 20 // maximum childs rendered per node
+#define MAX_SNAPSHOTS 5 // maximum number of snapshots per render
 
 // Default host/port (both udp & tcp)
 #define HOST "0.0.0.0"
@@ -106,6 +106,7 @@ typedef struct node_s {
     struct client_s *clients;
 
     int child_render_quota;
+    int snapshot_quota;
 } node_t;
 
 static node_t *nodes_by_wd = NULL;
@@ -135,6 +136,7 @@ struct evdns_base *dns_base;
 static void client_write(client_t *client, const char *data, size_t data_size);
 static void client_close(client_t *client);
 static void node_printf(node_t *node, const char *fmt, ...);
+static void node_reset_quota(node_t *node);
 static int node_render_to_image(lua_State *L, node_t *node);
 static void node_init(node_t *node, node_t *parent, const char *path, const char *name);
 static void node_free(node_t *node);
@@ -217,12 +219,8 @@ static const char *lua_safe_error_message(lua_State *L) {
     return message;
 }
 
-static void lua_reset_quota(node_t *node) {
-    node->child_render_quota = MAX_CHILD_RENDERS;
-}
-
 static void lua_node_enter(node_t *node, int args, profiling_bins bin) {
-    lua_reset_quota(node);
+    node_reset_quota(node);
     lua_State *L = node->L;
     lua_pushliteral(L, "execute");              // [args] "execute"
     lua_rawget(L, LUA_REGISTRYINDEX);           // [args] execute
@@ -445,19 +443,31 @@ static int luaLoadFile(lua_State *L) {
     char path[PATH_MAX];
     snprintf(path, sizeof(path), "%s/%s", node->path, name);
 
-    char data[MAX_LOADFILE_SIZE];
+
     int fd = open(path, O_RDONLY);
     if (fd == -1)
         return luaL_error(L, "cannot open file '%s'", path);
 
-    size_t data_size = read(fd, data, sizeof(data));
+    luaL_Buffer b;
+    luaL_buffinit(L, &b);
+    while (1) {
+        char *data = luaL_prepbuffer(&b);
+        ssize_t data_size = read(fd, data, LUAL_BUFFERSIZE);
+        if (data_size < 0)
+            return luaL_error(L, "cannot read %s: %s", name, strerror(errno));
+        if (data_size == 0)
+            break;
+        luaL_addsize(&b, data_size);
+    }
     close(fd);
-    lua_pushlstring(L, data, data_size);
+    luaL_pushresult(&b);
     return 1;
 }
 
 static int luaCreateSnapshot(lua_State *L) {
     node_t *node = get_rendering_node(L);
+    if (node->snapshot_quota-- <= 0)
+        return luaL_error(L, "too many snapshots");
     return image_from_current_framebuffer(L, node->width, node->height);
 }
 
@@ -655,6 +665,11 @@ static void node_remove_child_by_name(node_t* node, const char *name) {
     if (!child)
         die("child not found: %s", name);
     node_remove_child(node, child); 
+}
+
+static void node_reset_quota(node_t *node) {
+    node->child_render_quota = MAX_CHILD_RENDERS;
+    node->snapshot_quota = MAX_SNAPSHOTS;
 }
 
 static void node_reset_profiler(node_t *node) {

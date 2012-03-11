@@ -65,7 +65,7 @@ function util.videoplayer(name, opt)
     local done = false
 
     return {
-        draw = function(_, x1, y1, x2, y2, alpha)
+        draw = function(self, x1, y1, x2, y2, alpha)
             if done then return end
             local now = sys.now()
             local target_frame = (now - start) * fps
@@ -82,6 +82,7 @@ function util.videoplayer(name, opt)
                     if not stream:next() then
                         if loop then
                             open_stream()
+                            stream:next()
                             break
                         else
                             -- stream completed
@@ -95,10 +96,10 @@ function util.videoplayer(name, opt)
             stream:draw(x1, y1, x2, y2, alpha)
             return true
         end;
-        texid = function()
+        texid = function(self)
             return stream:texid()
         end;
-        size = function()
+        size = function(self)
             return stream:size()
         end;
     }
@@ -191,36 +192,66 @@ function util.data_mapper(routes)
     end)
 end
 
+function util.generator(refiller)
+    local items = {}
+    return {
+        next = function(self)
+            local next_item = next(items)
+            if not next_item then
+                for _, value in ipairs(refiller()) do
+                    items[value] = 1
+                end
+                next_item = next(items)
+                if not next_item then
+                    error("no items available")
+                end
+            end
+            items[next_item] = nil
+            return next_item
+        end;
+        add = function(self, value)
+            items[value] = 1
+        end;
+        remove = function(self, value)
+            items[value] = nil
+        end;
+    }
+end
+
+function util.post_effect(shader, shader_opt)
+    local surface = resource.create_snapshot()
+    gl.clear(0,0,0,1)
+    shader(shader_opt)
+    surface:draw(0, 0, WIDTH, HEIGHT)
+end
+
 function util.running_text(opt)
     local current_idx = 1
     local current_left = 0
     local last = sys.now()
 
-    local texts = opt.texts
-    local y = opt.y
+    local generator = opt.generator
     local font = opt.font
     local size = opt.size or 10
     local speed = opt.speed or 10
 
+    local texts = {}
     return {
-        draw = function()
+        draw = function(self, y)
             local now = sys.now()
             local xoff = current_left
-            local idx = current_idx
-            while true do
+            local idx = 1
+            while xoff < WIDTH do
+                if #texts < idx then
+                    table.insert(texts, generator.next())
+                end
                 local width = font:write(xoff, y, texts[idx] .. "   -   ", size, 1, 1, 1, 1)
                 xoff = xoff + width
                 if xoff < 0 then
                     current_left = xoff
-                    current_idx = current_idx + 1
-                    if current_idx > #texts then
-                        current_idx = 1
-                    end
-                end
-                idx = idx + 1
-                if idx > #texts then idx = 1 end
-                if xoff > WIDTH then
-                    break
+                    table.remove(texts, idx)
+                else
+                    idx = idx + 1
                 end
             end
             local delta = now - last
@@ -367,6 +398,14 @@ function table.show(t, name, indent)
    cart, autoref = "", ""
    addtocart(t, name, indent)
    return cart .. autoref
+end
+
+function table.keys(t)
+    local ret = {}
+    for k, v in pairs(t) do 
+        ret[#ret+1] = k
+    end
+    return ret
 end
 
 function pp(t)
