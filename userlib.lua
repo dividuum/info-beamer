@@ -126,14 +126,22 @@ util.loaders = {
 function util.file_watch(filename, handler)
     node.event("content_update", function(name)
         if name == filename then
-            handler(resource.load_file(name))
+            handler(resource.load_file(filename))
         end
     end)
+    if CONTENTS[filename] then
+        handler(resource.load_file(filename))
+    end
 end
 
 function util.auto_loader(container)
     container = container or {}
-    node.event("content_update", function(name)
+    local loaded_version = {}
+    local function auto_load(name)
+        if loaded_version[name] == CONTENTS[name] then
+            -- print("auto_loader: already loaded " .. name)
+            return
+        end
         local target, suffix = name:match("(.*)[.]([^.]+)$")
         if not target then
             print("auto_loader: invalid resource name " .. name .. ". ignoring " .. name)
@@ -150,13 +158,20 @@ function util.auto_loader(container)
         else
             print("auto_loader: updated " .. target .. " (triggered by " .. name .. ")")
             container[target] = res
+            loaded_version[name] = CONTENTS[name]
         end
-    end)
+    end
+    print("auto_loader: loading know resources")
+    for name, added in pairs(CONTENTS) do
+        auto_load(name)
+    end
+    node.event("content_update", auto_load)
     node.event("content_remove", function(name)
         local target, suffix = name:match("(.*)[.]([^.]+)$")
         if target and util.loaders[suffix] then
             print("auto_loader: unloaded " .. target .. " (triggered by " .. name .. ")")
             container[target] = nil
+            loaded_version[name] = nil
         end
     end)
     return container
@@ -257,7 +272,10 @@ function util.running_text(opt)
             local delta = now - last
             last = now
             current_left = current_left - delta * speed
-        end
+        end;
+        add = function(self, text)
+            generator:add(text)
+        end;
     }
 end
 

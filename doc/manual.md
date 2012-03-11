@@ -589,10 +589,15 @@ Produces a rotation of `angle` degrees around the vector `x`, `y`, `z`.
 Consider using `gl.perspective` to see the scene in perspective mode. It
 might look better.
 
-### gl.translate(x, y, z)
+### gl.translate(x, y, [z])
 
-Produces a translation by `x`, `y`, `z`. Consider using `gl.perspective` to
-see the scene in perspective mode. It might look better.
+Produces a translation by `x`, `y`, `z`. `z` is optional and defaults to
+`0`.  Consider using `gl.perspective` to see the scene in perspective mode.
+It might look better.
+
+### gl.scale(x, y, [z])
+
+Scales by the given factors. `z` is optional and defaults to `1`.
 
 Misc Functions
 --------------
@@ -721,7 +726,7 @@ above. They are provided for your convenience.
 
 ### util.resource\_loader(table\_of\_filenames)
 
-Creates a magic resource loader that will load the resources from the given
+Creates a resource loader that will load the resources from the given
 filenames and put them in global variables. It also keeps them updated if
 files change. Example usage:
 
@@ -740,6 +745,31 @@ And so on.
 
 The `util.resource_loader` will also detect changes to the files and reload
 them.
+
+### target = util.auto\_loader([target])
+
+Creates a resource loader that tries to automatically load all files found
+in the nodes directory. It will put the loaded resources into the table
+given by `target`. If no table is provided, the `auto_loader` will create a
+new table and return a reference. Use it like this to autoload resources
+into the global namespace:
+
+    :::lua
+    util.auto_loader(_G)
+
+    -- if a file some_image.jpg existed, it is now available
+    -- as a global variable:
+    print(some_image:size())
+
+Or if you want to avoid name collisions with existing global variables, you
+can use `auto_loader` like this:
+
+    :::lua
+    resources = util.auto_loader()
+
+    -- if a file some_image.jpg existed, it will now be available
+    -- in the table resources:
+    print(resources.some_image:size())
 
 ### util.shaderpair\_loader(basename)
 

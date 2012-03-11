@@ -68,7 +68,7 @@
 #define MAX_PCALL_TIME  900000 // usec
 #else
 #define MAX_RUNAWAY_TIME 1 // sec
-#define MAX_PCALL_TIME  200000 // usec
+#define MAX_PCALL_TIME  500000 // usec
 #endif
 
 #define NO_GL_PUSHPOP -1
@@ -554,6 +554,15 @@ static int luaGlTranslate(lua_State *L) {
     return 0;
 }
 
+static int luaGlScale(lua_State *L) {
+    get_rendering_node(L);
+    double x = luaL_checknumber(L, 1);
+    double y = luaL_checknumber(L, 2);
+    double z = luaL_optnumber(L, 3, 1.0);
+    glScaled(x, y, z);
+    return 0;
+}
+
 static int luaNow(lua_State *L) {
     lua_pushnumber(L, now);
     return 1;
@@ -749,6 +758,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "glPopMatrix", luaGlPopMatrix);
     lua_register_node_func(node, "glRotate", luaGlRotate);
     lua_register_node_func(node, "glTranslate", luaGlTranslate);
+    lua_register_node_func(node, "glScale", luaGlScale);
     lua_register_node_func(node, "glOrtho", luaGlOrtho);
     lua_register_node_func(node, "glPerspective", luaGlPerspective);
 
