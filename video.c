@@ -194,7 +194,7 @@ again:
     int finished = 0;
     avcodec_decode_video2(video->codec_context, video->raw_frame, &finished, &packet);
 
-    /* Succes? If not, drop packet. */
+    /* Success? If not, drop packet. */
     if (!finished) {
         fprintf(stderr, "not complete\n");
         av_free_packet(&packet);

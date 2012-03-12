@@ -95,9 +95,6 @@ typedef struct node_s {
     int width;
     int height;
 
-    double profiling[3];
-    double last_profile;
-
     int gl_matrix_depth;
 
     void *mem;
@@ -107,6 +104,11 @@ typedef struct node_s {
 
     int child_render_quota;
     int snapshot_quota;
+
+    double profiling[3];
+    double last_profile;
+    int num_frames;
+    int num_resource_inits;
 } node_t;
 
 static node_t *nodes_by_wd = NULL;
@@ -412,6 +414,7 @@ static int luaLoadImage(lua_State *L) {
         luaL_argerror(L, 1, "invalid resource name");
     char path[PATH_MAX];
     snprintf(path, sizeof(path), "%s/%s", node->path, name);
+    node->num_resource_inits++;
     return image_load(L, path, name);
 }
 
@@ -422,6 +425,7 @@ static int luaLoadVideo(lua_State *L) {
         luaL_argerror(L, 1, "invalid resource name");
     char path[PATH_MAX];
     snprintf(path, sizeof(path), "%s/%s", node->path, name);
+    node->num_resource_inits++;
     return video_load(L, path, name);
 }
 
@@ -432,6 +436,7 @@ static int luaLoadFont(lua_State *L) {
         luaL_argerror(L, 1, "invalid resource name");
     char path[PATH_MAX];
     snprintf(path, sizeof(path), "%s/%s", node->path, name);
+    node->num_resource_inits++;
     return font_new(L, path, name);
 }
 
@@ -442,7 +447,6 @@ static int luaLoadFile(lua_State *L) {
         luaL_argerror(L, 1, "invalid resource name");
     char path[PATH_MAX];
     snprintf(path, sizeof(path), "%s/%s", node->path, name);
-
 
     int fd = open(path, O_RDONLY);
     if (fd == -1)
@@ -461,6 +465,7 @@ static int luaLoadFile(lua_State *L) {
     }
     close(fd);
     luaL_pushresult(&b);
+    node->num_resource_inits++;
     return 1;
 }
 
@@ -468,18 +473,23 @@ static int luaCreateSnapshot(lua_State *L) {
     node_t *node = get_rendering_node(L);
     if (node->snapshot_quota-- <= 0)
         return luaL_error(L, "too many snapshots");
+    node->num_resource_inits++;
     return image_from_current_framebuffer(L, node->width, node->height);
 }
 
 static int luaCreateShader(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
     const char *vertex = luaL_checkstring(L, 1);
     const char *fragment = luaL_checkstring(L, 2);
+    node->num_resource_inits++;
     return shader_new(L, vertex, fragment);
 }
 
 static int luaCreateVnc(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
     const char *host = luaL_checkstring(L, 1);
     int port = luaL_optnumber(L, 2, 5900);
+    node->num_resource_inits++;
     return vnc_create(L, host, port);
 }
 
@@ -609,6 +619,7 @@ static int node_render_to_image(lua_State *L, node_t *node) {
 
     node->gl_matrix_depth = 0;
 
+    node->num_frames++;
     node_event(node, "render", 0);
 
     while (node->gl_matrix_depth-- > 0)
@@ -686,6 +697,8 @@ static void node_reset_profiler(node_t *node) {
     node->profiling[PROFILE_BOOT] = 0.0;
     node->profiling[PROFILE_UPDATE] = 0.0;
     node->profiling[PROFILE_EVENT] = 0.0;
+    node->num_frames = 0;
+    node->num_resource_inits = 0;
 }
 
 #define lua_register_node_func(node,name,func) \
@@ -857,8 +870,10 @@ static node_t *node_find_by_path_or_alias(const char *needle) {
 static void node_print_profile(node_t *node, int depth) {
     node_t *child, *tmp; 
     double delta = (now - node->last_profile) * 1000;
-    fprintf(stderr, "%4dkb %5d  %5d %5.1lf%% %5.1lf%% %5.1lf%% %*s '- %s (%s)\n", 
+    fprintf(stderr, "%4dkb %3.0f %5.1f %5d  %5d %5.1lf%% %5.1lf%% %5.1lf%% %*s '- %s (%s)\n", 
         lua_gc(node->L, LUA_GCCOUNT, 0),
+        node->num_frames * 1000 / delta,
+        (double)node->num_resource_inits * 1000 / delta,
         node->width, node->height,
         100 / delta * node->profiling[PROFILE_BOOT],
         100 / delta * node->profiling[PROFILE_UPDATE],
@@ -872,10 +887,10 @@ static void node_print_profile(node_t *node, int depth) {
 }
 
 static void node_profiler() {
-    fprintf(stderr, "   mem width height   boot update  event     name (alias)\n");
-    fprintf(stderr, "---------------------------------------------------------------\n");
+    fprintf(stderr, "   mem fps   rps width height   boot update  event     name (alias)\n");
+    fprintf(stderr, "-------------------------------------------------------------------\n");
     node_print_profile(&root, 0);
-    fprintf(stderr, "---------------------------------------------------------------\n");
+    fprintf(stderr, "-------------------------------------------------------------------\n");
 }
 
 /*======= inotify ==========*/
@@ -1205,8 +1220,8 @@ static void tick() {
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_LIGHTING);
     glEnable(GL_TEXTURE_2D);
-    glEnable(GL_BLEND);
 
+    glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
