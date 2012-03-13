@@ -1222,7 +1222,10 @@ static void tick() {
     glEnable(GL_TEXTURE_2D);
 
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glBlendFuncSeparate(
+        GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
+        GL_ONE_MINUS_DST_ALPHA, GL_ONE
+    );
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
