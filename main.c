@@ -586,29 +586,28 @@ static int node_render_to_image(lua_State *L, node_t *node) {
         return 0;
     }
 
-    // Vorherigen Framebuffer und Shader speichern
+    // Save current gl state
     int prev_fbo, prev_prog;
+    double prev_projection[16];
+    double prev_modelview[16];
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_fbo);
     glGetIntegerv(GL_CURRENT_PROGRAM, &prev_prog);
-
-    // Shader deaktivieren
-    glUseProgram(0);
-
-    // Neuen Framebuffer aus dem Recycler holen
-    unsigned int fbo, tex;
-    make_framebuffer(node->width, node->height, &tex, &fbo);
-
-    // Clear with transparent color
-    glClearColor(1, 1, 1, 0);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glGetDoublev(GL_PROJECTION_MATRIX, prev_projection);
+    glGetDoublev(GL_MODELVIEW_MATRIX, prev_modelview);
 
     glPushClientAttrib(GL_CLIENT_ALL_ATTRIB_BITS);
     glPushAttrib(GL_ALL_ATTRIB_BITS);
-    glPushMatrix();
+
+    // get new framebuffer and associated texture from recycler
+    unsigned int fbo, tex;
+    make_framebuffer(node->width, node->height, &tex, &fbo);
+
+    // initialize new gl state
+    glUseProgram(0);
 
     glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
     glLoadIdentity();
+
     glViewport(0, 0, node->width, node->height);
     glOrtho(0, node->width,
             node->height, 0,
@@ -617,6 +616,11 @@ static int node_render_to_image(lua_State *L, node_t *node) {
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
+    // Clear with transparent color
+    glClearColor(1, 1, 1, 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // render node
     node->gl_matrix_depth = 0;
 
     node->num_frames++;
@@ -626,18 +630,16 @@ static int node_render_to_image(lua_State *L, node_t *node) {
         glPopMatrix();
     node->gl_matrix_depth = NO_GL_PUSHPOP;
 
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
-    glMatrixMode(GL_MODELVIEW);
-    glPopMatrix();
-
-    glBindFramebuffer(GL_FRAMEBUFFER, prev_fbo);
-
-    // Shader zuruecksetzen
-    glUseProgram(prev_prog);
-
+    // restore previous state
     glPopAttrib();
     glPopClientAttrib();
+
+    glMatrixMode(GL_PROJECTION);
+    glLoadMatrixd(prev_projection);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadMatrixd(prev_modelview);
+    glUseProgram(prev_prog);
+    glBindFramebuffer(GL_FRAMEBUFFER, prev_fbo);
 
     return image_create(L, tex, fbo, node->width, node->height);
 }
