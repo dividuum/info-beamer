@@ -2,39 +2,6 @@
 
 util = {}
 
-function util.resource_loader(resources)
-    local resource_handlers = {}
-    node.event("content_update", function(name)
-        local handler = resource_handlers[name]
-        if handler then
-            local target, loader = unpack(handler)
-            _G[target] = loader(name)
-            print("resource_loader: updated _G." .. target .. " (triggered by " .. name .. ")")
-        end
-    end)
-    node.event("content_remove", function(name)
-        local handler = resource_handlers[name]
-        if handler then
-            local target, loader = unpack(handler)
-            print("resource_loader: unloaded _G." .. target)
-            _G[target] = nil
-        end
-    end)
-    for idx, resource in ipairs(resources) do
-        local name, suffix = resource:match("(.*)[.]([^.]+)$")
-        if not name then
-            error("invalid resource name " .. resource)
-        end
-        local loader = util.loaders[suffix]
-        if not loader then
-            error("no resource loader for suffix " .. suffix)
-        end
-        resource_handlers[resource] = {
-            name, loader
-        }
-    end
-end
-
 function util.shaderpair_loader(any_name)
     local name, suffix = any_name:match("(.*)[.]([^.]+)$")
     return resource.create_shader(
@@ -123,58 +90,77 @@ util.loaders = {
     vert = util.shaderpair_loader;
 }
 
-function util.file_watch(filename, handler)
-    node.event("content_update", function(name)
-        if name == filename then
-            handler(resource.load_file(filename))
-        end
-    end)
-    if CONTENTS[filename] then
-        handler(resource.load_file(filename))
-    end
-end
-
-function util.auto_loader(container)
+function util.auto_loader(container, filter)
     container = container or {}
+    filter = filter or function() return true end
     local loaded_version = {}
     local function auto_load(name)
+        if filter and not filter(name) then
+            return
+        end
         if loaded_version[name] == CONTENTS[name] then
             -- print("auto_loader: already loaded " .. name)
             return
         end
         local target, suffix = name:match("(.*)[.]([^.]+)$")
         if not target then
-            print("auto_loader: invalid resource name " .. name .. ". ignoring " .. name)
+            print("loader: invalid resource name " .. name .. ". ignoring " .. name)
             return
         end
         local loader = util.loaders[suffix]
         if not loader then
-            print("auto_loader: no resource loader for suffix " .. suffix .. ". ignoring " .. name)
+            print("loader: no resource loader for suffix " .. suffix .. ". ignoring " .. name)
             return
         end
         local success, res = pcall(loader, name)
         if not success then
-            print("auto_loader: cannot load " .. name .. ": " .. res)
+            print("loader: cannot load " .. name .. ": " .. res)
         else
-            print("auto_loader: updated " .. target .. " (triggered by " .. name .. ")")
+            print("loader: updated " .. target .. " (triggered by " .. name .. ")")
             container[target] = res
             loaded_version[name] = CONTENTS[name]
         end
     end
-    print("auto_loader: loading know resources")
+    print("loader: loading know resources")
     for name, added in pairs(CONTENTS) do
         auto_load(name)
     end
     node.event("content_update", auto_load)
     node.event("content_remove", function(name)
         local target, suffix = name:match("(.*)[.]([^.]+)$")
-        if target and util.loaders[suffix] then
-            print("auto_loader: unloaded " .. target .. " (triggered by " .. name .. ")")
+        if target and util.loaders[suffix] and container[target] then
+            print("loader: unloaded " .. target .. " (triggered by " .. name .. ")")
             container[target] = nil
             loaded_version[name] = nil
         end
     end)
     return container
+end
+
+function util.resource_loader(resources)
+    local whitelist = {}
+    for _, name in ipairs(resources) do
+        whitelist[name] = true
+    end
+    util.auto_loader(_G, function(name)
+        return whitelist[name]
+    end)
+end
+
+function util.file_watch(filename, handler)
+    local loaded_version = nil
+    local function updated(name)
+        if name ~= filename then
+            return
+        end
+        if loaded_version == CONTENTS[filename] then
+            return
+        end
+        loaded_version = CONTENTS[filename]
+        handler(resource.load_file(filename))
+    end
+    node.event("content_update", updated)
+    updated(filename)
 end
 
 function util.osc_mapper(routes)
@@ -236,7 +222,7 @@ end
 function util.post_effect(shader, shader_opt)
     local surface = resource.create_snapshot()
     gl.clear(0,0,0,1)
-    shader(shader_opt)
+    shader:use(shader_opt)
     surface:draw(0, 0, WIDTH, HEIGHT)
 end
 
@@ -249,6 +235,7 @@ function util.running_text(opt)
     local font = opt.font
     local size = opt.size or 10
     local speed = opt.speed or 10
+    local color = opt.color or {1,1,1,1}
 
     local texts = {}
     return {
@@ -260,7 +247,7 @@ function util.running_text(opt)
                 if #texts < idx then
                     table.insert(texts, generator.next())
                 end
-                local width = font:write(xoff, y, texts[idx] .. "   -   ", size, 1, 1, 1, 1)
+                local width = font:write(xoff, y, texts[idx] .. "   -   ", size, unpack(color))
                 xoff = xoff + width
                 if xoff < 0 then
                     current_left = xoff
