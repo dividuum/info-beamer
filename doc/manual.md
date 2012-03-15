@@ -156,8 +156,8 @@ you a new window showing the "Hello World" text in the center to the
 screen. 
 
 `info-beamer` is a rapid development environment. If you update the code
-for your example and save it, `info-beamer` will pickup the changes and
-show them to you immediatelly. Let's try this: While `info-beamer` is still
+for your example and save it, `info-beamer` will pick up the changes and
+show them to you immediately. Let's try this: While `info-beamer` is still
 running and displaying the "Hello World", change the string "Hello World"
 to "Updated World" in `node.lua` and save the file `node.lua`.
 `info-beamer` will notice that the file changed and reload it. The output
@@ -247,7 +247,7 @@ object using `resource.render_child` and display them on *Green*s virtual screen
 
 ![nested rendering](nested.png)
 
-The above setup is available in the directory `samples/blue`. It contains
+The above setup is available in the directory `samples/green`. It contains
 `node.lua` and two child directories called `red` and `blue`.  Let's look at
 `green/node.lua`:
 
@@ -377,13 +377,13 @@ load the shader pair `shader.vert` and `shader.frag` into the global
 variable `shader`. The resource loader will also make sure that changed
 files will be reloaded. So if you edit and save for example `shader.frag`,
 `info-beamer` will instantly reload the shader. You can see changes
-to your effect immediatelly. This is great for rapidly development of
-effects.
+to your effect immediatelly. This is great for rapidly developing effects.
 
 Inside of `node.render` we first clear the screen. Then we activate the
 shader, which was automatically created from the files `shader.vert` and
 `shader.frag` by `util.resource_loader`. We pass in a variable `Effect`
-which depends on a time value. This will create a dynamic effect.
+which depends on a time value.  Finally, we draw `lua.png` with the
+applied shader. This will create a dynamic effect.
 
 Reference
 =========
@@ -393,9 +393,9 @@ Resource Loading
 
 ### image = resource.load\_image(filename)
 
-Loads the image file specified by `filename` into a texture objects.
+Loads the image file specified by `filename` into a texture object.
 Please note that image loading is case sensitive. `info-beamer` supports
-the most common file formats.
+most common file formats.
 
 The returned `image` objects supports the following methods:
 
@@ -431,15 +431,15 @@ Returns the frame per seconds as specified by the video file.
 
 ### font = resource.load\_font(filename)
 
-Loads the given Truetype font file and returns a `font` objects. It
+Loads the given Truetype font file and returns a `font` object. It
 supports the following methods:
 
 #### width = font:write(x, y, text, size, r, g, b, [a])
 
 Writes the provided `text` to the coordinates given in `x` and `y`. The
 color is given by `r`, `g`, `b` and `a`, the red, green, blue and alpha
-values. alpha is an optional value. default is 1.0 (opaque). The call will
-return the width of the rendered text in screen space.
+values. The alpha value is optional, the default is 1.0 (opaque). The call
+will return the width of the rendered text in screen space.
 
 `text` must be `UTF8` encoded, if you intend to use characters outside the
 ascii range.
@@ -727,8 +727,7 @@ above. They are provided for your convenience.
 ### util.resource\_loader(table\_of\_filenames)
 
 Creates a resource loader that will load the resources from the given
-filenames and put them in global variables. It also keeps them updated if
-files change. Example usage:
+filenames and put them in global variables. Example usage:
 
     :::lua
     util.resource_loader{
@@ -749,7 +748,7 @@ them.
 ### target = util.auto\_loader([target])
 
 Creates a resource loader that tries to automatically load all files found
-in the nodes directory. It will put the loaded resources into the table
+in the node's directory. It will put the loaded resources into the table
 given by `target`. If no table is provided, the `auto_loader` will create a
 new table and return a reference. Use it like this to autoload resources
 into the global namespace:
@@ -881,7 +880,7 @@ Project Philosophy
 ------------------
 
  * Keep it simple. `info-beamer` avoids unnecessary clutter. If a simple external 
-   Script could solve a problem, there is no need to do it in `info-beamer`. If a
+   script could solve a problem, there is no need to do it in `info-beamer`. If a
    problem is solvable within Lua, there is no need to include a C-version
    (unless speed prohibits a Lua solution).
 
