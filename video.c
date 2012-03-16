@@ -68,14 +68,14 @@ static void video_free(video_t *video) {
     if (video->format_context)
         av_close_input_file(video->format_context);
 
-    free(video->buffer);
+    av_free(video->buffer);
 }
 
 static int video_open(video_t *video, const char *filename) {
     video->format = PIX_FMT_RGB24;
     if (av_open_input_file(&video->format_context, filename, NULL, 0, NULL) ||
             av_find_stream_info(video->format_context) < 0) {
-        fprintf(stderr, "cannot open video stream %s\n", filename);
+        fprintf(stderr, ERROR("cannot open video stream %s\n"), filename);
         goto failed;
     }
 
@@ -88,7 +88,7 @@ static int video_open(video_t *video, const char *filename) {
     }
 
     if (video->stream_idx == -1) {
-        fprintf(stderr, "cannot find video stream\n");
+        fprintf(stderr, ERROR("cannot find video stream\n"));
         goto failed;
     }
 
@@ -196,7 +196,7 @@ again:
 
     /* Success? If not, drop packet. */
     if (!finished) {
-        fprintf(stderr, "not complete\n");
+        fprintf(stderr, ERROR("incomplete video packet\n"));
         av_free_packet(&packet);
         goto again;
     }
@@ -345,7 +345,7 @@ int video_load(lua_State *L, const char *path, const char *name) {
 
 static int video_gc(lua_State *L) {
     video_t *video = to_video(L, 1);
-    fprintf(stderr, "gc'ing video: tex id: %d\n", video->tex);
+    fprintf(stderr, INFO("gc'ing video: tex id: %d\n"), video->tex);
     glDeleteTextures(1, &video->tex);
     video_free(video);
     return 0;

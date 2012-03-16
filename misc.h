@@ -16,6 +16,10 @@
 #define YELLOW(string) "[33m" string "[0m"
 #define BLUE(string)   "[34m" string "[0m"
 #define CYAN(string)   "[36m" string "[0m"
+#define WHITE(string)  "[37m" string "[0m"
+
+#define INFO(str) WHITE("[" __FILE__ "]") " " str
+#define ERROR(str) RED("[" __FILE__ "]") " " str
 
 #ifdef LUA_JDIR
 // best luajit detection I found

@@ -90,7 +90,7 @@ int font_new(lua_State *L, const char *path, const char *name) {
 static int font_gc(lua_State *L) {
     font_t *font = to_font(L, 1);
     ftglDestroyFont(font->font);
-    fprintf(stderr, "gc'ing font\n");
+    fprintf(stderr, INFO("gc'ing font\n"));
     return 0;
 }
 

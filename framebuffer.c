@@ -55,7 +55,7 @@ void make_framebuffer(int width, int height, GLuint *tex, GLuint *fbo) {
 
     glGenFramebuffers(1, fbo);
     glBindFramebuffer(GL_FRAMEBUFFER, *fbo);
-    fprintf(stderr, "new framebuffer (%dx%d): %u\n", width, height, *fbo);
+    fprintf(stderr, INFO("new framebuffer (%dx%d): %u\n"), width, height, *fbo);
 
     glGenTextures(1, tex);
     glBindTexture(GL_TEXTURE_2D, *tex);
@@ -82,7 +82,7 @@ void recycle_framebuffer(int width, int height, GLuint tex, GLuint fbo) {
     num_framebuffers++;
 
     if (num_framebuffers > MAX_CACHED) {
-        fprintf(stderr, "too many framebuffers\n");
+        fprintf(stderr, ERROR("too many framebuffers in use\n"));
         glDeleteFramebuffers(1, &framebuffers->fbo);
         glDeleteTextures(1, &framebuffers->tex);
         unlink_framebuffer(framebuffers);
