@@ -46,7 +46,10 @@ typedef struct {
     AVFrame *scaled_frame;
     uint8_t *buffer;
     struct SwsContext *scaler;
-    int stream_idx, width, height, format;
+    int stream_idx, format;
+    int width, height;
+    int buffer_width, buffer_height;
+    double par;
     GLuint tex;
     double fps;
 } video_t;
@@ -96,14 +99,30 @@ static int video_open(video_t *video, const char *filename) {
     video->codec_context = stream->codec;
     video->codec = avcodec_find_decoder(video->codec_context->codec_id);
 
-    if (!video->codec || avcodec_open(video->codec_context, video->codec) < 0) {
-        fprintf(stderr, "cannot open codec\n");
-        goto failed;
-    }
-
     /* Save Width/Height */
     video->width = video->codec_context->width;
     video->height = video->codec_context->height;
+
+    if (!video->codec || avcodec_open(video->codec_context, video->codec) < 0) {
+        fprintf(stderr, ERROR("cannot open codec\n"));
+        goto failed;
+    }
+
+    video->buffer_width = video->codec_context->width;
+    video->buffer_height = video->codec_context->height;
+
+    fprintf(stderr, INFO("pixel aspect ratio: %d/%d, size: %dx%d buffer size: %dx%d\n"), 
+        video->codec_context->sample_aspect_ratio.num,
+        video->codec_context->sample_aspect_ratio.den,
+        video->width,
+        video->height,
+        video->buffer_width,
+        video->buffer_height
+    );
+
+    video->par = (float)video->codec_context->sample_aspect_ratio.num / video->codec_context->sample_aspect_ratio.den;
+    if (video->par == 0)
+        video->par = 1;
 
     /* Frame rate fix for some codecs */
     if (video->codec_context->time_base.num > 1000 && video->codec_context->time_base.den == 1)
@@ -117,46 +136,49 @@ static int video_open(video_t *video, const char *filename) {
     } else {
         video->fps = 1.0 / stream->time_base.num * stream->time_base.den;
     }
-    fprintf(stderr, "fps: %lf\n", video->fps);
+    fprintf(stderr, INFO("fps: %lf\n"), video->fps);
 
     /* Get framebuffers */
     video->raw_frame = avcodec_alloc_frame();
     video->scaled_frame = avcodec_alloc_frame();
 
     if (!video->raw_frame || !video->scaled_frame) {
-        fprintf(stderr, "cannot preallocate frames\n");
+        fprintf(stderr, ERROR("cannot preallocate frames\n"));
         goto failed;
     }
 
     /* Create data buffer */
-    video->buffer = malloc(avpicture_get_size(video->format, 
-                video->codec_context->width, video->codec_context->height));
+    video->buffer = av_malloc(avpicture_get_size(
+        video->format, 
+        video->buffer_width, 
+        video->buffer_height
+    ));
 
     /* Init buffers */
     avpicture_fill(
-            (AVPicture *) video->scaled_frame, 
-            video->buffer, 
-            video->format, 
-            video->codec_context->width, 
-            video->codec_context->height
-            );
+        (AVPicture *) video->scaled_frame, 
+        video->buffer, 
+        video->format, 
+        video->buffer_width, 
+        video->buffer_height
+    );
 
     /* Init scale & convert */
     video->scaler = sws_getContext(
-            video->codec_context->width, 
-            video->codec_context->height, 
-            video->codec_context->pix_fmt,
-            video->width, 
-            video->height, 
-            video->format, 
-            SWS_BICUBIC, 
-            NULL, 
-            NULL, 
-            NULL
-            );
+        video->buffer_width,
+        video->buffer_height,
+        video->codec_context->pix_fmt,
+        video->buffer_width, 
+        video->buffer_height, 
+        video->format, 
+        SWS_BICUBIC, 
+        NULL, 
+        NULL, 
+        NULL
+    );
 
     if (!video->scaler) {
-        fprintf(stderr, "scale context init failed\n");
+        fprintf(stderr, ERROR("scale context init failed\n"));
         goto failed;
     }
 
@@ -166,9 +188,6 @@ static int video_open(video_t *video, const char *filename) {
 failed:
     video_free(video);
     return 0;
-}
-
-static void video_flip(AVFrame* pFrame) {
 }
 
 static int video_next_frame(video_t *video) {
@@ -204,16 +223,18 @@ again:
     /* Flip vertically
      * XXX: This feels wrong. What's the right way to do this?
      */
+
     int heights[] = {
-        video->codec_context->height     - 1,
-        video->codec_context->height / 2 - 1,
-        video->codec_context->height / 2 - 1,
+        video->buffer_height     - 1,
+        video->buffer_height / 2 - 1,
+        video->buffer_height / 2 - 1,
         0,
     };
 
     for (int i = 0; i < 4; i++) { 
         video->raw_frame->data[i] += video->raw_frame->linesize[i] * heights[i];
         video->raw_frame->linesize[i] = -video->raw_frame->linesize[i]; 
+        // fprintf(stderr, "%d -> %d\n", video->raw_frame->linesize[i], video->scaled_frame->linesize[i]);
     } 
 
     sws_scale(
@@ -221,7 +242,7 @@ again:
         (const uint8_t* const *)video->raw_frame->data, 
         video->raw_frame->linesize, 
         0, 
-        video->codec_context->height, 
+        video->buffer_height, 
         video->scaled_frame->data, 
         video->scaled_frame->linesize
     );
@@ -234,7 +255,7 @@ again:
 static int video_size(lua_State *L) {
     video_t *video = checked_video(L, 1);
     lua_pushnumber(L, video->width);
-    lua_pushnumber(L, video->height);
+    lua_pushnumber(L, video->height / video->par);
     return 2;
 }
 
@@ -256,9 +277,9 @@ static int video_next(lua_State *L) {
 
     glPixelStorei(GL_UNPACK_SWAP_BYTES, GL_TRUE);
     glPixelStorei(GL_UNPACK_LSB_FIRST,  GL_TRUE);
-    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
-    glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
+    glPixelStorei(GL_UNPACK_SKIP_ROWS, video->buffer_height - video->height);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, video->buffer_width);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
     glTexSubImage2D(
