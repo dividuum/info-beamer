@@ -62,9 +62,12 @@ static int shader_use(lua_State *L) {
         const char *name = lua_tostring(L, -1);
 
         GLint loc = glGetUniformLocation(shader->po, name);
-        if (loc == -1)
-            return luaL_error(L, "unknown uniform name %s. "
-                "maybe it is not used in the shader?", name);
+        if (loc == -1) {
+            // return luaL_error(L, "unknown uniform name %s. "
+            //     "maybe it is not used in the shader?", name);
+            lua_pop(L, 2);
+            continue;
+        }
 
         int type = lua_type(L, -2);
         int len = lua_objlen(L, -2);
