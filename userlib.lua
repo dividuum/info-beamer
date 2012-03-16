@@ -13,7 +13,7 @@ end
 function util.videoplayer(name, opt)
     local stream, start, fps, frame, width, height
 
-    function open_stream()
+    local function open_stream()
         stream = resource.load_video(name)
         start = sys.now()
         fps = stream:fps()
@@ -27,7 +27,8 @@ function util.videoplayer(name, opt)
     local speed = opt.speed or 1
     fps = fps * speed
 
-    local loop = opt.loop or true
+    local loop = true
+    if opt.loop ~= nil then loop = opt.loop end
 
     local done = false
 
@@ -48,6 +49,7 @@ function util.videoplayer(name, opt)
                 while frame < target_frame do
                     if not stream:next() then
                         if loop then
+                            print("player: looping")
                             open_stream()
                             stream:next()
                             break
@@ -65,6 +67,9 @@ function util.videoplayer(name, opt)
         end;
         texid = function(self)
             return stream:texid()
+        end;
+        next = function(self)
+            return not done
         end;
         size = function(self)
             return stream:size()
@@ -224,6 +229,7 @@ function util.post_effect(shader, shader_opt)
     gl.clear(0,0,0,1)
     shader:use(shader_opt)
     surface:draw(0, 0, WIDTH, HEIGHT)
+    shader:deactivate()
 end
 
 function util.running_text(opt)
