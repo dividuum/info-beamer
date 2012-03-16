@@ -1035,78 +1035,76 @@ static void udp_read(int fd, short event, void *arg) {
     unsigned int size = sizeof(struct sockaddr);
     struct sockaddr_in client_addr;
 
-    memset(buf, 0, sizeof(buf));
     len = recvfrom(fd, buf, sizeof(buf), 0, (struct sockaddr *)&client_addr, &size);
 
-    if (len == -1) {
+    if (len == -1)
         die("recvfrom");
-    } else {
-        assert(len > 0);
-        // own format:  <path>:<payload>
-        int is_osc = 0;
-        char payload_separator = ':';
-        int initial_offset = 0;
 
-        // If data starts with /, assume it's osc
-        // format: /<path>0x00<payload>
-        if (*buf == '/') {
-            is_osc = 1;
-            payload_separator = '\0';
-            initial_offset = 1;
-        };
+    assert(len > 0);
+    // own format:  <path>:<payload>
+    int is_osc = 0;
+    char payload_separator = ':';
+    int initial_offset = 0;
 
-        char *sep = memchr(buf, payload_separator, len);
-        if (!sep) {
-            sendto(fd, LITERAL_AND_SIZE("fmt\n"), 0, (struct sockaddr *)&client_addr, size);
+    // If data starts with /, assume it's osc
+    // format: /<path>0x00<payload>
+    if (*buf == '/') {
+        is_osc = 1;
+        payload_separator = '\0';
+        initial_offset = 1;
+    };
+
+    char *sep = memchr(buf, payload_separator, len);
+    if (!sep) {
+        sendto(fd, LITERAL_AND_SIZE("fmt\n"), 0, (struct sockaddr *)&client_addr, size);
+        return;
+    }
+
+    // Terminate by NUL
+    *sep = '\0';
+
+    char *path = buf + initial_offset;
+    char *data = sep + 1;
+    if (is_osc) {
+        // round up to next multiple of 4
+        data += 3 - (data - buf - 1) % 4;
+    }
+
+    int data_len = buf + len - data;
+    if (data_len < 0) {
+        sendto(fd, LITERAL_AND_SIZE("wtf\n"), 0, (struct sockaddr *)&client_addr, size);
+        return;
+    }
+
+    // split a/b/c into first matching prefix:
+    // a/b -> suffix: c if node a/b exists
+
+    // fprintf(stderr, "udp event: %s: %*s\n", path, data_len, data);
+
+    char *suffix = sep;
+    node_t *node;
+    while (1) {
+        node = node_find_by_path_or_alias(path);
+        if (node)
+            break;
+
+        char *next_split = memrchr(path, '/', suffix - path);
+        if (!next_split) {
+            sendto(fd, LITERAL_AND_SIZE("404\n"), 0, (struct sockaddr *)&client_addr, size);
             return;
-        }
-
-        // Terminate by NUL
-        *sep = '\0';
-
-        char *path = buf + initial_offset;
-        char *data = sep + 1;
-        if (is_osc) {
-            // round up to next multiple of 4
-            data += 3 - (data - buf - 1) % 4;
-        }
-
-        int data_len = buf + len - data;
-        if (data_len < 0) {
-            sendto(fd, LITERAL_AND_SIZE("wtf\n"), 0, (struct sockaddr *)&client_addr, size);
-            return;
-        }
-
-        // split a/b/c into first matching prefix:
-        // a/b -> suffix: c if node a/b exists
-
-        // fprintf(stderr, "udp event: %s: %*s\n", path, data_len, data);
-
-        char *suffix = sep;
-        node_t *node;
-        while (1) {
-            node = node_find_by_path_or_alias(path);
-            if (node)
-                break;
-
-            char *next_split = memrchr(path, '/', suffix - path);
-            if (!next_split) {
-                sendto(fd, LITERAL_AND_SIZE("404\n"), 0, (struct sockaddr *)&client_addr, size);
-                return;
-            }
-            if (suffix != sep)
-                *suffix = '/';
-            suffix = next_split;
-            *next_split = '\0';
         }
         if (suffix != sep)
-            suffix++;
-
-        lua_pushlstring(node->L, data, data_len);
-        lua_pushboolean(node->L, is_osc);
-        lua_pushstring(node->L, suffix);
-        node_event(node, "raw_data", 3);
+            *suffix = '/';
+        suffix = next_split;
+        *next_split = '\0';
     }
+    if (suffix != sep)
+        suffix++;
+
+    lua_pushlstring(node->L, data, data_len);
+    lua_pushboolean(node->L, is_osc);
+    lua_pushstring(node->L, suffix);
+    node_event(node, "raw_data", 3);
 }
 
 static void open_udp(struct event *event) {
