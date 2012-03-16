@@ -109,6 +109,7 @@ typedef struct node_s {
     double last_profile;
     int num_frames;
     int num_resource_inits;
+    int num_allocs;
 } node_t;
 
 static node_t *nodes_by_wd = NULL;
@@ -147,13 +148,14 @@ static void node_free(node_t *node);
 
 static void *lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize) {
     // fprintf(stderr, "%d %d\n", osize, nsize);
-    tlsf_pool pool = (tlsf_pool)ud;
+    node_t *node = ud;
+    node->num_allocs++;
     (void)osize;  /* not used */
     if (nsize == 0) {
-        tlsf_free(pool, ptr);
+        tlsf_free(node->pool, ptr);
         return NULL;
     } else {
-        return tlsf_realloc(pool, ptr, nsize);
+        return tlsf_realloc(node->pool, ptr, nsize);
     }
 }
 
@@ -701,6 +703,7 @@ static void node_reset_profiler(node_t *node) {
     node->profiling[PROFILE_EVENT] = 0.0;
     node->num_frames = 0;
     node->num_resource_inits = 0;
+    node->num_allocs = 0;
 }
 
 #define lua_register_node_func(node,name,func) \
@@ -738,7 +741,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
 #else
     node->mem = malloc(MAX_MEM);
     node->pool = tlsf_create(node->mem, MAX_MEM);
-    node->L = lua_newstate(lua_alloc, node->pool);
+    node->L = lua_newstate(lua_alloc, node);
 #endif
 
     if (!node->L)
@@ -872,10 +875,11 @@ static node_t *node_find_by_path_or_alias(const char *needle) {
 static void node_print_profile(node_t *node, int depth) {
     node_t *child, *tmp; 
     double delta = (now - node->last_profile) * 1000;
-    fprintf(stderr, "%4dkb %3.0f %5.1f %5d  %5d %5.1lf%% %5.1lf%% %5.1lf%% %*s '- %s (%s)\n", 
+    fprintf(stderr, "%4dkb %3.0f %5.1f %6.1f %5d  %5d %5.1lf%% %5.1lf%% %5.1lf%% %*s '- %s (%s)\n", 
         lua_gc(node->L, LUA_GCCOUNT, 0),
         node->num_frames * 1000 / delta,
         (double)node->num_resource_inits * 1000 / delta,
+        node->num_frames ?  (double)node->num_allocs / node->num_frames : 0.0,
         node->width, node->height,
         100 / delta * node->profiling[PROFILE_BOOT],
         100 / delta * node->profiling[PROFILE_UPDATE],
@@ -889,10 +893,10 @@ static void node_print_profile(node_t *node, int depth) {
 }
 
 static void node_profiler() {
-    fprintf(stderr, "   mem fps   rps width height   boot update  event     name (alias)\n");
-    fprintf(stderr, "-------------------------------------------------------------------\n");
+    fprintf(stderr, "   mem fps   rps allocs width height   boot update  event     name (alias)\n");
+    fprintf(stderr, "--------------------------------------------------------------------------\n");
     node_print_profile(&root, 0);
-    fprintf(stderr, "-------------------------------------------------------------------\n");
+    fprintf(stderr, "--------------------------------------------------------------------------\n");
 }
 
 /*======= inotify ==========*/
