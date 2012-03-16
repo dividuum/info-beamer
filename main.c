@@ -590,8 +590,8 @@ static int node_render_to_image(lua_State *L, node_t *node) {
 
     // Save current gl state
     int prev_fbo, prev_prog;
-    double prev_projection[16];
-    double prev_modelview[16];
+    GLdouble prev_projection[16];
+    GLdouble prev_modelview[16];
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_fbo);
     glGetIntegerv(GL_CURRENT_PROGRAM, &prev_prog);
     glGetDoublev(GL_PROJECTION_MATRIX, prev_projection);
