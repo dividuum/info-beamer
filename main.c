@@ -73,6 +73,8 @@
 
 #define NO_GL_PUSHPOP -1
 
+#define NODE_INACTIVITY 2.0 // node considered idle after x seconds
+
 typedef enum { PROFILE_BOOT, PROFILE_UPDATE, PROFILE_EVENT } profiling_bins;
 
 typedef struct node_s {
@@ -110,6 +112,8 @@ typedef struct node_s {
     int num_frames;
     int num_resource_inits;
     int num_allocs;
+
+    double last_activity;
 } node_t;
 
 static node_t *nodes_by_wd = NULL;
@@ -235,28 +239,23 @@ static void lua_node_enter(node_t *node, int args, profiling_bins bin) {
     lua_insert(L, error_handler_pos);           // traceback execute [args]
     struct timeval before, after;
     gettimeofday(&before, NULL);
-    switch (lua_timed_pcall(node, args, 0, error_handler_pos)) {
-        // Erfolgreich ausgefuehrt
-        case 0:                                 // traceback
-            lua_remove(L, error_handler_pos);   //
-            goto out;
-        // Fehler beim Ausfuehren
-        case LUA_ERRRUN:
-            node_printf(node, "runtime error: %s\n", lua_safe_error_message(L));
-            break;
-        case LUA_ERRMEM:
-            node_printf(node, "memory error: %s\n", lua_safe_error_message(L));
-            break;
-        case LUA_ERRERR:
-            node_printf(node, "error handling error: %s\n", lua_safe_error_message(L));
-            break;
-        default:
-            die("wtf?");
-    };                                          // traceback "error"
-    lua_pop(L, 2);                              // 
-out:
+    int status = lua_timed_pcall(node, args, 0, error_handler_pos);
+    if (status == 0) {
+        // success                              // traceback
+        lua_remove(L, error_handler_pos);       //
+    } else {
+        // error                                // traceback "error"
+        char *err = status == LUA_ERRRUN ? "runtime error" :
+                    status == LUA_ERRMEM ? "memory error"  :
+                    status == LUA_ERRERR ? "error handling error" : NULL;
+        assert(err);
+        node_printf(node, "%s: %s\n", err, lua_safe_error_message(L));
+        lua_pop(L, 2);                          //
+    }
     gettimeofday(&after, NULL);
+    lua_gc(node->L, LUA_GCSTEP, 5);
     node->profiling[bin] += time_delta(&before, &after);
+    node->last_activity = now;
 }
 
 /*======= Lua entry points =======*/
@@ -301,6 +300,11 @@ static void node_render_self(node_t *node, int width, int height) {
     lua_node_enter(node, 3, PROFILE_EVENT);
 }
 
+/*===== node macros =======*/
+
+#define node_setup_completed(node) ((node)->width != 0)
+#define node_is_idle(node) (now > (node)->last_activity + NODE_INACTIVITY)
+
 /*===== Lua bindings ======*/
 
 static node_t *get_rendering_node(lua_State *L) {
@@ -331,6 +335,8 @@ static int luaRenderChild(lua_State *L) {
 
 static int luaSetup(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    if (node_setup_completed(node))
+        luaL_error(L, "cannot change width or height");
     int width = (int)luaL_checknumber(L, 1);
     int height = (int)luaL_checknumber(L, 2);
     if (width < 32 || width > 2048)
@@ -583,7 +589,7 @@ static int luaNow(lua_State *L) {
 /*==== Node functions =====*/
 
 static int node_render_to_image(lua_State *L, node_t *node) {
-    if (!node->width) {
+    if (!node_setup_completed(node)) {
         luaL_error(L, "node not initialized with gl.setup()");
         return 0;
     }
@@ -660,7 +666,8 @@ static void node_printf(node_t *node, const char *fmt, ...) {
 }
 
 static void node_tree_gc(node_t *node) {
-    lua_gc(node->L, LUA_GCSTEP, 100);
+    if (!node_is_idle(node))
+        lua_gc(node->L, LUA_GCSTEP, 30);
     node_t *child, *tmp; 
     HASH_ITER(by_name, node->childs, child, tmp) {
         node_tree_gc(child);
@@ -728,6 +735,8 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     node->height = 0;
 
     node_reset_profiler(node);
+
+    node->last_activity = now;
 
     node->gl_matrix_depth = NO_GL_PUSHPOP;
 
@@ -875,7 +884,8 @@ static node_t *node_find_by_path_or_alias(const char *needle) {
 static void node_print_profile(node_t *node, int depth) {
     node_t *child, *tmp; 
     double delta = (now - node->last_profile) * 1000;
-    fprintf(stderr, "%4dkb %3.0f %5.1f %6.1f %5d  %5d %5.1lf%% %5.1lf%% %5.1lf%% %*s '- %s (%s)\n", 
+    fprintf(stderr, "%c%4dkb %3.0f %5.1f %6.1f %5d  %5d %5.1lf%% %5.1lf%% %5.1lf%% %*s '- %s (%s)\n", 
+        node_is_idle(node) ? ' ' : '*',
         lua_gc(node->L, LUA_GCCOUNT, 0),
         node->num_frames * 1000 / delta,
         (double)node->num_resource_inits * 1000 / delta,
@@ -893,10 +903,10 @@ static void node_print_profile(node_t *node, int depth) {
 }
 
 static void node_profiler() {
-    fprintf(stderr, "   mem fps   rps allocs width height   boot update  event     name (alias)\n");
-    fprintf(stderr, "--------------------------------------------------------------------------\n");
+    fprintf(stderr, "    mem fps   rps allocs width height   boot update  event     name (alias)\n");
+    fprintf(stderr, "---------------------------------------------------------------------------\n");
     node_print_profile(&root, 0);
-    fprintf(stderr, "--------------------------------------------------------------------------\n");
+    fprintf(stderr, "---------------------------------------------------------------------------\n");
 }
 
 /*======= inotify ==========*/
