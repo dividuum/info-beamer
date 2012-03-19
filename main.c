@@ -304,12 +304,13 @@ static void node_render_self(node_t *node, int width, int height) {
 
 #define node_setup_completed(node) ((node)->width != 0)
 #define node_is_idle(node) (now > (node)->last_activity + NODE_INACTIVITY)
+#define node_is_rendering(node) ((node)->gl_matrix_depth != NO_GL_PUSHPOP)
 
 /*===== Lua bindings ======*/
 
 static node_t *get_rendering_node(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
-    if (node->gl_matrix_depth == NO_GL_PUSHPOP)
+    if (!node_is_rendering(node))
         luaL_error(L, "only callable in node.render");
     return node;
 }
@@ -335,8 +336,8 @@ static int luaRenderChild(lua_State *L) {
 
 static int luaSetup(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
-    if (node_setup_completed(node))
-        luaL_error(L, "cannot change width or height");
+    if (node_is_rendering(node))
+        luaL_error(L, "cannot change width or height while rendering");
     int width = (int)luaL_checknumber(L, 1);
     int height = (int)luaL_checknumber(L, 2);
     if (width < 32 || width > 2048)
