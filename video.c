@@ -275,6 +275,7 @@ static int video_next(lua_State *L) {
 
     glBindTexture(GL_TEXTURE_2D, video->tex);
 
+    glPushClientAttrib(GL_CLIENT_PIXEL_STORE_BIT);
     glPixelStorei(GL_UNPACK_SWAP_BYTES, GL_TRUE);
     glPixelStorei(GL_UNPACK_LSB_FIRST,  GL_TRUE);
     glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
@@ -294,6 +295,7 @@ static int video_next(lua_State *L) {
         video->buffer 
     );
     glGenerateMipmap(GL_TEXTURE_2D);
+    glPopClientAttrib();
 
     lua_pushboolean(L, 1);
     return 1;

@@ -65,7 +65,7 @@
 
 #ifdef DEBUG
 #define MAX_RUNAWAY_TIME 10 // sec
-#define MAX_PCALL_TIME  900000 // usec
+#define MAX_PCALL_TIME  5000000 // usec
 #else
 #define MAX_RUNAWAY_TIME 1 // sec
 #define MAX_PCALL_TIME  500000 // usec
@@ -202,8 +202,8 @@ static int lua_timed_pcall(node_t *node, int in, int out,
     struct itimerval deadline;
     deadline.it_interval.tv_sec = MAX_RUNAWAY_TIME;
     deadline.it_interval.tv_usec = 0;
-    deadline.it_value.tv_sec = 0;
-    deadline.it_value.tv_usec = MAX_PCALL_TIME;
+    deadline.it_value.tv_sec =  MAX_PCALL_TIME / 1000000;
+    deadline.it_value.tv_usec = MAX_PCALL_TIME % 1000000;
     setitimer(ITIMER_VIRTUAL, &deadline, &old_timer);
 
     global_node = node;
@@ -604,7 +604,6 @@ static int node_render_to_image(lua_State *L, node_t *node) {
     glGetDoublev(GL_PROJECTION_MATRIX, prev_projection);
     glGetDoublev(GL_MODELVIEW_MATRIX, prev_modelview);
 
-    glPushClientAttrib(GL_CLIENT_ALL_ATTRIB_BITS);
     glPushAttrib(GL_ALL_ATTRIB_BITS);
 
     // get new framebuffer and associated texture from recycler
@@ -641,7 +640,6 @@ static int node_render_to_image(lua_State *L, node_t *node) {
 
     // restore previous state
     glPopAttrib();
-    glPopClientAttrib();
 
     glMatrixMode(GL_PROJECTION);
     glLoadMatrixd(prev_projection);
