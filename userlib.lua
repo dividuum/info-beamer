@@ -224,6 +224,18 @@ function util.generator(refiller)
     }
 end
 
+function util.set_interval(interval, callback)
+    local next_call = sys.now() + interval
+    node.event("render", function()
+        local now = sys.now()
+        if now > next_call then
+            next_call = now + interval
+            callback()
+        end
+    end)
+    callback()
+end
+
 function util.post_effect(shader, shader_opt)
     local surface = resource.create_snapshot()
     gl.clear(0,0,0,1)
