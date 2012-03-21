@@ -628,7 +628,7 @@ unique in a running `info-beamer` instance.
 
 ### node.event(event\_name, event\_handler)
 
-Registers a new eventhandler. Possible `event_name`s are described below.
+Registers a new event handler. Possible `event_name`s are described below.
 Event handlers cannot be unregistered. Event handlers will be called in the
 order of registration.
 
@@ -708,6 +708,13 @@ greeted by a welcome line and are expected to provide a node name.
 `info-beamer` will return `ok!` if you provide a valid node name. From this
 moment on, `info-beamer` will feed you the output of the node. This can be
 used for debugging a node from remote.
+
+	:::console
+	user:~$ telnet localhost 4444
+	Info Beamer 0.2-beta.fdd72a (http://info-beamer.org/). Select your channel!
+	nested/child
+	ok!
+	[node output]
 
 Any text you type while connected will trigger the `input` event. The
 `input` event will be given the provided line. This can be used to feed a
@@ -933,19 +940,19 @@ these files to display them.
 This also makes the node stateless: Since the files are persisted in the
 filesystem, restarting the `info-beamer` won't lose any information.
 
-### Can I use existing lua code or libraries?
+### Can I use existing Lua code or libraries?
 
 Maybe. The Lua environment that is provided for a node is sandboxed. All
 potentially harmful functions (like `os.execute`) have been removed. 
 
-`require` has been wrapped to only load lua modules from the current
-directory. Most simple lua modules should work out of the box. Here is a
+`require` has been wrapped to only load Lua modules from the current
+directory. Most simple Lua modules should work out of the box. Here is a
 JSON example:
 
 Download the [JSON
 module](https://raw.github.com/luaforge/json/master/json4lua/json/json.lua)
-and put in your node directory. From within you node code you can then
-`require` this module, just as you would in normal lua code:
+and put in your node directory. From within your node code you can then
+`require` this module, just as you would in normal Lua code:
 
 	:::lua
 	json = require "json"
@@ -957,7 +964,7 @@ Native modules or precompiled modules cannot be loaded.
 
 Lua is a fast. This is important, since the function `node.render` is
 called for each frame. Lua is small and simple. If you did any programming
-in another language, you should be able to learn the lua basics in a few
+in another language, you should be able to learn the Lua basics in a few
 hours. 
 
 Lua can be sandboxed. Memory and CPU usage can be restricted.  Multiple Lua
@@ -965,6 +972,16 @@ environments (one for each node) can be created. This isolates nodes from
 each other and provides a clean environment to develop your code. If your
 node runs on your machine, you can be sure it'll run on any other
 `info-beamer`.
+
+External scripting is an important part of the `info-beamer`. It's
+perfectly valid to do part of your nodes logic in an external script (for
+example to fetch data from twitter), write the data to a file and
+use the `info-beamer` to visualize the content. Instead of files you can
+also use UDP, OSC or TCP to update you node from any language.
+
+### Where is the Windows/OSX version?
+
+There is none. The `info-beamer` is currently linux only.
 
 Contributing
 ============

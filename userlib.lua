@@ -126,7 +126,7 @@ function util.auto_loader(container, filter)
             loaded_version[name] = CONTENTS[name]
         end
     end
-    print("loader: loading know resources")
+    print("loader: loading known resources")
     for name, added in pairs(CONTENTS) do
         auto_load(name)
     end

@@ -1231,9 +1231,6 @@ static void tick() {
 
     event_loop(EVLOOP_NONBLOCK);
 
-    glDisable(GL_CULL_FACE);
-    glDisable(GL_DEPTH_TEST);
-    glDisable(GL_LIGHTING);
     glEnable(GL_TEXTURE_2D);
 
     glEnable(GL_BLEND);
@@ -1258,7 +1255,6 @@ static void tick() {
     node_render_self(&root, win_w, win_h);
 
     glfwSwapBuffers();
-    glfwPollEvents();
 
     node_tree_gc(&root);
 
@@ -1330,7 +1326,6 @@ int main(int argc, char *argv[]) {
     glfwSwapInterval(1);
     glfwSetWindowSizeCallback(reshape);
     glfwSetKeyCallback(keypressed);
-    glfwDisable(GLFW_AUTO_POLL_EVENTS);
 
     ilInit();
     iluInit();
