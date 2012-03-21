@@ -76,7 +76,7 @@ static const luaL_reg font_methods[] = {
 int font_new(lua_State *L, const char *path, const char *name) {
     FTGLfont *ftgl_font = ftglCreatePolygonFont(path);
     if (!ftgl_font)
-        luaL_error(L, "cannot load font file %s", name);
+        luaL_error(L, "cannot load font file %s", path);
 
     ftglSetFontDisplayList(ftgl_font, 1);
     ftglSetFontFaceSize(ftgl_font, 1000, 1000);

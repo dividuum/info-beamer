@@ -104,8 +104,8 @@ int image_load(lua_State *L, const char *path, const char *name) {
  
     if (!ilLoadImage(path)) {
         ilDeleteImages(1, &imageID);
-        return luaL_error(L, "image loading failed: %s", 
-            iluErrorString(ilGetError()));
+        return luaL_error(L, "loading %s failed: %s",
+            path, iluErrorString(ilGetError()));
     }
  
     ILinfo ImageInfo;
@@ -116,8 +116,8 @@ int image_load(lua_State *L, const char *path, const char *name) {
  
     if (!ilConvertImage(IL_RGBA, IL_UNSIGNED_BYTE)) {
         ilDeleteImages(1, &imageID);
-        return luaL_error(L, "converting image failed: %s", 
-            iluErrorString(ilGetError()));
+        return luaL_error(L, "converting %s failed: %s",
+            path, iluErrorString(ilGetError()));
     }
 
     int width = ilGetInteger(IL_IMAGE_WIDTH);
