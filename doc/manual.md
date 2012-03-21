@@ -770,10 +770,44 @@ can use `auto_loader` like this:
     -- in the table resources:
     print(resources.some_image:size())
 
+`util.auto_loader` autoloads files before returning and watches for changes
+afterwards.
+
+### util.file\_watch(filename, handler)
+
+Registers a handler that watches a file. The handler will be called once
+after calling `util.file_watch` and every time the file changes. The
+handler will receive the content of the file as a string. 
+
+`util.file_watch` can for example be used the keep variables in sync with a
+config file:
+
+	:::lua
+	util.file_watch("banner.txt", function(content)
+		text = content
+	end)
+
+	function node.render()
+		print(text)
+	end
+
 ### util.shaderpair\_loader(basename)
 
 Loads the vertex and fragment shader from two files called `basename.vert`
 and `basename.frag` and returns a shader objects.
+
+### util.set\_interval(interval, callback)
+
+Adds a callback that will be called immediatelly and then each `interval`
+seconds if possible. The `callback` will only be called if the node is
+rendered: So it must be either the toplevel node of a node rendered with
+`resource.render_child`.
+
+### util.post\_effect(shader, shader_opt)
+
+Applies a shader effect to the current node output. This works by
+snapshotting the current output using `resource.create_snapshot`, clearing
+the output and drawing the snapshot with the given shader and its options.
 
 ### util.osc\_mapper(routing\_table)
 
@@ -868,6 +902,69 @@ last change.
 Table of child nodes. The key contains the childs name. These can the
 rendered using `resource.render_child`. The value is a timestamp
 (comparable to `sys.now()`) of the first detection of the child node.
+
+FAQ
+===
+
+Usage
+-----
+
+### Is it possible to run the `info-beamer` in fullscreen mode?
+
+Yes. Just define the environment variable `INFOBEAMER_FULLSCREEN` to any
+non-empty value.
+
+    :::console
+	user:~$ INFOBEAMER_FULLSCREEN=1 info-beamer xyz
+
+### Port 4444 is already in use. How can I use another port?
+
+Set the environment variable `INFOBEAMER_PORT`. The specified port will be
+used for both TCP and UDP.
+
+### How can fetch content from HTTP?
+
+You can't do that from within your node code. `info-beamer` doesn't support
+HTTP and likely never will, since there is a better way to do this: Just
+use an external program of you choice to do the HTTP requests. Then write
+the result into files within the nodes directory. The node can then pickup
+these files to display them.
+
+This also makes the node stateless: Since the files are persisted in the
+filesystem, restarting the `info-beamer` won't lose any information.
+
+### Can I use existing lua code or libraries?
+
+Maybe. The Lua environment that is provided for a node is sandboxed. All
+potentially harmful functions (like `os.execute`) have been removed. 
+
+`require` has been wrapped to only load lua modules from the current
+directory. Most simple lua modules should work out of the box. Here is a
+JSON example:
+
+Download the [JSON
+module](https://raw.github.com/luaforge/json/master/json4lua/json/json.lua)
+and put in your node directory. From within you node code you can then
+`require` this module, just as you would in normal lua code:
+
+	:::lua
+	json = require "json"
+	print(json.encode{foo = "bar})
+
+Native modules or precompiled modules cannot be loaded.
+
+### Lua sucks! Why not Javascript/Python/other language of your choice?
+
+Lua is a fast. This is important, since the function `node.render` is
+called for each frame. Lua is small and simple. If you did any programming
+in another language, you should be able to learn the lua basics in a few
+hours. 
+
+Lua can be sandboxed. Memory and CPU usage can be restricted.  Multiple Lua
+environments (one for each node) can be created. This isolates nodes from
+each other and provides a clean environment to develop your code. If your
+node runs on your machine, you can be sure it'll run on any other
+`info-beamer`.
 
 Contributing
 ============

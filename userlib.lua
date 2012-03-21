@@ -498,7 +498,7 @@ function require(modname)
     local value = loader(modname)
     if value then
         package.loaded[modname] = value
-    elseif not sandbox.package.loaded[modname] then
+    elseif not package.loaded[modname] then
         package.loaded[modname] = true
     end
     return package.loaded[modname]

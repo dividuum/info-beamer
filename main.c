@@ -60,8 +60,8 @@
 #define MAX_SNAPSHOTS 5 // maximum number of snapshots per render
 
 // Default host/port (both udp & tcp)
-#define HOST "0.0.0.0"
-#define PORT 4444
+#define LISTEN_ADDR  "0.0.0.0"
+#define DEFAULT_PORT 4444
 
 #ifdef DEBUG
 #define MAX_RUNAWAY_TIME 10 // sec
@@ -133,6 +133,7 @@ typedef struct client_s {
 static int inotify_fd;
 static double now;
 static int running = 1;
+static int listen_port;
 
 GLuint default_tex; // white default texture
 struct event_base *event_base;
@@ -151,7 +152,6 @@ static void node_free(node_t *node);
 /*======= Lua Sandboxing =======*/
 
 static void *lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize) {
-    // fprintf(stderr, "%d %d\n", osize, nsize);
     node_t *node = ud;
     node->num_allocs++;
     (void)osize;  /* not used */
@@ -163,7 +163,7 @@ static void *lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize) {
     }
 }
 
-/* Zeitbegrenzung fuer pcalls */
+/* execution time limiting for pcalls */
 static node_t *global_node = NULL;
 static int timers_expired = 0;
 
@@ -181,13 +181,12 @@ static void deadline_signal(int i) {
     fprintf(stderr, RED("[%s]") " timeout\n", global_node->path);
 
     if (timers_expired == 0) {
-        // Beim ersten expiren wird versucht das Problem
-        // innerhalb von Lua zu loesen.
+        // timer expired once? Try to solve it inside of
+        // lua: set a hook that will execute deadline_stop.
         lua_sethook(global_node->L, deadline_stop,
             LUA_MASKCALL | LUA_MASKRET | LUA_MASKLINE | LUA_MASKCOUNT, 1);
     } else {
-        // Lua wollte sich nicht beenden. Hier
-        // kann nichts anderes mehr gemacht werden.
+        // timer expired again without lua being stopped?
         die("unstoppable runaway code in %s", global_node->path);
     }
     timers_expired++;
@@ -595,7 +594,7 @@ static int node_render_to_image(lua_State *L, node_t *node) {
         return 0;
     }
 
-    // Save current gl state
+    // save current gl state
     int prev_fbo, prev_prog;
     GLdouble prev_projection[16];
     GLdouble prev_modelview[16];
@@ -624,7 +623,7 @@ static int node_render_to_image(lua_State *L, node_t *node) {
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
-    // Clear with transparent color
+    // clear with transparent color
     glClearColor(1, 1, 1, 0);
     glClear(GL_COLOR_BUFFER_BIT);
 
@@ -724,7 +723,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
         IN_CLOSE_WRITE|IN_CREATE|IN_DELETE|IN_DELETE_SELF|
         IN_MOVE);
     if (node->wd == -1)
-        die("cannot inotify_add_watch on %s", path);
+        die("cannot start watching directory %s: %s", path, strerror(errno));
 
     node->parent = parent;
     node->path = strdup(path);
@@ -829,7 +828,6 @@ static void node_free(node_t *node) {
     }
     assert(node->clients == NULL);
 
-    // inotify_rm_watch(inotify_fd, node->wd));
     lua_close(node->L);
 
 #ifndef USE_LUAJIT
@@ -1027,11 +1025,15 @@ static int create_socket(int type) {
 
     memset(&sin, 0, sizeof(sin));
     sin.sin_family = AF_INET;
-    sin.sin_addr.s_addr = inet_addr(HOST);
-    sin.sin_port = htons(PORT);
+    sin.sin_addr.s_addr = inet_addr(LISTEN_ADDR);
+    sin.sin_port = htons(listen_port);
 
     if (bind(fd, (struct sockaddr *)&sin, sizeof(struct sockaddr)) < 0)
-        die("bind");
+        die("binding to %s port %d failed: %s",
+            type == SOCK_DGRAM ? "udp" : "tcp",
+            listen_port,
+            strerror(errno)
+        );
 
     return fd;
 }
@@ -1131,7 +1133,7 @@ static void client_write(client_t *client, const char *data, size_t data_size) {
 
 static void client_close(client_t *client) {
     if (client->node) {
-        // Unlink client & node
+        // unlink client & node
         DL_DELETE(client->node->clients, client);
         client->node = NULL;
     }
@@ -1155,7 +1157,7 @@ static void client_read(struct bufferevent *bev, void *arg) {
         if (!node) {
             client_write(client, LITERAL_AND_SIZE("404\n"));
         } else {
-            // Link client & node
+            // link client & node
             DL_APPEND(node->clients, client);
             client->node = node;
             client_write(client, LITERAL_AND_SIZE("ok!\n"));
@@ -1300,6 +1302,10 @@ int main(int argc, char *argv[]) {
     event_base = event_init();
     dns_base = evdns_base_new(event_base, 1);
 
+    const char *port = getenv("INFOBEAMER_PORT");
+    listen_port = port ? atoi(port) : DEFAULT_PORT;
+    fprintf(stderr, INFO("tcp/udp port is %d\n"), listen_port);
+
     struct event udp_event;
     open_udp(&udp_event);
 
@@ -1309,7 +1315,7 @@ int main(int argc, char *argv[]) {
     glfwInit();
     glfwOpenWindowHint(GLFW_FSAA_SAMPLES, 4);
 
-    int mode = getenv("FULLSCREEN") ? GLFW_FULLSCREEN : GLFW_WINDOW;
+    int mode = getenv("INFOBEAMER_FULLSCREEN") ? GLFW_FULLSCREEN : GLFW_WINDOW;
 
     if(!glfwOpenWindow(1024, 768, 8,8,8,8, 0,0, mode))
         die("cannot open window");
@@ -1336,6 +1342,8 @@ int main(int argc, char *argv[]) {
 
     now = glfwGetTime();
     node_init_root(&root, argv[1]);
+
+    fprintf(stderr, INFO("initialization completed\n"));
 
     while (running) {
         tick();

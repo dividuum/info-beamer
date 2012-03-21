@@ -56,7 +56,8 @@ static int shader_use(lua_State *L) {
 
     lua_pushnil(L);
     while (lua_next(L, -2)) {
-        // name kopieren und nach string konvertieren
+        // copy the name and convert it to a string
+        // (thereby changing the stack slot)
         // => [name] [value] [converted name]
         lua_pushvalue(L, -2); 
         const char *name = lua_tostring(L, -1);
@@ -206,4 +207,3 @@ static int shader_gc(lua_State *L) {
 }
 
 LUA_TYPE_IMPL(shader);
-
