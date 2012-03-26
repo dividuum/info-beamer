@@ -977,7 +977,7 @@ External scripting is an important part of the `info-beamer`. It's
 perfectly valid to do part of your nodes logic in an external script (for
 example to fetch data from twitter), write the data to a file and
 use the `info-beamer` to visualize the content. Instead of files you can
-also use UDP, OSC or TCP to update you node from any language.
+also use UDP, OSC or TCP to update your node from any language.
 
 ### Where is the Windows/OSX version?
 
