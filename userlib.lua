@@ -450,10 +450,12 @@ package = {
     end;
 
     loaded = {
+        table = table;
         string = string;
         math = math;
         table = table;
         coroutine = coroutine;
+        debug = debug;
         struct = struct;
         util = util;
     };
@@ -473,6 +475,7 @@ package = {
         end
     };
 }
+package.loaded['package'] = package
 
 function require(modname)
     local loaded = package.loaded[modname]
