@@ -1,24 +1,18 @@
 -- See Copyright Notice in LICENSE.txt
 
---======================
--- Wrap unsafe functions
---======================
-
-do
-    -- Rep can take too much memory/cpu
-    local old_rep = string.rep
-    string.rep = function(s, n)
-        if n > 8192 then
-            error("n too large")
-        elseif n < 0 then
-            error("n cannot be negative")
-        end
-        return old_rep(s, n)
-    end
-end
-
 function kprint(msg)
     print("kernel: " .. msg)
+end
+
+function safe_loadstring(code, chunkname, allow_precompiled)
+    if not allow_precompiled and string.byte(code, 1) == 27 then
+        return nil, string.format(
+            "precompiled code not allowed for chunk '%s'",
+            chunkname
+        )
+    else
+        return loadstring(code, chunkname)
+    end
 end
 
 --=============
@@ -143,7 +137,14 @@ function create_sandbox()
             len = string.len;
             lower = string.lower;
             match = string.match;
-            rep = string.rep;
+            rep = function(s, n)
+                if n > 8192 then
+                    error("n too large")
+                elseif n < 0 then
+                    error("n cannot be negative")
+                end
+                return string.rep(s, n)
+            end;
             reverse = string.reverse;
             sub = string.sub;
             upper = string.upper;
@@ -160,10 +161,11 @@ function create_sandbox()
         print = print;
 
         loadstring = function(code, chunkname)
-            if string.byte(code, 1) == 27 then
-                error("no precompiled code")
+            local func, err = safe_loadstring(code, chunkname, false)
+            if func then
+                return setfenv(func, sandbox)
             else
-                return setfenv(assert(loadstring(code, chunkname)), sandbox)
+                return nil, err
             end
         end;
 
@@ -280,25 +282,32 @@ function create_sandbox()
     return sandbox
 end
 
-function load_into_sandbox(code, chunkname)
+function load_into_sandbox(code, chunkname, allow_precompiled)
     setfenv(
-        assert(loadstring(code, chunkname)),
+        assert(safe_loadstring(code, chunkname, allow_precompiled)),
         sandbox
     )()
 end
 
-function reload(usercode_file)
+function reload(...)
     sandbox = create_sandbox()
 
     -- load userlib
-    load_into_sandbox(USERLIB, "userlib.lua")
+    load_into_sandbox(
+        USERLIB,
+        "=userlib.lua",
+        true
+    )
 
     -- remove existing node alias
     remove_alias()
 
-    if usercode_file then
-        local node_code = load_file(usercode_file)
-        load_into_sandbox(node_code, "=" .. PATH .. "/" .. NODE_CODE_FILE)
+    for _, usercode_file in ipairs({...}) do
+        load_into_sandbox(
+            load_file(usercode_file),
+            "=" .. PATH .. "/" .. usercode_file,
+            os.getenv("INFOBEAMER_PRECOMPILED")
+        )
     end
 
     -- send child / content events
@@ -371,7 +380,9 @@ loadfile = nil
 load = nil
 package = nil
 module = nil
-os = nil
+os = {
+    getenv = os.getenv;
+}
 dofile = nil
 debug = {
     traceback = debug.traceback;
