@@ -174,10 +174,11 @@ function util.osc_mapper(routes)
             local match = {suffix:match(pattern)}
             if #match > 0 then
                 if match[1] == suffix then
-                    return callback(...)
+                    callback(...)
                 else
-                    return callback(unpack(match), ...)
+                    callback(unpack(match), ...)
                 end
+                return
             end
         end
     end)
@@ -189,10 +190,11 @@ function util.data_mapper(routes)
             local match = {suffix:match(pattern)}
             if #match > 0 then
                 if match[1] == suffix then
-                    return callback(data)
+                    callback(data)
                 else
-                    return callback(unpack(match), data)
+                    callback(unpack(match), data)
                 end
+                return
             end
         end
     end)
