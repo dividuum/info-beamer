@@ -38,6 +38,14 @@ files in included in their header.
         Includes code based on lua-users wiki:
         http://lua-users.org/wiki/UserDataWithPointerExample
 
+        Includes code based on
+        http://bjoern.hoehrmann.de/utf-8/decoder/dfa/
+
+    misc.c
+
+        Includes code based on
+        http://bjoern.hoehrmann.de/utf-8/decoder/dfa/
+
     userlib.lua
         Includes code based on lua-users wiki:
         http://lua-users.org/wiki/TableSerialization

@@ -26,6 +26,11 @@ static int font_write(lua_State *L) {
     GLfloat x = luaL_checknumber(L, 2);
     GLfloat y = luaL_checknumber(L, 3);
     const char *text = luaL_checkstring(L, 4);
+
+    // Protect FTGL
+    if (!check_utf8(text))
+        luaL_error(L, "invalid utf8");
+
     GLfloat size = luaL_checknumber(L, 5) / 1000.0;
 
     int type = lua_type(L, 6);

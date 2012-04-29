@@ -4,6 +4,7 @@
 #define MISC_H
 
 #include <sys/time.h>
+#include <stdint.h>
 
 #include <GL/gl.h>
 #include <lualib.h>
@@ -88,5 +89,15 @@ int type##_register(lua_State *L) {                                     \
     lua_pop(L, 1);                                                      \
     return 1;                                                           \
 }
+
+// Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
+// See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
+//
+// Modified for info-beamer
+
+#define UTF8_ACCEPT 0
+#define UTF8_REJECT 1
+
+int check_utf8(const char* s);
 
 #endif
