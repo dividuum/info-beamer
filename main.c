@@ -1213,14 +1213,13 @@ static void open_tcp(struct event *event) {
 
     evutil_make_socket_nonblocking(fd);
 
-    struct event accept_event;
-    event_set(&accept_event,
+    event_set(event,
             fd,
             EV_READ | EV_PERSIST,
             accept_callback,
             NULL);
 
-    if (event_add(&accept_event, NULL) == -1)
+    if (event_add(event, NULL) == -1)
         die("event_add failed");
 }
 
