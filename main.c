@@ -839,7 +839,7 @@ static void node_free(node_t *node) {
 static void node_search_and_boot(node_t *node) {
     DIR *dp = opendir(node->path);
     if (!dp)
-        die("cannot open directory %s", node->path);
+        die("cannot open directory %s: %s", node->path, strerror(errno));
 
     struct dirent *ep;
     while ((ep = readdir(dp))) {
@@ -1018,10 +1018,10 @@ static int create_socket(int type) {
     int fd = socket(AF_INET, type, 0);
 
     if (fd < 0)
-        die("socket");
+        die("socket failed: %s", strerror(errno));
 
     if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(int)) < 0)
-        die("setsockopt reuse");
+        die("setsockopt reuse failed: %s", strerror(errno));
 
     memset(&sin, 0, sizeof(sin));
     sin.sin_family = AF_INET;
@@ -1209,7 +1209,7 @@ static void open_tcp(struct event *event) {
     int fd = create_socket(SOCK_STREAM);
 
     if (listen(fd, 5) < 0)
-        die("cannot listen");
+        die("listen failed: %s", strerror(errno));
 
     evutil_make_socket_nonblocking(fd);
 
@@ -1278,19 +1278,22 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    char *root_name = argv[1];
+    char *root_name = realpath(argv[1], NULL);
+    if (!root_name)
+        die("cannot canonicalize path: %s", strerror(errno));
 
-    // strip trailing /
-    if (*root_name != '\0' && root_name[strlen(root_name)-1] == '/')
-        root_name[strlen(root_name)-1] = '\0';
-
-    if (index(root_name, '/')) 
-        die("<root_name> must be the directory name of the root node. "
-            "It cannot contain slashes.");
+    char *split = rindex(root_name, '/');
+    if (split) {
+        *split = '\0';
+        fprintf(stderr, INFO("chdir %s\n"), root_name);
+        if (chdir(root_name) == -1)
+            die("cannot chdir(%s): %s", root_name, strerror(errno));
+        root_name = split+1;
+    }
 
     inotify_fd = inotify_init1(IN_NONBLOCK);
     if (inotify_fd == -1)
-        die("cannot open inotify");
+        die("cannot open inotify: %s", strerror(errno));
 
     av_register_all();
 
@@ -1335,7 +1338,7 @@ int main(int argc, char *argv[]) {
     init_default_texture();
 
     now = glfwGetTime();
-    node_init_root(&root, argv[1]);
+    node_init_root(&root, root_name);
 
     fprintf(stderr, INFO("initialization completed\n"));
 

@@ -147,8 +147,7 @@ To display this example using `info-beamer`, switch into the `samples`
 directory and type 
 
     :::console
-    user:~/src/info-beamer$ cd samples
-    user:~/src/info-beamer/samples$ ../info-beamer hello
+    user:~/src/info-beamer$ ./info-beamer samples/hello
 
 This will start `info-beamer`. It will open the directory `hello` (called
 the `hello` node) and look for the file `node.lua`. This should get
