@@ -227,12 +227,12 @@ correct framerate.
 
 A directory (called a node) can contain subdirectories. Each subdirectory
 is then loaded as a child node. The parent node can render child nodes like
-any other resource. Let's say we create two nodes called *Blue* and *Red*.
+any other resource. Let's say we create two nodes called `blue` and `red`.
 We can let `info-beamer` play each of them individually. But what if we
 want to combine them for our presentation? This is where the nesting
 feature of `info-beamer` becomes useful. You start by creating another node
-called *Green*. Then you just move the directories for node *Blue* and
-*Red* into the directory *Green*. The file tree will the look like this:
+called `green`. Then you just move the directories for node `blue` and
+`red` into the directory `green`. The file tree will the look like this:
 
     :::text
     -+- green -+- node.lua
@@ -241,8 +241,8 @@ called *Green*. Then you just move the directories for node *Blue* and
                |
                '- blue --- node.lua
 
-Inside of *Green* you can then render both *Red* and *Blue* into an image
-object using `resource.render_child` and display them on *Green*s virtual screen.
+Inside of `green` you can then render both `red` and `blue` into an image
+object using `resource.render_child` and display them on `green`s virtual screen.
 
 ![nested rendering](nested.png)
 
