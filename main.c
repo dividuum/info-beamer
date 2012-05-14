@@ -74,6 +74,7 @@
 #define NO_GL_PUSHPOP -1
 
 #define NODE_INACTIVITY 2.0 // node considered idle after x seconds
+#define NODE_CPU_BLACKLIST 60.0 // seconds a node is blacklisted if it exceeds cpu usage
 
 typedef enum { PROFILE_BOOT, PROFILE_UPDATE, PROFILE_EVENT } profiling_bins;
 
@@ -114,6 +115,7 @@ typedef struct node_s {
     int num_allocs;
 
     double last_activity;
+    double blacklisted;
 } node_t;
 
 static node_t *nodes_by_wd = NULL;
@@ -144,6 +146,7 @@ struct evdns_base *dns_base;
 static void client_write(client_t *client, const char *data, size_t data_size);
 static void client_close(client_t *client);
 static void node_printf(node_t *node, const char *fmt, ...);
+static void node_blacklist(node_t *node, double time);
 static void node_reset_quota(node_t *node);
 static int node_render_to_image(lua_State *L, node_t *node);
 static void node_init(node_t *node, node_t *parent, const char *path, const char *name);
@@ -185,6 +188,7 @@ static void deadline_signal(int i) {
         // lua: set a hook that will execute deadline_stop.
         lua_sethook(global_node->L, deadline_stop,
             LUA_MASKCALL | LUA_MASKRET | LUA_MASKLINE | LUA_MASKCOUNT, 1);
+        node_blacklist(global_node, NODE_CPU_BLACKLIST);
     } else {
         // timer expired again without lua being stopped?
         die("unstoppable runaway code in %s", global_node->path);
@@ -279,6 +283,11 @@ static void node_content_update(node_t *node, const char *name, int added) {
     lua_pushliteral(node->L, "content_update");
     lua_pushstring(node->L, name);
     lua_pushboolean(node->L, added);
+    if (!strcmp(name, NODE_CODE_FILE)) {
+        node->blacklisted = 0;
+        node->width = 0;
+        node->height = 0;
+    }
     lua_node_enter(node, 3, PROFILE_UPDATE);
 }
 
@@ -303,6 +312,7 @@ static void node_render_self(node_t *node, int width, int height) {
 
 #define node_setup_completed(node) ((node)->width != 0)
 #define node_is_idle(node) (now > (node)->last_activity + NODE_INACTIVITY)
+#define node_is_blacklisted(node) (now < (node)->blacklisted)
 #define node_is_rendering(node) ((node)->gl_matrix_depth != NO_GL_PUSHPOP)
 
 /*===== Lua bindings ======*/
@@ -589,11 +599,6 @@ static int luaNow(lua_State *L) {
 /*==== Node functions =====*/
 
 static int node_render_to_image(lua_State *L, node_t *node) {
-    if (!node_setup_completed(node)) {
-        luaL_error(L, "node not initialized with gl.setup()");
-        return 0;
-    }
-
     // save current gl state
     int prev_fbo, prev_prog;
     GLdouble prev_projection[16];
@@ -605,37 +610,51 @@ static int node_render_to_image(lua_State *L, node_t *node) {
 
     glPushAttrib(GL_ALL_ATTRIB_BITS);
 
+    int width = 1, height = 1;
+    if (node_setup_completed(node))
+        width = node->width, height = node->height;
+
     // get new framebuffer and associated texture from recycler
     unsigned int fbo, tex;
-    make_framebuffer(node->width, node->height, &tex, &fbo);
+    make_framebuffer(width, height, &tex, &fbo);
 
-    // initialize new gl state
+    // initialize gl state
     glUseProgram(0);
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
 
-    glViewport(0, 0, node->width, node->height);
-    glOrtho(0, node->width,
-            node->height, 0,
+    glViewport(0, 0, width, height);
+    glOrtho(0, width,
+            height, 0,
             -1000, 1000);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
-    // clear with transparent color
-    glClearColor(1, 1, 1, 0);
-    glClear(GL_COLOR_BUFFER_BIT);
+    if (!node_setup_completed(node)) {
+        node_printf(node, "node not initialized with gl.setup()\n");
+        glClearColor(0.5, 0.5, 0.5, 1);
+        glClear(GL_COLOR_BUFFER_BIT);
+    } else if (node_is_blacklisted(node)) {
+        node_printf(node, "node is blacklisted\n");
+        glClearColor(0.5, 0, 0, 1);
+        glClear(GL_COLOR_BUFFER_BIT);
+    } else {
+        // clear with transparent color
+        glClearColor(1, 1, 1, 0);
+        glClear(GL_COLOR_BUFFER_BIT);
 
-    // render node
-    node->gl_matrix_depth = 0;
+        // render node
+        node->gl_matrix_depth = 0;
 
-    node->num_frames++;
-    node_event(node, "render", 0);
+        node->num_frames++;
+        node_event(node, "render", 0);
 
-    while (node->gl_matrix_depth-- > 0)
-        glPopMatrix();
-    node->gl_matrix_depth = NO_GL_PUSHPOP;
+        while (node->gl_matrix_depth-- > 0)
+            glPopMatrix();
+        node->gl_matrix_depth = NO_GL_PUSHPOP;
+    }
 
     // restore previous state
     glPopAttrib();
@@ -647,7 +666,7 @@ static int node_render_to_image(lua_State *L, node_t *node) {
     glUseProgram(prev_prog);
     glBindFramebuffer(GL_FRAMEBUFFER, prev_fbo);
 
-    return image_create(L, tex, fbo, node->width, node->height);
+    return image_create(L, tex, fbo, width, height);
 }
 
 static void node_printf(node_t *node, const char *fmt, ...) {
@@ -661,6 +680,11 @@ static void node_printf(node_t *node, const char *fmt, ...) {
     DL_FOREACH(node->clients, client) {
         client_write(client, buffer, buffer_size);
     }
+}
+
+static void node_blacklist(node_t *node, double time) {
+    node->blacklisted = now + time;
+    node_printf(node, "blacklisted for %.0f seconds\n", time);
 }
 
 static void node_tree_gc(node_t *node) {
@@ -882,7 +906,7 @@ static void node_print_profile(node_t *node, int depth) {
     node_t *child, *tmp; 
     double delta = (now - node->last_profile) * 1000;
     fprintf(stderr, "%c%4dkb %3.0f %5.1f %6.1f %5d  %5d %5.1lf%% %5.1lf%% %5.1lf%% %*s '- %s (%s)\n", 
-        node_is_idle(node) ? ' ' : '*',
+        node_is_blacklisted(node) ? 'X' : node_is_idle(node) ? ' ' : '*',
         lua_gc(node->L, LUA_GCCOUNT, 0),
         node->num_frames * 1000 / delta,
         (double)node->num_resource_inits * 1000 / delta,
