@@ -29,7 +29,7 @@ static int font_write(lua_State *L) {
 
     // Protect FTGL
     if (!check_utf8(text))
-        luaL_error(L, "invalid utf8");
+        return luaL_error(L, "invalid utf8");
 
     GLfloat size = luaL_checknumber(L, 5) / 1000.0;
 
@@ -81,7 +81,7 @@ static const luaL_reg font_methods[] = {
 int font_new(lua_State *L, const char *path, const char *name) {
     FTGLfont *ftgl_font = ftglCreatePolygonFont(path);
     if (!ftgl_font)
-        luaL_error(L, "cannot load font file %s", path);
+        return luaL_error(L, "cannot load font file %s", path);
 
     ftglSetFontDisplayList(ftgl_font, 1);
     ftglSetFontFaceSize(ftgl_font, 1000, 1000);

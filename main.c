@@ -329,14 +329,14 @@ static int luaRenderChild(lua_State *L) {
     node_t *child;
     HASH_FIND(by_name, node->childs, name, strlen(name), child);
     if (!child)
-        luaL_error(L, "child %s not found", name);
+        return luaL_error(L, "child %s not found", name);
     return node_render_to_image(L, child);
 }
 
 static int luaSetup(lua_State *L) {
     node_t *node = lua_touserdata(L, lua_upvalueindex(1));
     if (node_is_rendering(node))
-        luaL_error(L, "cannot change width or height while rendering");
+        return luaL_error(L, "cannot change width or height while rendering");
     int width = (int)luaL_checknumber(L, 1);
     int height = (int)luaL_checknumber(L, 2);
     if (width < 32 || width > 2048)

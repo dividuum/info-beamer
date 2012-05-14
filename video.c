@@ -343,7 +343,7 @@ int video_load(lua_State *L, const char *path, const char *name) {
     memset(&video, 0, sizeof(video_t));
 
     if (!video_open(&video, path))
-        luaL_error(L, "cannot open video %s", path);
+        return luaL_error(L, "cannot open video %s", path);
 
     glGenTextures(1, &video.tex);
     glBindTexture(GL_TEXTURE_2D, video.tex);
