@@ -1301,8 +1301,18 @@ int main(int argc, char *argv[]) {
     fprintf(stdout, VERSION_STRING " (" INFO_URL ")\n");
     fprintf(stdout, "Copyright (c) 2012, Florian Wesch <fw@dividuum.de>\n\n");
 
-    if (argc != 2) {
-        fprintf(stderr, "usage: %s <root_name>\n", argv[0]);
+    if (argc != 2 || (argc == 2 && !strcmp(argv[1], "-h"))) {
+        fprintf(stderr, 
+            "Usage: %s <root_name>\n"
+            "\n"
+            "Optional environment variables:\n"
+            "\n"
+            "  INFOBEAMER_FULLSCREEN=1  # Fullscreen mode\n"
+            "  INFOBEAMER_PORT=<port>   # Listen on alternative port (tcp & udp, default %d)\n"
+            "  INFOBEAMER_PRECOMPILED=1 # Allow precompiled code\n"
+            "                             Warning: unsafe for untrusted code\n"
+            "\n",
+            argv[0], DEFAULT_PORT);
         exit(1);
     }
 
