@@ -13,9 +13,19 @@ endif
 ifdef USE_LUAJIT
 LUA_CFLAGS  ?= -I/usr/include/luajit-2.0
 LUA_LDFLAGS ?= -lluajit-5.1
+LUA_LUAC    ?= luac
 else
-LUA_CFLAGS  ?= $(shell pkg-config lua5.1 --cflags)
-LUA_LDFLAGS ?= $(shell pkg-config lua5.1 --libs)
+#################################################
+# 
+# If you have compile/link problems related to lua, try
+# setting these variables while running make. For example:
+#
+# $ LUA_LDFLAGS=-llua make
+#
+#################################################
+LUA_CFLAGS  ?= -I/usr/include/lua5.1
+LUA_LDFLAGS ?= -L/usr/lib -llua5.1
+LUA_LUAC    ?= luac
 endif
 
 CFLAGS  += -DVERSION='"$(VERSION)"'
@@ -33,12 +43,12 @@ bin2c: bin2c.c
 	$(CC) $^ -o $@
 
 ifdef USE_LUAJIT
-%.h: %.lua bin2c $(LUAC)
-	luac -p $<
+%.h: %.lua bin2c
+	$(LUA_LUAC) -p $<
 	./bin2c $* < $< > $@
 else
-%.h: %.lua bin2c $(LUAC)
-	luac -o $<.compiled $<
+%.h: %.lua bin2c
+	$(LUA_LUAC) -o $<.compiled $<
 	./bin2c $* < $<.compiled > $@
 endif
 
