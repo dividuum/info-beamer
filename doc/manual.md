@@ -782,7 +782,7 @@ afterwards.
 ### util.file\_watch(filename, handler)
 
 Registers a handler that watches a file. The handler will be called once
-after calling `util.file_watch` and every time the file changes. The
+while calling `util.file_watch` and every time the file changes. The
 handler will receive the content of the file as a string. 
 
 `util.file_watch` can for example be used the keep variables in sync with a
@@ -806,7 +806,7 @@ and `basename.frag` and returns a shader objects.
 
 Adds a callback that will be called immediatelly and then each `interval`
 seconds if possible. The `callback` will only be called if the node is
-rendered: So it must be either the toplevel node of a node rendered with
+rendered: So it must be either the toplevel node or a node rendered with
 `resource.render_child`.
 
 ### util.post\_effect(shader, shader_opt)
