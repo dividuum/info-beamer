@@ -299,9 +299,7 @@ function reload(...)
         true
     )
 
-    -- remove existing node alias
-    remove_alias()
-
+    -- load all given files into the sandbox
     for _, usercode_file in ipairs({...}) do
         load_into_sandbox(
             load_file(usercode_file),

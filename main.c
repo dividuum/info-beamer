@@ -147,6 +147,7 @@ static void client_write(client_t *client, const char *data, size_t data_size);
 static void client_close(client_t *client);
 static void node_printf(node_t *node, const char *fmt, ...);
 static void node_blacklist(node_t *node, double time);
+static void node_remove_alias(node_t *node);
 static void node_reset_quota(node_t *node);
 static int node_render_to_image(lua_State *L, node_t *node);
 static void node_init(node_t *node, node_t *parent, const char *path, const char *name);
@@ -284,9 +285,15 @@ static void node_content_update(node_t *node, const char *name, int added) {
     lua_pushstring(node->L, name);
     lua_pushboolean(node->L, added);
     if (!strcmp(name, NODE_CODE_FILE)) {
+        // reset blacklisted flag
         node->blacklisted = 0;
+
+        // reset node dimensions
         node->width = 0;
         node->height = 0;
+
+        // remove existing node alias
+        node_remove_alias(node);
     }
     lua_node_enter(node, 3, PROFILE_UPDATE);
 }
@@ -412,16 +419,6 @@ static int luaSetAlias(lua_State *L) {
     // set new alias
     node->alias = strdup(alias);
     HASH_ADD_KEYPTR(by_alias, nodes_by_alias, node->alias, strlen(node->alias), node);
-    return 0;
-}
-
-static int luaRemoveAlias(lua_State *L) {
-    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
-    if (node->alias) {
-        HASH_DELETE(by_alias, nodes_by_alias, node);
-        free(node->alias);
-        node->alias = NULL;
-    }
     return 0;
 }
 
@@ -687,6 +684,14 @@ static void node_blacklist(node_t *node, double time) {
     node_printf(node, "blacklisted for %.0f seconds\n", time);
 }
 
+static void node_remove_alias(node_t *node) {
+    if (node->alias) {
+        HASH_DELETE(by_alias, nodes_by_alias, node);
+        free(node->alias);
+        node->alias = NULL;
+    }
+}
+
 static void node_tree_gc(node_t *node) {
     if (!node_is_idle(node))
         lua_gc(node->L, LUA_GCSTEP, 30);
@@ -790,7 +795,6 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "setup", luaSetup);
     lua_register_node_func(node, "print", luaPrint);
     lua_register_node_func(node, "set_alias", luaSetAlias);
-    lua_register_node_func(node, "remove_alias", luaRemoveAlias);
 
     lua_register_node_func(node, "render_self", luaRenderSelf);
     lua_register_node_func(node, "render_child", luaRenderChild);
@@ -841,10 +845,7 @@ static void node_free(node_t *node) {
     free(node->path);
     free(node->name);
 
-    if (node->alias) {
-        HASH_DELETE(by_alias, nodes_by_alias, node);
-        free(node->alias);
-    }
+    node_remove_alias(node);
 
     client_t *client, *tmp_client;
     DL_FOREACH_SAFE(node->clients, client, tmp_client) {
