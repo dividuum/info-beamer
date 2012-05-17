@@ -1207,10 +1207,13 @@ static void client_create(int fd) {
             client);
     bufferevent_enable(client->buf_ev, EV_READ);
     client_write(client, LITERAL_AND_SIZE(VERSION_STRING));
-    client_write(client, " (", 2);
+    client_write(client, LITERAL_AND_SIZE(" ("));
     client_write(client, LITERAL_AND_SIZE(INFO_URL));
-    client_write(client, ")", 2);
-    client_write(client, ". Select your channel!\n", 23);
+    client_write(client, LITERAL_AND_SIZE(") [pid "));
+    char pid[12];
+    snprintf(pid, sizeof(pid), "%d", getpid());
+    client_write(client, pid, strlen(pid));
+    client_write(client, LITERAL_AND_SIZE("]. Select your channel!\n"));
 }
 
 static void accept_callback(int fd, short ev, void *arg) {
