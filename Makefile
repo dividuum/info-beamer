@@ -1,6 +1,6 @@
 # See Copyright Notice in LICENSE.txt
 
-RELEASE = 0.2-beta
+RELEASE = 0.3-beta
 
 VERSION = $(RELEASE).$(shell git rev-parse --short=6 HEAD)
 
