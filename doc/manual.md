@@ -30,7 +30,7 @@ compiling `info-beamer`. Here are the required 3rd party packages:
 
 Dependency          |  Why?
 --------------------|---------------------------
-lua (5.1)           |  for scripting
+lua (5.1)           |  for scripting (Note: lua 5.2 is *not* supported)
 libevent (>2.0)     |  io multiplexing
 glfw                |  opengl initialization
 GL & GLU            |  opengl & utility functions
@@ -51,7 +51,7 @@ Ubuntu provides all required packages. Just execute the following command:
     :::console
 	user:~$ apt-get install liblua5.1-dev libevent-dev libglfw-dev \
 		libglew1.5-dev libftgl-dev libavcodec-dev libswscale-dev \
-		libavformat-dev libdevil-dev
+		libavformat-dev libdevil-dev lua5.1
 
 Building From Source
 --------------------
@@ -143,8 +143,8 @@ screen.
 screen.  `100` is the size of the output in screen units. `1,1,1,1` is
 color in RGBA format (a bright white).
 
-To display this example using `info-beamer`, switch into the `samples`
-directory and type 
+To display this example using `info-beamer`, switch into the `info-beamer`
+source directory and type
 
     :::console
     user:~/src/info-beamer$ ./info-beamer samples/hello
