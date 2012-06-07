@@ -1367,6 +1367,9 @@ int main(int argc, char *argv[]) {
     glfwSetWindowSizeCallback(reshape);
     glfwSetKeyCallback(keypressed);
 
+    if (mode == GLFW_FULLSCREEN)
+        glfwDisable(GLFW_MOUSE_CURSOR);
+
     ilInit();
     iluInit();
     ilutRenderer(ILUT_OPENGL);
