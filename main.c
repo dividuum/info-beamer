@@ -26,7 +26,6 @@
 #include <GL/glfw.h>
 #include <IL/il.h>
 #include <IL/ilu.h>
-#include <IL/ilut.h>
 #include <libavformat/avformat.h>
 #include <event.h>
 #include <event2/dns.h>
@@ -1379,7 +1378,6 @@ int main(int argc, char *argv[]) {
 
     ilInit();
     iluInit();
-    ilutRenderer(ILUT_OPENGL);
 
     signal(SIGVTALRM, deadline_signal);
 
