@@ -2,7 +2,6 @@
 
 #define _BSD_SOURCE
 #define _GNU_SOURCE
-#include <linux/limits.h>
 #include <strings.h>
 #include <unistd.h>
 #include <stdio.h>
