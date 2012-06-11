@@ -73,6 +73,18 @@ type `make` inside the root directory:
 
     usage: ./info-beamer <root_name>
 
+Troubleshooting
+---------------
+
+### /usr/bin/ld: cannot find -llua5.1
+
+I didn't find a reliable way to detect the library name for lua5.1. I'm
+using the linker flag -llua5.1 for linking. If your lua 5.1 library is
+called liblua.so, try the following `make` command line:
+
+    :::console
+    user:~/src/info-beamer$ LUA_LDFLAGS="-llua" make
+
 Installation
 ------------
 
@@ -981,6 +993,18 @@ also use UDP, OSC or TCP to update your node from any language.
 ### Where is the Windows/OSX version?
 
 There is none. The `info-beamer` is currently linux only.
+
+### kernel load error
+
+The `info-beamer` uses the installed binary `lua` to precompile the
+included files `kernel.lua` and `userlib.lua`. `info-beamer` itself uses
+the install liblua. If the version number between the lib and the binary
+differs, you'll get an error. Make sure the binary `lua` is version 5.1,
+then recompile.
+
+    :::console
+    $ user:~$ lua -v
+    Lua 5.1.4  Copyright (C) 1994-2008 Lua.org, PUC-Rio
 
 Contributing
 ============
