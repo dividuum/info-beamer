@@ -82,19 +82,14 @@ int image_from_current_framebuffer(lua_State *L, int width, int height) {
     glGenTextures(1, &tex);
     glBindTexture(GL_TEXTURE_2D, tex);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0,
                  GL_RGBA, GL_UNSIGNED_BYTE, NULL);
     glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
-
-    image_t *image = push_image(L);
-    image->tex = tex;
-    image->fbo = 0;
-    image->width = width;
-    image->height = height;
-    return 1;
+    glGenerateMipmap(GL_TEXTURE_2D);
+    return image_create(L, tex, 0, width, height);
 }
 
 int image_load(lua_State *L, const char *path, const char *name) {
@@ -133,15 +128,8 @@ int image_load(lua_State *L, const char *path, const char *name) {
     glTexImage2D(GL_TEXTURE_2D, 0, ilGetInteger(IL_IMAGE_BPP), width, height, 0,
                  ilGetInteger(IL_IMAGE_FORMAT), GL_UNSIGNED_BYTE, ilGetData());
     glGenerateMipmap(GL_TEXTURE_2D);
- 
     ilDeleteImages(1, &imageID);
- 
-    image_t *image = push_image(L);
-    image->tex = tex;
-    image->fbo = 0;
-    image->width = width;
-    image->height = height;
-    return 1;
+    return image_create(L, tex, 0, width, height);
 }
 
 static int image_gc(lua_State *L) {

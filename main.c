@@ -651,6 +651,10 @@ static int node_render_to_image(lua_State *L, node_t *node) {
         node->gl_matrix_depth = NO_GL_PUSHPOP;
     }
 
+    // rebind to framebuffer texture
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glGenerateMipmap(GL_TEXTURE_2D);
+
     // restore previous state
     glPopAttrib();
 
