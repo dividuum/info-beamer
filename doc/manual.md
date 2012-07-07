@@ -533,11 +533,13 @@ Renders a child node into an `image` object. Rendering will call
 The returned `image` supports the same methods like images objects created
 by `resource.load_image`.
 
-### image = resource.create_snapshot()
+### image = resource.create_snapshot(mipmap)
 
 Copies the current framebuffer output (all things drawn up to this point) 
 into a new image. This allows you to feed the output of the node
 into a shader in the next iteration.
+
+If `mipmap` is true, the resulting image object will be mipmapped.
 
 This function can only be called inside of `node.render` (or any
 functions called from there). 

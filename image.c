@@ -77,18 +77,20 @@ int image_create(lua_State *L, GLuint tex, GLuint fbo, int width, int height) {
     return 1;
 }
 
-int image_from_current_framebuffer(lua_State *L, int width, int height) {
+int image_from_current_framebuffer(lua_State *L, int width, int height, int mipmap) {
     GLuint tex;
     glGenTextures(1, &tex);
     glBindTexture(GL_TEXTURE_2D, tex);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    GLint filter = mipmap ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR;
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0,
                  GL_RGBA, GL_UNSIGNED_BYTE, NULL);
     glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
-    glGenerateMipmap(GL_TEXTURE_2D);
+    if (mipmap)
+        glGenerateMipmap(GL_TEXTURE_2D);
     return image_create(L, tex, 0, width, height);
 }
 

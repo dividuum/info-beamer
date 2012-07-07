@@ -487,7 +487,8 @@ static int luaCreateSnapshot(lua_State *L) {
     if (node->snapshot_quota-- <= 0)
         return luaL_error(L, "too many snapshots");
     node->num_resource_inits++;
-    return image_from_current_framebuffer(L, node->width, node->height);
+    int mipmap = lua_toboolean(L, 1);
+    return image_from_current_framebuffer(L, node->width, node->height, mipmap);
 }
 
 static int luaCreateShader(lua_State *L) {
