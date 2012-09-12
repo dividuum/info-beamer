@@ -837,8 +837,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
         // If kernel.lua was procompiled with an incompatible lua
         // version, loading the embedded code fail here. Try to
         // detect this...
-        die("cannot load kernel.lua: %s%s",
-            lua_tostring(node->L, -1),
+        die("cannot load kernel.lua: %s%s", error,
             strstr(error, "bad header") ? " (See 'kernel load error' in the docs)" : ""
         );
     }
