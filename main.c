@@ -885,11 +885,28 @@ static void node_search_and_boot(node_t *node) {
         char child_path[PATH_MAX];
         snprintf(child_path, sizeof(child_path), "%s/%s", node->path, child_name);
 
-        if (ep->d_type == DT_DIR) {
+        enum { CHILD_FILE, CHILD_DIR, CHILD_UNKNOWN } type = CHILD_UNKNOWN;
+
+        if (ep->d_type == DT_UNKNOWN) {
+           struct stat sb;
+           if (stat(child_path, &sb) == -1)
+               die("cannot stat %s", child_path);
+           if (S_ISDIR(sb.st_mode)) {
+               type = CHILD_DIR;
+           } else if (S_ISREG(sb.st_mode)) {
+               type = CHILD_FILE;
+           }
+        } else if (ep->d_type == DT_DIR) {
+            type = CHILD_DIR;
+        } else if (ep->d_type == DT_REG) {
+            type = CHILD_FILE;
+        }
+
+        if (type == CHILD_DIR) {
             node_t *child = node_add_child(node, child_path, child_name);
             node_search_and_boot(child);
             node_child_update(node, child->name, 1);
-        } else if (ep->d_type == DT_REG && strcmp(child_name, NODE_CODE_FILE)) {
+        } else if (type == CHILD_FILE && strcmp(child_name, NODE_CODE_FILE)) {
             node_content_update(node, child_name, 1);
         }
     }
