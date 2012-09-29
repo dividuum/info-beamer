@@ -76,7 +76,7 @@ static void video_free(video_t *video) {
 
 static int video_open(video_t *video, const char *filename) {
     video->format = PIX_FMT_RGB24;
-    if (av_open_input_file(&video->format_context, filename, NULL, 0, NULL) ||
+    if (avformat_open_input(&video->format_context, filename, NULL, NULL) ||
             av_find_stream_info(video->format_context) < 0) {
         fprintf(stderr, ERROR("cannot open video stream %s\n"), filename);
         goto failed;
@@ -183,7 +183,7 @@ static int video_open(video_t *video, const char *filename) {
     }
 
     /* Give some info on stderr about the file & stream */
-    dump_format(video->format_context, 0, filename, 0);
+    av_dump_format(video->format_context, 0, filename, 0);
     return 1;
 failed:
     video_free(video);
