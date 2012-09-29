@@ -1348,13 +1348,19 @@ int main(int argc, char *argv[]) {
         die("cannot canonicalize path: %s", strerror(errno));
 
     char *split = rindex(root_name, '/');
-    if (split) {
-        *split = '\0';
-        fprintf(stderr, INFO("chdir %s\n"), root_name);
-        if (chdir(root_name) == -1)
-            die("cannot chdir(%s): %s", root_name, strerror(errno));
-        root_name = split+1;
-    }
+    if (!split)
+        die("no slashes in target path. cannot continue");
+
+    *split = '\0';
+    if (*root_name == '\0')
+        root_name = "/";
+
+    fprintf(stderr, INFO("chdir %s\n"), root_name);
+    if (chdir(root_name) == -1)
+        die("cannot chdir(%s): %s", root_name, strerror(errno));
+
+    root_name = split+1;
+    fprintf(stderr, INFO("root node is %s\n"), root_name);
 
     inotify_fd = inotify_init1(IN_NONBLOCK);
     if (inotify_fd == -1)
