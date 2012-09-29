@@ -31,6 +31,7 @@
 void die(const char *fmt, ...);
 void *xmalloc(size_t size);
 double time_delta(struct timeval *before, struct timeval *after);
+int check_utf8(const char* s);
 
 extern GLuint default_tex;
 extern struct event_base *event_base;
@@ -89,15 +90,5 @@ int type##_register(lua_State *L) {                                     \
     lua_pop(L, 1);                                                      \
     return 1;                                                           \
 }
-
-// Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
-// See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
-//
-// Modified for info-beamer
-
-#define UTF8_ACCEPT 0
-#define UTF8_REJECT 1
-
-int check_utf8(const char* s);
 
 #endif

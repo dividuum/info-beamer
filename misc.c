@@ -58,6 +58,9 @@ static const uint8_t utf8d[] = {
   1,3,1,1,1,1,1,3,1,3,1,1,1,1,1,1,1,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // s7..s8
 };
 
+#define UTF8_ACCEPT 0
+#define UTF8_REJECT 1
+
 uint32_t decode_utf8(uint32_t* state, uint32_t* codep, uint32_t byte) {
     uint32_t type = utf8d[byte];
 
