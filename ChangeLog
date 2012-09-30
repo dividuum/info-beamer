@@ -1,0 +1,8 @@
+1.0pre1
+
+	* Fixed unhandled case DT_UNKNOWN by using stat as a fallback.
+	  If info-beamer didn't load resources at startup, it will now.
+	* Replaced deprecated libav calls.
+	* Removed unused ilut dependency .
+	* Hide mouse cursor in fullscreen mode.
+	* Textures and Snapshots can be mipmapped.
