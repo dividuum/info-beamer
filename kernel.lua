@@ -278,6 +278,14 @@ function create_sandbox()
         N = N;
     }
 
+    -- There is only one metatable for strings. Reset it
+    -- to the sandbox controlled version.
+    local string_mt = getmetatable("")
+    for k, v in pairs(string_mt) do
+        string_mt[k] = nil
+    end
+    string_mt.__index = sandbox.string
+
     sandbox._G = sandbox
     return sandbox
 end
