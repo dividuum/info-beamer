@@ -329,6 +329,7 @@ end
 -- so dass der C Teil dran kommt.
 do
     local registry = debug.getregistry()
+    local full_scale = os.getenv("INFOBEAMER_FULLSCALE")
 
     registry.traceback = debug.traceback
 
@@ -368,10 +369,14 @@ do
             end
         elseif cmd == "render_self" then
             local screen_width, screen_height = ...
-            sandbox.util.draw_correct(
-                render_self(),
-                0, 0, screen_width, screen_height
-            )
+            if full_scale then
+                render_self():draw(0, 0, screen_width, screen_height)
+            else
+                sandbox.util.draw_correct(
+                    render_self(),
+                    0, 0, screen_width, screen_height
+                )
+            end
         end
     end
 

@@ -1338,6 +1338,7 @@ int main(int argc, char *argv[]) {
             "  INFOBEAMER_PORT=<port>   # Listen on alternative port (tcp & udp, default %d)\n"
             "  INFOBEAMER_PRECOMPILED=1 # Allow precompiled code\n"
             "                             Warning: unsafe for untrusted code\n"
+            "  INFOBEAMER_FULLSCALE=1   # Scale root node to full screen size\n"
             "\n",
             argv[0], DEFAULT_PORT);
         exit(1);
