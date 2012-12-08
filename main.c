@@ -371,6 +371,8 @@ static int luaGlOrtho(lua_State *L) {
             node->height, 0,
             -1000, 1000);
     glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    node->gl_matrix_depth = 0;
     return 0;
 }
 
@@ -390,6 +392,8 @@ static int luaGlPerspective(lua_State *L) {
               center_x, center_y, center_z,
               0, -1, 0);
     glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    node->gl_matrix_depth = 0;
     return 0;
 }
 

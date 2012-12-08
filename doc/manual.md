@@ -578,6 +578,8 @@ Resets the view to an orthogonal projection. It will create a projection
 where the topleft pixel of the virtualscreen is at `0`, `0` and the
 bottomright pixel is at `WIDTH`, `HEIGHT`. This is the default mode.
 
+Calling this function will discard all matrices pushed by gl.pushMatrix().
+
 ### gl.perspective(fov, eyex, eyey, eyez, centerx, centery, centerz)
 
 This will create a perspective projection. The field of view is given by
@@ -601,6 +603,8 @@ Here are some useful values to try if you want to switch from `gl.ortho` to
 Produces a rotation of `angle` degrees around the vector `x`, `y`, `z`.
 Consider using `gl.perspective` to see the scene in perspective mode. It
 might look better.
+
+Calling this function will discard all matrices pushed by gl.pushMatrix().
 
 ### gl.translate(x, y, [z])
 
