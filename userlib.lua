@@ -240,6 +240,7 @@ end
 
 function util.post_effect(shader, shader_opt)
     local surface = resource.create_snapshot()
+    gl.ortho()
     gl.clear(0,0,0,1)
     shader:use(shader_opt)
     surface:draw(0, 0, WIDTH, HEIGHT)
