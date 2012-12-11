@@ -38,7 +38,7 @@ typedef struct {
     GLuint po;
 } shader_t;
 
-LUA_TYPE_DECL(shader);
+LUA_TYPE_DECL(shader)
 
 /* Instance methods */
 
@@ -206,4 +206,4 @@ static int shader_gc(lua_State *L) {
     return 0;
 }
 
-LUA_TYPE_IMPL(shader);
+LUA_TYPE_IMPL(shader)

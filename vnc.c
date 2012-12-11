@@ -60,7 +60,7 @@ struct vnc_s {
     int rect_h;
 };
 
-LUA_TYPE_DECL(vnc);
+LUA_TYPE_DECL(vnc)
 
 /* Instance methods */
 
@@ -501,4 +501,4 @@ static int vnc_gc(lua_State *L) {
     return 0;
 }
 
-LUA_TYPE_IMPL(vnc);
+LUA_TYPE_IMPL(vnc)

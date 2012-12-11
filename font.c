@@ -17,7 +17,7 @@ typedef struct {
     GLuint tex;
 } font_t;
 
-LUA_TYPE_DECL(font);
+LUA_TYPE_DECL(font)
 
 /* Instance methods */
 
@@ -99,4 +99,4 @@ static int font_gc(lua_State *L) {
     return 0;
 }
 
-LUA_TYPE_IMPL(font);
+LUA_TYPE_IMPL(font)

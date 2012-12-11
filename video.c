@@ -54,7 +54,7 @@ typedef struct {
     double fps;
 } video_t;
 
-LUA_TYPE_DECL(video);
+LUA_TYPE_DECL(video)
 
 /* Helper functions */
 
@@ -375,4 +375,4 @@ static int video_gc(lua_State *L) {
     return 0;
 }
 
-LUA_TYPE_IMPL(video);
+LUA_TYPE_IMPL(video)

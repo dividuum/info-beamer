@@ -1283,7 +1283,7 @@ static void open_tcp(struct event *event) {
 }
 
 static void tick() {
-	now = glfwGetTime();
+    now = glfwGetTime();
 
     check_inotify();
 

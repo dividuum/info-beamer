@@ -21,7 +21,7 @@ typedef struct {
     int height;
 } image_t;
 
-LUA_TYPE_DECL(image);
+LUA_TYPE_DECL(image)
 
 /* Instance methods */
 
@@ -152,4 +152,4 @@ static int image_gc(lua_State *L) {
     return 0;
 }
 
-LUA_TYPE_IMPL(image);
+LUA_TYPE_IMPL(image)
