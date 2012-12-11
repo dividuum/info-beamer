@@ -973,9 +973,47 @@ and put in your node directory. From within your node code you can then
 
 	:::lua
 	json = require "json"
-	print(json.encode{foo = "bar})
+	print(json.encode{foo = "bar"})
 
 Native modules or precompiled modules cannot be loaded.
+
+### Can I automatically load json / lua files?
+
+Yes. The auto_loader uses the table util.loaders. Entries in this table map 
+filename suffixes to loader functions. These functions are called with a 
+filename and are expected to return a value or raise an error.
+
+To automatically load json files, use the following code:
+
+    ::lua
+    json = require "json" -- see previous faq
+
+    util.loaders.json = function(filename)
+        return json.decode(resource.load_file(filename))
+    end
+
+    -- invoke the autoloader
+    util.auto_loader(_G)
+
+To automatically parse and evaluate all lua files except those that
+where previously loaded using `require`, use the following code:
+
+    ::lua
+    util.loaders.lua = function(filename)
+        local name, suffix = filename:match("(.*)[.]([^.]+)$")
+        if package.loaded[name] then
+            error("ignoring " .. name .. ": already loaded as module")
+        end
+        return assert(loadstring(
+            resource.load_file(filename), "=" .. PATH .. "/" .. filename
+        ))()
+    end 
+
+    -- invoke the autoloader
+    util.auto_loader(_G)
+
+Misc
+----
 
 ### Lua sucks! Why not Javascript/Python/other language of your choice?
 
