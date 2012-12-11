@@ -1053,6 +1053,7 @@ To use `info-beamer` in combination with luajit2, call `make` like this:
 
 Or if you compiled your own version of luajit2: 
 
+    ::console
     $ USE_LUAJIT=1 LUA_CFLAGS=-I../luajit-2.0/src \
       LUA_LDFLAGS=../luajit-2.0/src/libluajit.a make
 
