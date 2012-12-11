@@ -14,6 +14,7 @@ ifdef USE_LUAJIT
 LUA_CFLAGS  ?= -I/usr/include/luajit-2.0
 LUA_LDFLAGS ?= -lluajit-5.1
 LUA_LUAC    ?= luac
+CFLAGS      += -DUSE_LUAJIT=1
 else
 #################################################
 # 

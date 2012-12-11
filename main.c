@@ -47,7 +47,13 @@
 #include "kernel.h"
 #include "userlib.h"
 
-#define VERSION_STRING "Info Beamer " VERSION
+#if USE_LUAJIT
+#include <luajit.h>
+#define VERSION_STRING "Info Beamer " VERSION "+" LUA_VERSION "+" LUAJIT_VERSION
+#else
+#define VERSION_STRING "Info Beamer " VERSION "+" LUA_VERSION
+#endif
+
 #define INFO_URL "http://info-beamer.org/"
 
 #define NODE_CODE_FILE "node.lua"
@@ -153,6 +159,7 @@ static void node_free(node_t *node);
 
 /*======= Lua Sandboxing =======*/
 
+#ifndef USE_LUAJIT
 static void *lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize) {
     node_t *node = ud;
     node->num_allocs++;
@@ -164,6 +171,7 @@ static void *lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize) {
         return tlsf_realloc(node->pool, ptr, nsize);
     }
 }
+#endif
 
 /* execution time limiting for pcalls */
 static node_t *global_node = NULL;

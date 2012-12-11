@@ -22,12 +22,6 @@
 #define INFO(str) WHITE("[" __FILE__ "]") " " str
 #define ERROR(str) RED("[" __FILE__ "]") " " str
 
-#ifdef LUA_JDIR
-// best luajit detection I found
-#define USE_LUAJIT 1
-#endif
-
-
 void die(const char *fmt, ...);
 void *xmalloc(size_t size);
 double time_delta(struct timeval *before, struct timeval *after);

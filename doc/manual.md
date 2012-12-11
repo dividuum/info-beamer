@@ -1000,6 +1000,24 @@ also use UDP, OSC or TCP to update your node from any language.
 
 There is none. The `info-beamer` is currently linux only.
 
+### Can I use luajit2?
+
+Yes. Although some sandboxing features will be disabled: luajit2 uses
+its own allocator which cannot be overwritten, so limiting memory 
+usage isn't possible. Aborting nodes that use too much CPU time might
+be unreliable. If you only run nodes you trust, this shouldn't be a 
+problem.
+
+To use `info-beamer` in combination with luajit2, call `make` like this:
+
+    ::console
+    $ USE_LUAJIT=1 make
+
+Or if you compiled your own version of luajit2: 
+
+    $ USE_LUAJIT=1 LUA_CFLAGS=-I../luajit-2.0/src \
+      LUA_LDFLAGS=../luajit-2.0/src/libluajit.a make
+
 ### kernel load error
 
 The `info-beamer` uses the installed binary `lua` to precompile the
