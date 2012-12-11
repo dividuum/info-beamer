@@ -69,7 +69,7 @@ static void video_free(video_t *video) {
     if (video->codec_context)
         avcodec_close(video->codec_context);
     if (video->format_context)
-        av_close_input_file(video->format_context);
+        avformat_close_input(&video->format_context);
 
     av_free(video->buffer);
 }
@@ -77,7 +77,7 @@ static void video_free(video_t *video) {
 static int video_open(video_t *video, const char *filename) {
     video->format = PIX_FMT_RGB24;
     if (avformat_open_input(&video->format_context, filename, NULL, NULL) ||
-            av_find_stream_info(video->format_context) < 0) {
+            avformat_find_stream_info(video->format_context, NULL) < 0) {
         fprintf(stderr, ERROR("cannot open video stream %s\n"), filename);
         goto failed;
     }
@@ -103,7 +103,8 @@ static int video_open(video_t *video, const char *filename) {
     video->width = video->codec_context->width;
     video->height = video->codec_context->height;
 
-    if (!video->codec || avcodec_open(video->codec_context, video->codec) < 0) {
+	
+    if (!video->codec || avcodec_open2(video->codec_context, video->codec, NULL) < 0) {
         fprintf(stderr, ERROR("cannot open codec\n"));
         goto failed;
     }

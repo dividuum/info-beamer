@@ -29,7 +29,7 @@ LUA_LUAC    ?= luac
 endif
 
 CFLAGS  += -DVERSION='"$(VERSION)"'
-CFLAGS  += $(LUA_CFLAGS) -I/usr/include/freetype2/ -I/usr/include/ffmpeg -std=c99 -Wall -Wno-unused-function -Wno-unused-variable -Wno-deprecated-declarations 
+CFLAGS  += $(LUA_CFLAGS) -I/usr/include/freetype2/ -I/usr/include/ffmpeg -std=c99 -Wall -Wno-unused-function -Wno-unused-variable 
 LDFLAGS += $(LUA_LDFLAGS) -levent -lglfw -lGL -lGLU -lGLEW -lftgl -lIL -lILU -lavformat -lavcodec -lavutil -lswscale -lz 
 
 all: info-beamer
