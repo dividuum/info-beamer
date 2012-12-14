@@ -1089,7 +1089,12 @@ static int create_socket(int type) {
 
     memset(&sin, 0, sizeof(sin));
     sin.sin_family = AF_INET;
-    sin.sin_addr.s_addr = inet_addr(LISTEN_ADDR);
+
+    const char *addr = getenv("INFOBEAMER_ADDR");
+    if (!addr) addr = LISTEN_ADDR;
+    if (!inet_aton(addr, &sin.sin_addr))
+        die("invalid address %s", addr);
+
     sin.sin_port = htons(listen_port);
 
     if (bind(fd, (struct sockaddr *)&sin, sizeof(struct sockaddr)) < 0)
@@ -1342,17 +1347,18 @@ int main(int argc, char *argv[]) {
 
     if (argc != 2 || (argc == 2 && !strcmp(argv[1], "-h"))) {
         fprintf(stderr, 
-            "Usage: %s <root_name>\n"
+            "Usage: %s <path_to_root_node>\n"
             "\n"
             "Optional environment variables:\n"
             "\n"
             "  INFOBEAMER_FULLSCREEN=1  # Fullscreen mode\n"
+            "  INFOBEAMER_ADDR=<addr>   # Bind to specified ip (default %s)\n"
             "  INFOBEAMER_PORT=<port>   # Listen on alternative port (tcp & udp, default %d)\n"
             "  INFOBEAMER_PRECOMPILED=1 # Allow precompiled code\n"
             "                             Warning: unsafe for untrusted code\n"
             "  INFOBEAMER_FULLSCALE=1   # Scale root node to full screen size\n"
             "\n",
-            argv[0], DEFAULT_PORT);
+            argv[0], LISTEN_ADDR, DEFAULT_PORT);
         exit(1);
     }
 
