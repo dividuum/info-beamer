@@ -478,12 +478,6 @@ int vnc_create(lua_State *L, const char *host, int port) {
     vnc->host = strdup(host);
     vnc->port = port;
 
-    struct sockaddr_in sin;
-    memset(&sin, 0, sizeof(sin));
-    sin.sin_family = AF_INET;
-    sin.sin_addr.s_addr = inet_addr(host);
-    sin.sin_port = htons(port);
-
     vnc_printf(vnc, "connecting...\n");
     vnc->buf_ev = bufferevent_socket_new(event_base, -1, BEV_OPT_CLOSE_ON_FREE);
     vnc_set_handler(vnc, vnc_read_handshake, sizeof(pkt_server_handshake));
