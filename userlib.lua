@@ -458,7 +458,12 @@ package = {
         coroutine = coroutine;
         debug = debug;
         struct = struct;
+
         util = util;
+
+        sys = sys;
+        gl = gl;
+        resource = resource;
     };
 
     loaders = {
