@@ -1059,6 +1059,7 @@ static int win_w, win_h;
 static void GLFWCALL reshape(int width, int height) {
     win_w = width;
     win_h = height;
+    fprintf(stderr, INFO("resized to %dx%d\n"), width, height);
 }
 
 static void GLFWCALL keypressed(int key, int action) {
@@ -1357,6 +1358,8 @@ int main(int argc, char *argv[]) {
             "  INFOBEAMER_PRECOMPILED=1 # Allow precompiled code\n"
             "                             Warning: unsafe for untrusted code\n"
             "  INFOBEAMER_FULLSCALE=1   # Scale root node to full screen size\n"
+            "  INFOBEAMER_WIDTH=<w>     # Width (default 1024)\n"
+            "  INFOBEAMER_HEIGHT=<h>    # Height (default 768)\n"
             "\n",
             argv[0], LISTEN_ADDR, DEFAULT_PORT);
         exit(1);
@@ -1404,8 +1407,20 @@ int main(int argc, char *argv[]) {
     glfwOpenWindowHint(GLFW_FSAA_SAMPLES, 4);
 
     int mode = getenv("INFOBEAMER_FULLSCREEN") ? GLFW_FULLSCREEN : GLFW_WINDOW;
+    int width = 1024;
+    int height = 768;
 
-    if(!glfwOpenWindow(1024, 768, 8,8,8,8, 0,0, mode))
+    const char *new_width = getenv("INFOBEAMER_WIDTH");
+    if (new_width)
+        width = atoi(new_width);
+
+    const char *new_height = getenv("INFOBEAMER_HEIGHT");
+    if (new_height)
+        height = atoi(new_height);
+
+    fprintf(stderr, INFO("initial size is %dx%d\n"), width, height);
+
+    if(!glfwOpenWindow(height, width, 8,8,8,8, 0,0, mode))
         die("cannot open window");
 
     GLenum err = glewInit();
