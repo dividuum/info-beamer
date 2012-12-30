@@ -62,7 +62,7 @@ doc:
 
 install: info-beamer
 	
-	install -d -o root -g root -m 755 $< $(DESTDIR)$(bindir)/
+	install -D -o root -g root -m 755 $< $(DESTDIR)$(bindir)/
 
 .PHONY: clean doc install
 
