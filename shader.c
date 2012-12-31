@@ -149,7 +149,7 @@ int shader_new(lua_State *L, const char *vertex, const char *fragment) {
 
     glGetObjectParameterivARB(vs, GL_COMPILE_STATUS, &status);
     if (!status) {
-        fault = "compiling pixel shader";
+        fault = "compiling vertex shader";
         glGetShaderInfoLog(vs, sizeof(log), &log_len, log);
         if (log_len > 0) 
             goto error;
