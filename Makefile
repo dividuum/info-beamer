@@ -33,9 +33,9 @@ CFLAGS  += -DVERSION='"$(VERSION)"'
 CFLAGS  += $(LUA_CFLAGS) -I/usr/include/freetype2/ -I/usr/include/ffmpeg -std=c99 -Wall
 LDFLAGS += $(LUA_LDFLAGS) -levent -lglfw -lGL -lGLU -lGLEW -lftgl -lIL -lILU -lavformat -lavcodec -lavutil -lswscale -lz 
 
-prefix ?= /usr/local
+prefix 		?= /usr/local
 exec_prefix ?= $(prefix)
-bindir ?= $(exec_prefix)/bin
+bindir 		?= $(exec_prefix)/bin
 
 all: info-beamer
 
@@ -61,10 +61,9 @@ doc:
 	$(MAKE) -C doc
 
 install: info-beamer
-	
-	install -D -o root -g root -m 755 $< $(DESTDIR)$(bindir)/
-
-.PHONY: clean doc install
+	install -D -o root -g root -m 755 $< $(DESTDIR)$(bindir)/$<
 
 clean:
 	rm -f *.o info-beamer kernel.h userlib.h bin2c *.compiled
+
+.PHONY: clean doc install
