@@ -1254,10 +1254,10 @@ static void client_create(int fd) {
     client_write(client, LITERAL_AND_SIZE(VERSION_STRING));
     client_write(client, LITERAL_AND_SIZE(" ("));
     client_write(client, LITERAL_AND_SIZE(INFO_URL));
-    client_write(client, LITERAL_AND_SIZE(") [pid "));
-    char pid[12];
-    snprintf(pid, sizeof(pid), "%d", getpid());
-    client_write(client, pid, strlen(pid));
+    client_write(client, LITERAL_AND_SIZE(") ["));
+    char status[64];
+    snprintf(status, sizeof(status), "pid %d/uptime %d", getpid(), (int)now);
+    client_write(client, status, strlen(status));
     client_write(client, LITERAL_AND_SIZE("]. Select your channel!\n"));
 }
 
