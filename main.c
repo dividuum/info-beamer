@@ -1215,7 +1215,7 @@ static void client_close(client_t *client) {
 static void client_read(struct bufferevent *bev, void *arg) {
     client_t *client = arg;
 
-    char *line = evbuffer_readline(bev->input);
+    char *line = evbuffer_readln(bev->input, NULL, EVBUFFER_EOL_CRLF);
     if (!line)
         return;
 
