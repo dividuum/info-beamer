@@ -718,7 +718,7 @@ callback will be called with the suffix `slider/1` and the decoded osc
 values. See `util.osc_mapper` for an easier way to receive and dispatch osc
 packets.
 
-### node.event("input", function(line) ... end)
+### node.event("input", function(line, client) ... end)
 
 `info-beamer` allows incoming TCP connections to port 4444. You'll be
 greeted by a welcome line and are expected to provide a node name.
@@ -735,12 +735,29 @@ used for debugging a node from remote.
 
 Any text you type while connected will trigger the `input` event. The
 `input` event will be given the provided line. This can be used to feed a
-node with input from outside sources.
+node with input from outside sources. The second argument `client` is an 
+opaque value that can be used to differentiate between multiple clients 
+connected to the same node. See the `connect` and `disconnect` event.
 
     :::lua
-    node.event("input", function(line)
+    node.event("input", function(line, client)
         print("Input was: " .. line)
     end)
+
+### node.event("connect", function(client) ... end)
+
+Once a TCP client connects to the `info-beamer` and selects the node, 
+the connect event will be called. Its only argument is an opaque 
+`client` value. This value is also provided for the `input` and 
+`disconnect` event and can be used in combination with e.g. 
+coroutines to handle clients connections as a session.
+See the sample node in `samples/parrot` for a short example.
+
+### node.event("disconnect", function(client) ... end)
+
+`info-beamer` will call this event once a TCP client disconnects from
+the current node. Its only argument is an opaque client value. See
+`input` and `disconnect` for more information.
 
 Utility Functions
 -----------------

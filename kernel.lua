@@ -208,7 +208,10 @@ function create_sandbox()
 
             osc = {};
             data = {};
+
+            connect = {};
             input = {};
+            disconnect = {};
 
             raw_data = {
                 function(data, is_osc, suffix)

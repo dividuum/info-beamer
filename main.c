@@ -1203,6 +1203,9 @@ static void client_write(client_t *client, const char *data, size_t data_size) {
 
 static void client_close(client_t *client) {
     if (client->node) {
+        lua_pushlightuserdata(client->node->L, client);
+        node_event(client->node, "disconnect", 1);
+
         // unlink client & node
         DL_DELETE(client->node->clients, client);
         client->node = NULL;
@@ -1221,7 +1224,8 @@ static void client_read(struct bufferevent *bev, void *arg) {
 
     if (client->node) {
         lua_pushstring(client->node->L, line);
-        node_event(client->node, "input", 1);
+        lua_pushlightuserdata(client->node->L, client);
+        node_event(client->node, "input", 2);
     } else {
         node_t *node = node_find_by_path_or_alias(line);
         if (!node) {
@@ -1231,6 +1235,9 @@ static void client_read(struct bufferevent *bev, void *arg) {
             DL_APPEND(node->clients, client);
             client->node = node;
             client_write(client, LITERAL_AND_SIZE("ok!\n"));
+
+            lua_pushlightuserdata(node->L, client);
+            node_event(client->node, "connect", 1);
         }
     } 
     free(line);
