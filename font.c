@@ -14,7 +14,6 @@
 
 typedef struct {
     FTGLfont *font;
-    GLuint tex;
 } font_t;
 
 LUA_TYPE_DECL(font)
