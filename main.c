@@ -1218,29 +1218,31 @@ static void client_close(client_t *client) {
 static void client_read(struct bufferevent *bev, void *arg) {
     client_t *client = arg;
 
-    char *line = evbuffer_readln(bev->input, NULL, EVBUFFER_EOL_CRLF);
-    if (!line)
-        return;
+    while (1) {
+        char *line = evbuffer_readln(bev->input, NULL, EVBUFFER_EOL_CRLF);
+        if (!line)
+            break;
 
-    if (client->node) {
-        lua_pushstring(client->node->L, line);
-        lua_pushlightuserdata(client->node->L, client);
-        node_event(client->node, "input", 2);
-    } else {
-        node_t *node = node_find_by_path_or_alias(line);
-        if (!node) {
-            client_write(client, LITERAL_AND_SIZE("404\n"));
+        if (client->node) {
+            lua_pushstring(client->node->L, line);
+            lua_pushlightuserdata(client->node->L, client);
+            node_event(client->node, "input", 2);
         } else {
-            // link client & node
-            DL_APPEND(node->clients, client);
-            client->node = node;
-            client_write(client, LITERAL_AND_SIZE("ok!\n"));
+            node_t *node = node_find_by_path_or_alias(line);
+            if (!node) {
+                client_write(client, LITERAL_AND_SIZE("404\n"));
+            } else {
+                // link client & node
+                DL_APPEND(node->clients, client);
+                client->node = node;
+                client_write(client, LITERAL_AND_SIZE("ok!\n"));
 
-            lua_pushlightuserdata(node->L, client);
-            node_event(client->node, "connect", 1);
+                lua_pushlightuserdata(node->L, client);
+                node_event(client->node, "connect", 1);
+            }
         }
-    } 
-    free(line);
+        free(line);
+    }
 }
 
 static void client_error(struct bufferevent *bev, short what, void *arg) {
