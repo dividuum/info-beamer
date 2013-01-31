@@ -514,3 +514,201 @@ function require(modname)
     end
     return package.loaded[modname]
 end
+
+
+do
+    local function red(str)    return "[31m" .. str .. "[0m" end
+    local function green(str)  return "[32m" .. str .. "[0m" end
+    local function yellow(str) return "[33m" .. str .. "[0m" end
+
+    local handlers = {
+        ["boolean"] = function(cmd, info, target)
+            local function setup()
+                target[cmd] = info.value
+            end
+            local function info()
+                return string.format("(%s)", tostring(target[cmd]))
+            end
+            local function call(arg)
+                local value = ({
+                    ["true"] = true;
+                    ["1"] = true;
+                    ["y"] = true;
+                    ["false"] = false;
+                    ["0"] = false;
+                    ["n"] = false;
+                })[arg]
+                if value == nil then
+                    print(red("invalid value: true/false expected"))
+                else
+                    target[cmd] = value
+                    print(green("value updated"))
+                end
+            end
+            return {
+                setup = setup;
+                param = "<true|false>";
+                info = info;
+                call = call;
+            }
+        end;
+        ["string"] = function(cmd, info, target)
+            local function setup()
+                target[cmd] = info.value
+            end
+            local function info()
+                return string.format("(\"%s\")", target[cmd])
+            end
+            local function call(arg)
+                target[cmd] = arg
+                print(green("value updated"))
+            end
+            return {
+                setup = setup;
+                param = "<\"new value\">";
+                info = info;
+                call = call;
+            }
+        end;
+        ["number"] = function(cmd, info, target)
+            local function setup()
+                target[cmd] = info.value
+            end
+            local function info()
+                return string.format("(%f)", target[cmd])
+            end
+            local function call(arg)
+                local value = tonumber(arg)
+                if value == nil then
+                    print(red("invalid value: number expected"))
+                else
+                    target[cmd] = value
+                    print(green("value updated"))
+                end
+            end
+            return {
+                setup = setup;
+                param = "<number>";
+                info = info;
+                call = call;
+            }
+        end;
+        ["function"] = function(cmd, info, target)
+            local function call(arg)
+                return info.value(target, readln, arg)
+            end
+            return {
+                setup = function() end;
+                param = "";
+                info = function() return "" end;
+                call = call;
+            }
+        end;
+    }
+
+
+    local function create_menu_interface(name, target, options, readln)
+        if not target then
+            target = _G
+        end
+
+        for cmd, info in pairs(options) do
+            local type = info.type or type(info.value)
+            info.handler = handlers[type](cmd, info, target)
+            info.handler.setup()
+        end
+
+        local function print_help()
+            local max_size = 0
+            local cmds = {}
+            for cmd, info in pairs(options) do
+                max_size = math.max(max_size, #cmd + 1 + #info.handler.param)
+                cmds[#cmds+1] = cmd
+            end
+            table.sort(cmds)
+            print()
+            print(green("Available commands/values:"))
+            for idx, cmd in ipairs(cmds) do
+                local info = options[cmd]
+                print(string.format("%-" .. tostring(max_size) .. "s - %s %s", cmd .. " " .. info.handler.param, info.help, info.handler.info()))
+            end
+            print()
+        end
+
+        return function()
+            while true do
+                print()
+                print(yellow(name .. " - your command"))
+                local line = readln()
+                if line == "?" or line == "help" then
+                    print_help()
+                elseif line == "" or line == "exit" then
+                    break
+                else
+                    local cmd, arg = string.match(line, "^([^%s]+) (.*)$")
+                    if not cmd then
+                        cmd = line
+                    end
+                    local option = options[cmd]
+                    if option then
+                        option.handler.call(arg)
+                    else
+                        print(red("invalid command line \"" .. line .. "\". type '?' for help"))
+                    end
+                end
+            end
+        end
+    end
+
+    local function create_submenu(name, options)
+        return {
+            value = function(target, readln)
+                return create_menu_interface(name, target, options, readln)()
+            end;
+            help = name;
+        }
+    end
+
+    local function create_variable(value, help)
+        return {
+            value = value;
+            help = help;
+        }
+    end
+
+    local function tcp_export(options, target)
+        local main_menu = create_menu_interface("main menu", target, options, function()
+            return coroutine.yield()
+        end)
+
+        if not N.clients then
+            N.clients = {}
+        end
+
+        node.event("connect", function(client)
+            local handler = coroutine.wrap(function()
+                print(green("configuration interface for " .. PATH))
+                print(green("-----------------------------------------"))
+                while true do
+                    main_menu()
+                end
+            end)
+            N.clients[client] = handler
+            handler()
+        end)
+
+        node.event("input", function(line, client)
+            N.clients[client](line)
+        end)
+
+        node.event("disconnect", function(client)
+            N.clients[client] = nil
+        end)
+    end
+
+    util.menu = {
+        tcp = tcp_export;
+        sub = create_submenu;
+        var = create_variable;
+    }
+end
