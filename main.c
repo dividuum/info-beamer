@@ -230,10 +230,23 @@ static int lua_panic(lua_State *L) {
     return 0;
 }
 
-static const char *lua_safe_error_message(lua_State *L) {
+static const char *lua_safe_dedup_error_message(lua_State *L) {
     const char *message = lua_tostring(L, -1);
     if (!message)
         die("<null> error message");
+
+    lua_pushliteral(L, "last_error");
+    lua_rawget(L, LUA_REGISTRYINDEX);
+    int same_as_last_time = lua_equal(L, -1, -2);
+    lua_pop(L, 1); // remove value of last_error
+
+    if (same_as_last_time) {
+        message = NULL;
+    } else {
+        lua_pushliteral(L, "last_error");
+        lua_pushvalue(L, -2);
+        lua_rawset(L, LUA_REGISTRYINDEX);
+    }
     return message;
 }
 
@@ -259,7 +272,9 @@ static void lua_node_enter(node_t *node, int args, profiling_bins bin) {
                     status == LUA_ERRMEM ? "memory error"  :
                     status == LUA_ERRERR ? "error handling error" : NULL;
         assert(err);
-        node_printf(node, "%s: %s\n", err, lua_safe_error_message(L));
+        const char *message = lua_safe_dedup_error_message(L);
+        if (message)
+            node_printf(node, "%s: %s\n", err, message);
         lua_pop(L, 2);                          //
     }
     gettimeofday(&after, NULL);
@@ -335,6 +350,13 @@ static node_t *get_rendering_node(lua_State *L) {
     if (!node_is_rendering(node))
         luaL_error(L, "only callable in node.render");
     return node;
+}
+
+static int luaResetError(lua_State *L) {
+    lua_pushliteral(L, "last_error");
+    lua_pushnil(L);
+    lua_rawset(L, LUA_REGISTRYINDEX);
+    return 0;
 }
 
 static int luaRenderSelf(lua_State *L) {
@@ -806,6 +828,8 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     shader_register(node->L);
     vnc_register(node->L);
     luaopen_struct(node->L);
+
+    lua_register_node_func(node, "reset_error", luaResetError);
 
     lua_register_node_func(node, "setup", luaSetup);
     lua_register_node_func(node, "print", luaPrint);
