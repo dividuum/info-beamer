@@ -303,7 +303,7 @@ end
 function reload(...)
     sandbox = create_sandbox()
 
-	reset_error()
+    reset_error()
 
     -- load userlib
     load_into_sandbox(
