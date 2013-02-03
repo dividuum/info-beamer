@@ -365,7 +365,7 @@ static int luaRenderSelf(lua_State *L) {
 }
 
 static int luaRenderChild(lua_State *L) {
-    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    node_t *node = get_rendering_node(L);
     if (node->child_render_quota-- <= 0)
         return luaL_error(L, "too many childs rendered");
 
@@ -394,7 +394,7 @@ static int luaSetup(lua_State *L) {
 }
 
 static int luaGlOrtho(lua_State *L) {
-    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    node_t *node = get_rendering_node(L);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     glOrtho(0, node->width,
@@ -407,7 +407,7 @@ static int luaGlOrtho(lua_State *L) {
 }
 
 static int luaGlPerspective(lua_State *L) {
-    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    node_t *node = get_rendering_node(L);
     double fov = luaL_checknumber(L, 1);
     double eye_x = luaL_checknumber(L, 2);
     double eye_y = luaL_checknumber(L, 3);
