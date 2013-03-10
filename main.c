@@ -1453,7 +1453,7 @@ int main(int argc, char *argv[]) {
 
     fprintf(stderr, INFO("initial size is %dx%d\n"), width, height);
 
-    if(!glfwOpenWindow(height, width, 8,8,8,8, 0,0, mode))
+    if(!glfwOpenWindow(width, height, 8,8,8,8, 0,0, mode))
         die("cannot open window");
 
     GLenum err = glewInit();
