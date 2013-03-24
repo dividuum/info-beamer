@@ -168,16 +168,25 @@ function util.file_watch(filename, handler)
     updated(filename)
 end
 
+local function handle_suffix_match(suffix, pattern, callback, ...)
+    local data = {...}
+    return (function(s, e, ...)
+        if s == nil then
+            return false
+        end
+        local args = {...}
+        for n = 1, #data do
+            args[#args+1] = data[n]
+        end
+        callback(unpack(args))
+        return true
+    end)(suffix:find(pattern))
+end
+
 function util.osc_mapper(routes)
     node.event("osc", function(suffix, ...)
         for pattern, callback in pairs(routes) do
-            local match = {suffix:match(pattern)}
-            if #match > 0 then
-                if match[1] == suffix then
-                    callback(...)
-                else
-                    callback(unpack(match), ...)
-                end
+            if handle_suffix_match(suffix, pattern, callback, ...) then
                 return
             end
         end
@@ -187,13 +196,7 @@ end
 function util.data_mapper(routes)
     node.event("data", function(data, suffix)
         for pattern, callback in pairs(routes) do
-            local match = {suffix:match(pattern)}
-            if #match > 0 then
-                if match[1] == suffix then
-                    callback(data)
-                else
-                    callback(unpack(match), data)
-                end
+            if handle_suffix_match(suffix, pattern, callback, data) then
                 return
             end
         end
