@@ -130,7 +130,14 @@ function create_sandbox()
         string = {
             byte = string.byte;
             char = string.char;
-            find = string.find;
+            find = function(s, pattern, init, plain)
+                if #s > 32768 then
+                    error("s too large")
+                elseif #pattern > 4096 then
+                    error("pattern too large")
+                end
+                return string.find(s, pattern, init, plain)
+            end;
             format = string.format;
             gmatch = string.gmatch;
             gsub = string.gsub;
