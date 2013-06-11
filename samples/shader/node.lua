@@ -2,7 +2,6 @@ gl.setup(640, 480)
 
 util.resource_loader{
     "lua.png",
-    "shader.vert",
     "shader.frag",
 }
 

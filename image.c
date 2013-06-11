@@ -13,6 +13,7 @@
 
 #include "framebuffer.h"
 #include "misc.h"
+#include "shader.h"
 
 typedef struct {
     GLuint tex;
@@ -41,7 +42,7 @@ static int image_draw(lua_State *L) {
     GLfloat alpha = luaL_optnumber(L, 6, 1.0);
 
     glBindTexture(GL_TEXTURE_2D, image->tex);
-    glColor4f(1.0, 1.0, 1.0, alpha);
+    shader_set_gl_color(1.0, 1.0, 1.0, alpha);
 
     glBegin(GL_QUADS); 
         glTexCoord2f(0.0, 1.0); glVertex3f(x1, y1, 0);

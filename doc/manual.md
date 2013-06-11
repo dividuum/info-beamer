@@ -201,26 +201,7 @@ initialized with the values from the `gl.setup` call.
 ### Videos
 
 You can load videos and display them. Doing so is quite similar to image
-loading:
-
-    :::lua
-    gl.setup(1024, 768)
-
-    video = resource.load_video("video.mp4")
-
-    function node.render()
-        video:next()
-        video:draw(0, 0, WIDTH, HEIGHT)
-    end
-
-`video` now contains a video object. Calling `video:next` will read the
-next frame of the video. `video:draw` will then display this frame. You'll
-notice that video playback will be too fast. Since `node.render` is called
-for each frame `info-beamer` wants to display, it's most likely that this
-function will be called 60 times per seconds (the refresh rate of your
-monitor).  Likewise your video might have 25 frames per seconds. So
-you'll have to slow down decoding to the actual framerate of the video.
-`util.videoplayer` will do all of this for you:
+loading. `util.videoplayer` provides an easy way to do this:
 
     :::lua
     gl.setup(1024, 768)
@@ -233,7 +214,8 @@ you'll have to slow down decoding to the actual framerate of the video.
 
 `util.videoplayer` is a helper function that provides a small wrapper
 around video resources. It will automatically decode the video using the
-correct framerate.
+correct framerate. Using the `draw` function displays the current video
+frame.
 
 ### Rendering Child Nodes
 
@@ -351,11 +333,10 @@ create the server, be sure that you are in a secure environment. Inside
 ### Using GLSL Shaders
 
 `info-beamer` supports GLSL shaders. Shaders are small programs that run on
-the GPU.  They enable various realtime effects using the raw power of your
-GPU.  Shaders come in pairs: A vertex shader and a fragment shader. Vertex
-shaders are responsible for transforming 3D positions. Fragment shaders
-then calculate the color displayed on each visible pixel of the transformed
-object. Fragment shaders can be used to create stunning realtime effects.
+the GPU. They enable various realtime effects using the raw power of your
+GPU. You can use fragment shaders with info-beamer. Fragment shaders 
+calculate the color displayed for each visible pixel of rendered objects.
+They can be used to create stunning realtime effects.
 `info-beamer` enables you to pass numeric values and additional textures
 into the shader. This allows you to do all kinds of crazy stuff like for
 example blending videos with static textures.
@@ -384,17 +365,17 @@ very easy. You just give it a number of filenames. It will then detect
 which loader is responsible for the given fileformat and load the file into
 a global variable whose name is derived from the filename. The above code
 will load the image `lua.png` into the global variable `lua`. It will also
-load the shader pair `shader.vert` and `shader.frag` into the global
-variable `shader`. The resource loader will also make sure that changed
-files will be reloaded. So if you edit and save for example `shader.frag`,
-`info-beamer` will instantly reload the shader. You can see changes
-to your effect immediatelly. This is great for rapidly developing effects.
+load the shader `shader.frag` into the global variable `shader`. The resource 
+loader will also make sure that changed files will be reloaded. So if you edit 
+and save for example `shader.frag`, `info-beamer` will instantly reload the 
+shader. You can see changes to your effect immediatelly. This is great for 
+rapidly developing effects.
 
 Inside of `node.render` we first clear the screen. Then we activate the
-shader, which was automatically created from the files `shader.vert` and
-`shader.frag` by `util.resource_loader`. We pass in a variable `Effect`
-which depends on a time value.  Finally, we draw `lua.png` with the
-applied shader. This will create a dynamic effect.
+shader, which was automatically created from the file `shader.frag` by 
+`util.resource_loader`. We pass in a variable `Effect` which depends on a time 
+value.  Finally, we draw `lua.png` with the applied shader. This will create 
+a dynamic effect.
 
 Reference
 =========
@@ -420,8 +401,11 @@ Returns the size of the image.
 
 ### video = resource.load\_video(filename)
 
-Loads any supported video file and returns a 
-`video` object. The `video` objects supports the following methods:
+Loads any supported video file and returns a `video` object. Is is 
+**strongly recommended** not to use the video object directly. Use the more 
+convenient function util.videoplayer for loading and playing videos.
+
+The `video` objects supports the following methods:
 
 #### video:draw(x1, y1, x2, y2)
 
@@ -429,8 +413,19 @@ Draws the current video frame into a rectangle specified by the give coordinates
 
 #### has\_next\_frame = video:next()
 
-Decodes the next frame of the video. Returns true, if a frame was decoded
-or false if there was no next frame.
+On the desktop version: Decodes the next frame of the video. Returns true, if 
+a frame was decoded or false if there was no next frame.
+
+On the PI version: Checks, if the current video has more frames available. 
+Returns false if the video has ended. The PI version does not support single 
+stepping through a video.
+
+#### video:set\_loop(loop)
+
+Only available on the PI version: Set the loop flag for video playback. 
+By default, the loaded video will not be looped. The end of the video can
+be detected using video:next(). If `loop` is true, the video will be looped.
+The loop flag can be changed while playback is active.
 
 #### width, height = video:size()
 
@@ -457,20 +452,48 @@ ascii range.
 
 #### width = font:write(x, y, text, size, texturelike)
 
-Mostly identical to font:write but will not use a solid color but the
-texturelike object. `texturelike` can be an image, a video or any other
-`texturelike` objects. The texture will be used for each character
-individually.
+Only available on the desktop version: Mostly identical to font:write but 
+will not use a solid color but the texturelike object. `texturelike` can be 
+an image, a video or any other `texturelike` objects. The texture will be 
+used for each character individually.
 
 ### string = resource.load\_file(filename)
 
 Will load the content of the specified file into a string value.
 At most 16kb (16384 bytes) are readable.
 
-### shader = resource.create\_shader(vertex\_shader, fragment\_shader)
+### shader = resource.create\_shader(fragment\_shader)
 
-Will create a new `shader` object. `vertex_shader` and `fragment_shader`
-are strings containing the shaders in the GLSL language.
+Will create a new `shader` object. `fragment_shader` is the string containing 
+the fragment part of the shader in the GLSL language.
+
+The following varying und attribute values are defined withing the 
+fragment shader:
+
+    :::glsl
+    uniform sampler Texture; // Incoming texture surface (image/video)
+    varying vec2 TexCoord; // Texture coordinate
+    uniform vec4 Color; // Active color/alpha (e.g. while drawing text)
+
+The identity fragment shader is:
+
+    :::glsl
+    uniform sampler Texture;
+    varying vec2 TexCoord;
+    uniform vec4 Color;
+    void main() {
+        gl_FragColor = texture2D(Texture, TexCoord) * Color;
+    }
+
+Within the shader, the following defines are available:
+
+    :::glsl
+    // Active in all info-beamer glsl shaders
+    #define INFOBEAMER
+
+    // Depending on the platform info-beamer is running on:
+    #define INFOBEAMER_PLAT_DESKTOP
+    #define INFOBEAMER_PLAT_PI
 
 #### shader:use(table\_of\_shader\_variables)
 
@@ -886,6 +909,12 @@ Provides a small wrapper around `resource.load_video`. Provides simplified
 playback of videos by handling framerate issues. `opt_table` is an optional
 table containing the key `loop`. It is a boolean value that indicates if
 the videoplayer should loop the video.
+
+The behaviour between the desktop and the raspberry pi version differs in 
+regards to playing videos:
+
+ * On the PI version, videos will still play, even if the node using the video
+   is not rendered by its parent node.
 
 `util.videoplayer` will return a `video` object that has the following method:
 

@@ -2,12 +2,8 @@
 
 util = {}
 
-function util.shaderpair_loader(any_name)
-    local name, suffix = any_name:match("(.*)[.]([^.]+)$")
-    return resource.create_shader(
-        resource.load_file(name .. ".vert"),
-        resource.load_file(name .. ".frag")
-    )
+function util.shader_loader(filename)
+    return resource.create_shader(resource.load_file(filename))
 end
 
 function util.videoplayer(name, opt)
@@ -91,8 +87,7 @@ util.loaders = {
     mkv  = util.videoplayer;
     mp4  = util.videoplayer;
     mov  = util.videoplayer;
-    frag = util.shaderpair_loader;
-    vert = util.shaderpair_loader;
+    frag = util.shader_loader;
 }
 
 function util.auto_loader(container, filter)

@@ -13,25 +13,6 @@
 
 #include "misc.h"
 
-/*
- * Identity shader
- *
- * shader = resource.create_shader([[
- *     void main() {
- *         gl_TexCoord[0] = gl_MultiTexCoord0;
- *         gl_FrontColor = gl_Color;
- *         gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
- *     }
- * ]], [[
- *     uniform sampler2D tex;
- *     void main() {
- *         vec4 texel = texture2D(tex, gl_TexCoord[0].st);
- *         gl_FragColor = gl_Color * texel;
- *     }
- * ]])
- *
-*/
-
 typedef struct {
     GLuint fs;
     GLuint vs;
@@ -119,6 +100,9 @@ static int shader_use(lua_State *L) {
     }
     lua_pop(L, 1);
     glActiveTexture(GL_TEXTURE0);
+    GLint texloc = glGetUniformLocation(shader->po, "Texture");
+    if (texloc != -1)
+        glUniform1i(texloc, 0);
     return 0;
 }
 
@@ -138,13 +122,15 @@ static const luaL_reg shader_methods[] = {
 int shader_new(lua_State *L, const char *vertex, const char *fragment) {
     char *fault = "";
     char log[1024];
+    const char *define = "#define INFOBEAMER\n#define INFOBEAMER_PLAT_DESKTOP\n";
     GLint status;
     GLsizei log_len;
     GLuint fs = 0, vs = 0, po = 0;
 
     // Pixel
     vs = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vs, 1, &vertex, NULL);
+    const char *vertex_sources[] = { define, vertex };
+    glShaderSource(vs, 2, vertex_sources, NULL);
     glCompileShader(vs);
 
     glGetObjectParameterivARB(vs, GL_COMPILE_STATUS, &status);
@@ -157,7 +143,8 @@ int shader_new(lua_State *L, const char *vertex, const char *fragment) {
 
     // Fragment
     fs =  glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fs, 1, &fragment, NULL);
+    const char *fragment_sources[] = { define, fragment };
+    glShaderSource(fs, 2, fragment_sources, NULL);
     glCompileShader(fs);
 
     glGetObjectParameterivARB(fs, GL_COMPILE_STATUS, &status);
@@ -207,3 +194,13 @@ static int shader_gc(lua_State *L) {
 }
 
 LUA_TYPE_IMPL(shader)
+
+void shader_set_gl_color(GLfloat r, GLfloat g, GLfloat b, GLfloat a) {
+    glColor4f(r, g, b, a);
+
+    GLint prog, color;
+    glGetIntegerv(GL_CURRENT_PROGRAM, &prog);
+    color = glGetUniformLocation(prog, "Color");
+    if (color != -1)
+        glUniform4f(color, r, g, b, a);
+}

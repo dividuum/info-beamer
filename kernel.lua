@@ -15,6 +15,22 @@ function safe_loadstring(code, chunkname, allow_precompiled)
     end
 end
 
+local seen_warnings = {}
+function deprecation_warning(tag, warn, level)
+    if not seen_warnings[tag] then
+        seen_warnings[tag] = true
+        print(debug.traceback("deprecation warning: " .. warn, level))
+    end
+end
+
+local DEFAULT_VERTEX_SHADER = [[
+    varying vec2 TexCoord;
+    void main() {
+        TexCoord = gl_MultiTexCoord0;
+        gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+    }
+]]
+
 --=============
 -- Sandboxing
 --=============
@@ -182,7 +198,26 @@ function create_sandbox()
             load_video = load_video;
             load_font = load_font;
             load_file = load_file;
-            create_shader = create_shader;
+            create_shader = function(vertex, fragment)
+                if fragment == nil then
+                    fragment = vertex
+                    vertex = DEFAULT_VERTEX_SHADER
+                elseif vertex == nil then
+                    vertex = DEFAULT_VERTEX_SHADER
+                    deprecation_warning(
+                        "shader_nil_vertex",
+                        "Using nil vertex argument for create_shader is deprecated. Only specify a single fragment argument.",
+                        3
+                    )
+                else
+                    deprecation_warning(
+                        "create_shader",
+                        "Specifying both vertex and fragment shader is deprecated. Only specify a single fragment argument.",
+                        3
+                    )
+                end
+                return create_shader(vertex, fragment)
+            end;
             create_vnc = create_vnc;
             create_snapshot = create_snapshot;
         };

@@ -11,6 +11,7 @@
 #include <lualib.h>
 
 #include "misc.h"
+#include "shader.h"
 
 typedef struct {
     FTGLfont *font;
@@ -39,7 +40,7 @@ static int font_write(lua_State *L) {
         GLfloat b = luaL_checknumber(L, 8);
         GLfloat a = luaL_optnumber(L, 9, 1.0);
 
-        glColor4f(r,g,b,a);
+        shader_set_gl_color(r, g, b, a);
         glBindTexture(GL_TEXTURE_2D, default_tex);
     } else if (type == LUA_TUSERDATA || type == LUA_TTABLE) {
         lua_pushliteral(L, "texid");
@@ -53,7 +54,7 @@ static int font_write(lua_State *L) {
         int tex_id = lua_tonumber(L, -1);
         lua_pop(L, 1);
 
-        glColor4f(1,1,1,1);
+        shader_set_gl_color(1.0, 1.0, 1.0, 1.0);
         glBindTexture(GL_TEXTURE_2D, tex_id);
     } else {
         return luaL_argerror(L, 6, "unsupported value. must be RGBA or texturelike");

@@ -19,6 +19,7 @@
 #include <event.h>
 
 #include "misc.h"
+#include "shader.h"
 
 typedef struct vnc_s vnc_t;
 typedef void(*protocol_handler)(vnc_t *);
@@ -80,7 +81,7 @@ static int vnc_draw(lua_State *L) {
     GLfloat alpha = luaL_optnumber(L, 6, 1.0);
 
     glBindTexture(GL_TEXTURE_2D, vnc->tex);
-    glColor4f(1.0, 1.0, 1.0, alpha);
+    shader_set_gl_color(1.0, 1.0, 1.0, alpha);
 
     glBegin(GL_QUADS); 
         glTexCoord2f(0.0, 1.0); glVertex3f(x1, y1, 0);
