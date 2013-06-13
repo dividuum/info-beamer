@@ -58,12 +58,12 @@ else
 endif
 
 doc:
-	$(MAKE) -C doc
+	markdown_py -x toc -x tables -x codehilite doc/manual.md > doc/manual.html
 
 install: info-beamer
 	install -D -o root -g root -m 755 $< $(DESTDIR)$(bindir)/$<
 
 clean:
-	rm -f *.o info-beamer kernel.h userlib.h bin2c *.compiled
+	rm -f *.o info-beamer kernel.h userlib.h bin2c *.compiled doc/manual.html
 
 .PHONY: clean doc install
