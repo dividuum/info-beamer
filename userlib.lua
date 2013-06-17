@@ -471,9 +471,10 @@ package = {
             if not status then
                 return "no file " .. filename .. ": " .. content
             else
-                return function(filename)
-                    local modulename = PATH .. "/" .. filename
-                    return loadstring(content, "=" .. modulename)(modname)
+                return function(loader_modname)
+                    assert(loader_modname == modname)
+                    local filename = PATH .. "/" .. modname .. ".lua"
+                    return loadstring(content, "=" .. filename)(modname)
                 end, filename
             end
         end
