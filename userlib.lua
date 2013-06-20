@@ -80,6 +80,7 @@ util.loaders = {
     gif  = resource.load_image;
     bmp  = resource.load_image;
     ttf  = resource.load_font;
+    otf  = resource.load_font;
     avi  = util.videoplayer;
     mpg  = util.videoplayer;
     ogg  = util.videoplayer;

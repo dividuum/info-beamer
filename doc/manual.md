@@ -437,7 +437,7 @@ Returns the frame per seconds as specified by the video file.
 
 ### font = resource.load\_font(filename)
 
-Loads the given Truetype font file and returns a `font` object. It
+Loads the given font file (in TTF or OTF format) and returns a `font` object. It
 supports the following methods:
 
 #### width = font:write(x, y, text, size, r, g, b, [a])
