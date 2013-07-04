@@ -399,11 +399,14 @@ Draws the image into a rectangle specified by the give coordinates.
 
 Returns the size of the image.
 
-### video = resource.load\_video(filename)
+### video = resource.load\_video(filename, play_audio)
 
 Loads any supported video file and returns a `video` object. Is is 
 **strongly recommended** not to use the video object directly. Use the more 
 convenient function util.videoplayer for loading and playing videos.
+
+The `play_audio` flag is only available in the PI version. If set to
+`true`, info-beamer will play the audio track in the video.
 
 The `video` objects supports the following methods:
 
@@ -419,13 +422,6 @@ a frame was decoded or false if there was no next frame.
 On the PI version: Checks, if the current video has more frames available. 
 Returns false if the video has ended. The PI version does not support single 
 stepping through a video.
-
-#### video:set\_loop(loop)
-
-Only available on the PI version: Set the loop flag for video playback. 
-By default, the loaded video will not be looped. The end of the video can
-be detected using video:next(). If `loop` is true, the video will be looped.
-The loop flag can be changed while playback is active.
 
 #### width, height = video:size()
 
@@ -907,8 +903,13 @@ packets.
 
 Provides a small wrapper around `resource.load_video`. Provides simplified
 playback of videos by handling framerate issues. `opt_table` is an optional
-table containing the key `loop`. It is a boolean value that indicates if
-the videoplayer should loop the video.
+table containing the following keys:
+
+`loop` - it is a boolean value that indicates if the videoplayer should 
+loop the video. It defaults to false.
+
+`audio` - a boolean value to tell info-beamer to play audio too. This
+flag is only available in the PI version. It defaults to false.
 
 The behaviour between the desktop and the raspberry pi version differs in 
 regards to playing videos:
