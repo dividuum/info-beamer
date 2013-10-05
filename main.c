@@ -1377,7 +1377,7 @@ static void init_default_texture() {
 
 int main(int argc, char *argv[]) {
     fprintf(stdout, VERSION_STRING " (" INFO_URL ")\n");
-    fprintf(stdout, "Copyright (c) 2012, Florian Wesch <fw@dividuum.de>\n\n");
+    fprintf(stdout, "Copyright (c) 2013, Florian Wesch <fw@dividuum.de>\n\n");
 
     if (argc != 2 || (argc == 2 && !strcmp(argv[1], "-h"))) {
         fprintf(stderr, 
