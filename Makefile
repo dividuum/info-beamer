@@ -44,6 +44,9 @@ info-beamer: main.o image.o font.o video.o shader.o vnc.o framebuffer.o misc.o t
 
 main.o: main.c kernel.h userlib.h
 
+info-beamer.1: info-beamer.1.ronn
+	ronn $< -r --pipe > $@
+
 bin2c: bin2c.c
 	$(CC) $^ -o $@
 
@@ -64,6 +67,6 @@ install: info-beamer
 	install -D -o root -g root -m 755 $< $(DESTDIR)$(bindir)/$<
 
 clean:
-	rm -f *.o info-beamer kernel.h userlib.h bin2c *.compiled doc/manual.html
+	rm -f *.o info-beamer kernel.h userlib.h bin2c *.compiled doc/manual.html info-beamer.1
 
 .PHONY: clean doc install

@@ -1,5 +1,6 @@
 *.o
 info-beamer
+info-beamer.1
 news/
 kernel.h
 userlib.h
