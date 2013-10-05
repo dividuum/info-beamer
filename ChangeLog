@@ -1,3 +1,26 @@
+1.0pre3
+
+    * New environment variable INFOBEAMER_ADDR:
+	  Allows binding of the listening ports to the specified
+	  ip address.
+	* New environment variable INFOBEAMER_WIDTH and
+	  INFOBEAMER_HEIGHT: Use these options to set the
+	  initial window width.
+	* New 'connect' and 'disconnect' events allow
+	  stateful tcp connections.
+	* Error deduplication:
+	  Errors are not repeated to avoid spamming the console
+	* Unified pi/linux version: Shaders behave the same.
+
+1.0pre2
+
+	* New environment variable INFOBEAMER_FULLSCALE:
+	  Forces the displayed content to use the full resolution and
+	  ignores the aspect ratio.
+	* Removed usage of deprecated libav functions
+	* Support for luajit2
+	* Fix: gl.ortho and gl.perspective reset the gl matrices.
+
 1.0pre1
 
 	* Fixed unhandled case DT_UNKNOWN by using stat as a fallback.
