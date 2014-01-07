@@ -399,6 +399,12 @@ Draws the image into a rectangle specified by the give coordinates.
 
 Returns the size of the image.
 
+#### image:dispose()
+
+Only available for the PI version. Removes all resources allocated 
+for this image. Using the image after calling dispose will return
+an error. This is mainly useful in combination with the `slow_gc` flag.
+
 ### video = resource.load\_video(filename, play_audio)
 
 Loads any supported video file and returns a `video` object. Is is 
@@ -430,6 +436,12 @@ Returns the size of the video.
 #### fps = video:fps()
 
 Returns the frame per seconds as specified by the video file.
+
+#### video:dispose()
+
+Only available for the PI version. Removes all resources allocated 
+for this video. Using the video after calling dispose will return
+an error. This is mainly useful in combination with the `slow_gc` flag.
 
 ### font = resource.load\_font(filename)
 
@@ -642,6 +654,29 @@ Misc Functions
 
 Returns a timestamp as a floating point number that will increment by 1 for
 each passing second. The timestamp is relative to the start of `info-beamer`.
+
+### sys.exit()
+
+Exits info-beamer. Only available on the PI version. It's disabled unless you
+define the environment variable INFOBEAMER_ALLOW_EXIT.
+
+### sys.set_flag(flag, [status])
+
+Sets runtime flags that change some behaviour. Only available on the PI version.
+The following flags are available:
+
+ * `slow_gc`: Disables the per frame garbage collection and switches
+   to a more relaxed GC mode. This might give you a slightly better
+   performance in exchange for more memory usage. If you activate
+   this, be careful: You'll have to manually dispose rendered child
+   nodes (using :dispose()). Otherwise they will be created faster than
+   the garbage collector can remove them.
+ * `no_clear`: Removes the implicit gl.clear call while rendering 
+   a node.
+ * `no_deadline`: Removes the time limit while rendering a node.
+
+ `status` is `true` by default (and will activate the flag). Use `false` 
+ to deactivate a flag again.
 
 Node Functions
 --------------
