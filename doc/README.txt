@@ -1,1 +1,1 @@
-This manual is available on http://info-beamer.org/doc/
+Documentation is available on https://info-beamer.com/doc/info-beamer
