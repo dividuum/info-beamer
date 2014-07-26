@@ -39,7 +39,7 @@ bindir 		?= $(exec_prefix)/bin
 
 all: info-beamer
 
-info-beamer: main.o image.o font.o video.o shader.o vnc.o framebuffer.o misc.o tlsf.o struct.o
+info-beamer: main.o image.o font.o video.o shader.o vnc.o framebuffer.o misc.o struct.o
 	$(CC) -o $@ $^ $(LDFLAGS) 
 
 main.o: main.c kernel.h userlib.h
