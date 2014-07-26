@@ -26,6 +26,14 @@ LUA_TYPE_DECL(image)
 
 /* Instance methods */
 
+static int image_state(lua_State *L) {
+    image_t *image = checked_image(L, 1);
+    lua_pushliteral(L, "loaded");
+    lua_pushnumber(L, image->width);
+    lua_pushnumber(L, image->height);
+    return 3;
+}
+
 static int image_size(lua_State *L) {
     image_t *image = checked_image(L, 1);
     lua_pushnumber(L, image->width);
@@ -60,10 +68,16 @@ static int image_texid(lua_State *L) {
     return 1;
 }
 
+static int image_dispose(lua_State *L) {
+    return 0;
+}
+
 static const luaL_reg image_methods[] = {
+    {"state",   image_state},
     {"draw",    image_draw},
     {"size",    image_size},
     {"texid",   image_texid},
+    {"dispose", image_dispose},
     {0,0}
 };
 
@@ -96,6 +110,23 @@ int image_from_current_framebuffer(lua_State *L, int width, int height, int mipm
         glGenerateMipmap(GL_TEXTURE_2D);
     return image_create(L, tex, 0, width, height);
 }
+
+int image_from_color(lua_State *L, GLfloat r, GLfloat g, GLfloat b, GLfloat a) {
+    GLuint tex;
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    unsigned char buf[4] = {r * 255, g * 255, b * 255, a * 255 };
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, buf);
+
+    return image_create(L, tex, 0, 1, 1);
+}
+
 
 int image_load(lua_State *L, const char *path, const char *name) {
     ILuint imageID;

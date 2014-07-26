@@ -4,5 +4,6 @@ info-beamer.1
 news/
 kernel.h
 userlib.h
+module_*.h
 bin2c
 *.compiled

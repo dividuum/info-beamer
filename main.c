@@ -45,6 +45,7 @@
 
 #include "kernel.h"
 #include "userlib.h"
+#include "module_json.h"
 
 #if USE_LUAJIT
 #include <luajit.h>
@@ -56,6 +57,9 @@
 #define INFO_URL "http://info-beamer.org/"
 
 #define NODE_CODE_FILE "node.lua"
+
+#define ENVIRONMENT_PREFIX "INFOBEAMER_ENV_"
+#define ENVIRONMENT_PREFIX_SIZE (sizeof(ENVIRONMENT_PREFIX)-1)
 
 #define MAX_MEM 2000000 // KB
 #define MAX_GL_PUSH 20 // glPushMatrix depth
@@ -512,6 +516,21 @@ static int luaLoadFile(lua_State *L) {
     return 1;
 }
 
+static int luaCreateColoredTexture(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    GLfloat r = luaL_checknumber(L, 1);
+    GLfloat g = luaL_checknumber(L, 2);
+    GLfloat b = luaL_checknumber(L, 3);
+    GLfloat a = luaL_optnumber(L, 4, 1.0);
+    node->num_resource_inits++;
+    return image_from_color(L,
+        CLAMP(r, 0, 1),
+        CLAMP(g, 0, 1),
+        CLAMP(b, 0, 1),
+        CLAMP(a, 0, 1)
+    );
+}
+
 static int luaCreateSnapshot(lua_State *L) {
     node_t *node = get_rendering_node(L);
     if (node->snapshot_quota-- <= 0)
@@ -835,6 +854,7 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "load_video", luaLoadVideo);
     lua_register_node_func(node, "load_font", luaLoadFont);
     lua_register_node_func(node, "load_file", luaLoadFile);
+    lua_register_node_func(node, "create_colored_texture", luaCreateColoredTexture);
     lua_register_node_func(node, "create_snapshot", luaCreateSnapshot);
     lua_register_node_func(node, "create_shader", luaCreateShader);
     lua_register_node_func(node, "create_vnc", luaCreateVnc);
@@ -859,10 +879,35 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_pushlstring(node->L, userlib, userlib_size);
     lua_setglobal(node->L, "USERLIB");
 
+    lua_pushlstring(node->L, module_json, module_json_size);
+    lua_setglobal(node->L, "MODULE_JSON");
+
     lua_pushliteral(node->L, NODE_CODE_FILE);
     lua_setglobal(node->L, "NODE_CODE_FILE");
 
-    if (luaL_loadbuffer(node->L, kernel, kernel_size, "kernel.lua") != 0) {
+    // get variables from environment
+    lua_newtable(node->L);
+    for (const char **cur = (const char**)environ; *cur; cur++) {
+        if (strstr(*cur, ENVIRONMENT_PREFIX) != *cur)
+            continue;
+        const char *equals = strstr(*cur + ENVIRONMENT_PREFIX_SIZE, "=");
+        if (!equals)
+            continue;
+
+        const char *name = *cur + ENVIRONMENT_PREFIX_SIZE;
+        int name_len = equals - name;
+
+        const char *value = equals+1;
+
+        // printf("%d %.*s %s\n", name_len, name_len, name, value);
+        lua_pushlstring(node->L, name, name_len);
+        lua_pushstring(node->L, value);
+        lua_rawset(node->L, -3);
+    }
+    lua_setglobal(node->L, "NODE_ENVIRON");
+
+
+    if (luaL_loadbuffer(node->L, kernel, kernel_size, "=kernel.lua") != 0) {
         const char *error =  lua_tostring(node->L, -1);
         // If kernel.lua was procompiled with an incompatible lua
         // version, loading the embedded code fail here. Try to
@@ -1366,7 +1411,7 @@ static void init_default_texture() {
 
 int main(int argc, char *argv[]) {
     fprintf(stdout, VERSION_STRING " (" INFO_URL ")\n");
-    fprintf(stdout, "Copyright (c) 2013, Florian Wesch <fw@dividuum.de>\n\n");
+    fprintf(stdout, "Copyright (c) 2014 Florian Wesch <fw@dividuum.de>\n\n");
 
     if (argc != 2 || (argc == 2 && !strcmp(argv[1], "-h"))) {
         fprintf(stderr, 

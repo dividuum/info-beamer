@@ -7,9 +7,9 @@ the Lua programming language. Read more about it on the [main website](http://in
 Documentation
 -------------
 
-The complete documentation is available on [http://info-beamer.org/doc/](http://info-beamer.org/doc/)
+The complete documentation is available on [info-beamer.com](https://info-beamer.com/doc/info-beamer)
 
 Installation
 ------------
 
-See the [documentation](http://info-beamer.org/doc/#installing-info-beamer) for more information.
+See the [documentation](https://info-beamer.com/doc/info-beamer#installing-info-beamer) for more information.

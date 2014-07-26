@@ -475,7 +475,22 @@ package = {
                 return function(loader_modname)
                     assert(loader_modname == modname)
                     local filename = PATH .. "/" .. modname .. ".lua"
-                    return loadstring(content, "=" .. filename)(modname)
+                    return assert(loadstring(content, "=" .. filename))(modname)
+                end, filename
+            end
+        end;
+
+        -- bundled moduls loader
+        function(modname)
+            local filename = modname .. ".lua"
+            local content = _BUNDLED_MODULES[filename]
+            if not content then
+                return "no file " .. filename
+            else
+                return function(loader_modname)
+                    print("loading bundled module '" .. loader_modname .. "'")
+                    assert(loader_modname == modname)
+                    return assert(loadstring(content, "=" .. filename))(modname)
                 end, filename
             end
         end
@@ -515,6 +530,48 @@ function require(modname)
     return package.loaded[modname]
 end
 
+function hosted_init()
+    local json = require "json"
+    local hosted = nil
+    local config_json = nil
+    local node_json = nil
+
+    local reload_config = function()
+        print "[hosted] reloading config"
+        -- pp(hosted)
+        -- pp(node_json)
+        -- pp(config_json)
+        if hosted and node_json and config_json then
+            local parsed = hosted.parse_config(node_json.options, config_json)
+            _G['CONFIG'] = parsed
+            node.dispatch("config_update", parsed)
+        end
+    end
+    util.file_watch("hosted.lua", function(content)
+        print "[hosted] loading hosted.lua"
+        local filename = PATH .. "/hosted.lua"
+        hosted = assert(loadstring(content, "=" .. filename))()
+        reload_config()
+    end)
+    util.file_watch("node.json", function(content)
+        print("[hosted] loading node.json")
+        node_json = json.decode(content)
+        _G['NODE'] = node_json
+        reload_config()
+        node.dispatch("node_update", node_json)
+    end)
+    util.file_watch("config.json", function(content)
+        print("[hosted] loading config.json")
+        config_json = json.decode(content)
+        reload_config()
+    end)
+    util.file_watch("package.json", function(content)
+        print("[hosted] loading package.json")
+        local package_json = json.decode(content)
+        _G['PACKAGE'] = package_json
+        node.dispatch("package_update", package_json)
+    end)
+end
 
 do
     local function red(str)    return "[31m" .. str .. "[0m" end

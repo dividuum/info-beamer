@@ -53,6 +53,7 @@ typedef struct {
     double par;
     GLuint tex;
     double fps;
+    int finished;
 } video_t;
 
 LUA_TYPE_DECL(video)
@@ -76,7 +77,9 @@ static void video_free(video_t *video) {
 }
 
 static int video_open(video_t *video, const char *filename) {
+    video->finished = 0;
     video->format = PIX_FMT_RGB24;
+
     if (avformat_open_input(&video->format_context, filename, NULL, NULL) ||
             avformat_find_stream_info(video->format_context, NULL) < 0) {
         fprintf(stderr, ERROR("cannot open video stream %s\n"), filename);
@@ -199,6 +202,7 @@ again:
     /* Can we read a frame? */
     if (av_read_frame(video->format_context, &packet)) {
         fprintf(stderr, "no next frame\n");
+        video->finished = 1;
         av_free_packet(&packet);
         return 0;
     }
@@ -211,11 +215,11 @@ again:
     }
 
     /* Decode it! */
-    int finished = 0;
-    avcodec_decode_video2(video->codec_context, video->raw_frame, &finished, &packet);
+    int complete_frame = 0;
+    avcodec_decode_video2(video->codec_context, video->raw_frame, &complete_frame, &packet);
 
     /* Success? If not, drop packet. */
-    if (!finished) {
+    if (!complete_frame) {
         fprintf(stderr, ERROR("incomplete video packet\n"));
         av_free_packet(&packet);
         goto again;
@@ -302,6 +306,15 @@ static int video_next(lua_State *L) {
     return 1;
 }
 
+static int video_state(lua_State *L) {
+    video_t *video = checked_video(L, 1);
+    lua_pushstring(L, video->finished ? "finished" : "loaded");
+    lua_pushnumber(L, video->width);
+    lua_pushnumber(L, video->height / video->par);
+    lua_pushnumber(L, video->fps);
+    return 4;
+}
+
 static int video_draw(lua_State *L) {
     video_t *video = checked_video(L, 1);
     GLfloat x1 = luaL_checknumber(L, 2);
@@ -328,12 +341,18 @@ static int video_texid(lua_State *L) {
     return 1;
 }
 
+static int video_dispose(lua_State *L) {
+    return 0;
+}
+
 static const luaL_reg video_methods[] = {
+    {"state",   video_state},
     {"draw",    video_draw},
     {"next",    video_next},
     {"size",    video_size},
     {"fps",     video_fps},
     {"texid",   video_texid},
+    {"dispose", video_dispose},
     {0,0}
 };
 
