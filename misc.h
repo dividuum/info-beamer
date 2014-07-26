@@ -22,6 +22,8 @@
 #define INFO(str) WHITE("[" __FILE__ "]") " " str
 #define ERROR(str) RED("[" __FILE__ "]") " " str
 
+#define CLAMP(val, min, max) ((val) > (max) ? (max) : ((val) < (min) ? (min) : (val)))
+
 void die(const char *fmt, ...);
 void *xmalloc(size_t size);
 double time_delta(struct timeval *before, struct timeval *after);

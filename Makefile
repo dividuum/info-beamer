@@ -42,7 +42,7 @@ all: info-beamer
 info-beamer: main.o image.o font.o video.o shader.o vnc.o framebuffer.o misc.o struct.o
 	$(CC) -o $@ $^ $(LDFLAGS) 
 
-main.o: main.c kernel.h userlib.h
+main.o: main.c kernel.h userlib.h module_json.h
 
 info-beamer.1: info-beamer.1.ronn
 	ronn $< -r --pipe > $@
@@ -50,15 +50,9 @@ info-beamer.1: info-beamer.1.ronn
 bin2c: bin2c.c
 	$(CC) $^ -o $@
 
-ifdef USE_LUAJIT
 %.h: %.lua bin2c
 	$(LUA_LUAC) -p $<
 	./bin2c $* < $< > $@
-else
-%.h: %.lua bin2c
-	$(LUA_LUAC) -o $<.compiled $<
-	./bin2c $* < $<.compiled > $@
-endif
 
 doc:
 	markdown_py -x toc -x tables -x codehilite doc/manual.md > doc/manual.html
@@ -67,6 +61,6 @@ install: info-beamer
 	install -D -o root -g root -m 755 $< $(DESTDIR)$(bindir)/$<
 
 clean:
-	rm -f *.o info-beamer kernel.h userlib.h bin2c *.compiled doc/manual.html info-beamer.1
+	rm -f *.o info-beamer kernel.h userlib.h module_*.h bin2c *.compiled doc/manual.html info-beamer.1
 
 .PHONY: clean doc install

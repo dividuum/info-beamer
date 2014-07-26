@@ -92,6 +92,10 @@ function create_sandbox()
             unpack = struct.unpack;
         };
 
+        _BUNDLED_MODULES = {
+            ["json.lua"] = MODULE_JSON;
+        };
+
         coroutine = {
             create = coroutine.create;
             resume = coroutine.resume;
@@ -195,6 +199,7 @@ function create_sandbox()
         resource = {
             render_child = render_child;
             load_image = load_image;
+            load_image_async = load_image;
             load_video = load_video;
             load_font = load_font;
             load_file = load_file;
@@ -220,6 +225,7 @@ function create_sandbox()
             end;
             create_vnc = create_vnc;
             create_snapshot = create_snapshot;
+            create_colored_texture = create_colored_texture;
         };
 
         gl = {
@@ -240,6 +246,12 @@ function create_sandbox()
 
         sys = {
             now = now;
+            set_flag = function(...)
+                kprint("set_flag() call ignored")
+            end;
+            get_env = function(key)
+                return NODE_ENVIRON[key]
+            end;
         };
 
         events = {
@@ -301,11 +313,14 @@ function create_sandbox()
             alias = set_alias;
 
             event = function(event, handler)
+                if not sandbox.events[event] then
+                    sandbox.events[event] = {}
+                end
                 table.insert(sandbox.events[event], handler)
             end;
 
             dispatch = function(event, ...)
-                for _, handler in ipairs(sandbox.events[event]) do
+                for _, handler in ipairs(sandbox.events[event] or {}) do
                     handler(...)
                 end
             end;
