@@ -34,7 +34,6 @@
 
 #include "uthash.h"
 #include "utlist.h"
-#include "tlsf.h"
 #include "misc.h"
 #include "image.h"
 #include "video.h"
@@ -104,9 +103,6 @@ typedef struct node_s {
 
     int gl_matrix_depth;
 
-    void *mem;
-    tlsf_pool pool;
-
     struct client_s *clients;
 
     int child_render_quota;
@@ -165,10 +161,10 @@ static void *lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize) {
     node->num_allocs++;
     (void)osize;  /* not used */
     if (nsize == 0) {
-        tlsf_free(node->pool, ptr);
+        free(ptr);
         return NULL;
     } else {
-        return tlsf_realloc(node->pool, ptr, nsize);
+        return realloc(ptr, nsize);
     }
 }
 #endif
@@ -812,8 +808,6 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
 #ifdef USE_LUAJIT
     node->L = luaL_newstate();
 #else
-    node->mem = malloc(MAX_MEM);
-    node->pool = tlsf_create(node->mem, MAX_MEM);
     node->L = lua_newstate(lua_alloc, node);
 #endif
 
@@ -900,11 +894,6 @@ static void node_free(node_t *node) {
     assert(node->clients == NULL);
 
     lua_close(node->L);
-
-#ifndef USE_LUAJIT
-    tlsf_destroy(node->pool);
-    free(node->mem);
-#endif
 }
 
 static void node_search_and_boot(node_t *node) {

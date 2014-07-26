@@ -52,10 +52,6 @@ files in included in their header.
 
 Included 3rd Party code:
 
-    tlsf.c tlsf.h tlsfbits.h
-        TLSF memory allocator
-        http://tlsf.baisoku.org/
-        
     uthash.h utlist.h
         Hashtables/Lists for C structures
         http://uthash.sourceforge.net/
