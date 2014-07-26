@@ -104,7 +104,6 @@ static int video_open(video_t *video, const char *filename) {
     video->width = video->codec_context->width;
     video->height = video->codec_context->height;
 
-	
     if (!video->codec || avcodec_open2(video->codec_context, video->codec, NULL) < 0) {
         fprintf(stderr, ERROR("cannot open codec\n"));
         goto failed;
@@ -132,9 +131,9 @@ static int video_open(video_t *video, const char *filename) {
 
     /* Get FPS */
     // http://libav-users.943685.n4.nabble.com/Retrieving-Frames-Per-Second-FPS-td946533.html
-    if ((stream->time_base.den != stream->r_frame_rate.num) ||
-            (stream->time_base.num != stream->r_frame_rate.den)) {
-        video->fps = 1.0 / stream->r_frame_rate.den * stream->r_frame_rate.num;
+    if ((stream->time_base.den != stream->avg_frame_rate.num) ||
+            (stream->time_base.num != stream->avg_frame_rate.den)) {
+        video->fps = 1.0 / stream->avg_frame_rate.den * stream->avg_frame_rate.num;
     } else {
         video->fps = 1.0 / stream->time_base.num * stream->time_base.den;
     }
