@@ -1439,7 +1439,8 @@ int main(int argc, char *argv[]) {
     struct event tcp_event;
     open_tcp(&tcp_event);
 
-    glfwInit();
+    if (!glfwInit())
+        die("cannot initialize glfw");
 
     int fullscreen = getenv("INFOBEAMER_FULLSCREEN") != NULL;
     int width = 1024;
