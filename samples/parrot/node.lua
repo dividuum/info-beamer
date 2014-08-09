@@ -11,7 +11,9 @@ end
 node.event("connect", function(client)
     local handler = coroutine.wrap(echo)
     N.clients[client] = handler
-    handler()
+    handler(function(...)
+        sys.client_write(client, ...)
+    end)
 end)
 
 node.event("input", function(line, client)
@@ -22,7 +24,7 @@ node.event("disconnect", function(client)
     N.clients[client] = nil
 end)
 
-function echo()
+function echo(print)
     print("I will repeat everything you send me")
     while true do
         local line = readln()

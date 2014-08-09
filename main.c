@@ -556,8 +556,7 @@ static int luaCreateVnc(lua_State *L) {
     return vnc_create(L, host, port);
 }
 
-static int luaPrint(lua_State *L) {
-    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+static int luaPushFormattedArgs(lua_State *L) {
     luaL_Buffer b;
     luaL_buffinit(L, &b);
     int n = lua_gettop(L);
@@ -574,7 +573,32 @@ static int luaPrint(lua_State *L) {
     }
     luaL_addchar(&b, '\n');
     luaL_pushresult(&b);
+    return 1;
+}
+
+static int luaPrint(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    luaPushFormattedArgs(L);
     node_printf(node, "%s", lua_tostring(L, -1));
+    return 0;
+}
+
+static int luaClientWrite(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    client_t *client = lua_touserdata(L, 1);
+    lua_remove(L, 1);
+
+    luaPushFormattedArgs(L);
+
+    size_t string_len;
+    const char *string = lua_tolstring(L, -1, &string_len);
+
+    client_t *current_client;
+    DL_FOREACH(node->clients, current_client) {
+        if (current_client == client) {
+            client_write(current_client, string, string_len);
+        }
+    }
     return 0;
 }
 
@@ -722,13 +746,9 @@ static void node_printf(node_t *node, const char *fmt, ...) {
     char buffer[16384];
     va_list ap;
     va_start(ap, fmt);
-    size_t buffer_size = vsnprintf(buffer, sizeof(buffer), fmt, ap);
+    vsnprintf(buffer, sizeof(buffer), fmt, ap);
     va_end(ap);
     fprintf(stderr, GREEN("[%s]")" %s", node->path, buffer);
-    client_t *client;
-    DL_FOREACH(node->clients, client) {
-        client_write(client, buffer, buffer_size);
-    }
 }
 
 static void node_blacklist(node_t *node, double time) {
@@ -847,6 +867,8 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "setup", luaSetup);
     lua_register_node_func(node, "print", luaPrint);
     lua_register_node_func(node, "set_alias", luaSetAlias);
+
+    lua_register_node_func(node, "client_write", luaClientWrite);
 
     lua_register_node_func(node, "render_self", luaRenderSelf);
     lua_register_node_func(node, "render_child", luaRenderChild);

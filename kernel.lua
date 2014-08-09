@@ -252,6 +252,8 @@ function create_sandbox()
             get_env = function(key)
                 return NODE_ENVIRON[key]
             end;
+            platform = "desktop";
+            client_write = client_write;
         };
 
         events = {
