@@ -536,8 +536,28 @@ static int luaCreateSnapshot(lua_State *L) {
     if (node->snapshot_quota-- <= 0)
         return luaL_error(L, "too many snapshots");
     node->num_resource_inits++;
-    int mipmap = lua_toboolean(L, 1);
-    return image_from_current_framebuffer(L, node->width, node->height, mipmap);
+    int mipmap = 0;
+    int x = 0;
+    int y = 0;
+    int width = node->width;
+    int height = node->height;
+    if (lua_gettop(L) <= 1) {
+        mipmap = lua_toboolean(L, 1);
+    } else if (lua_gettop(L) == 4) {
+        x = luaL_checknumber(L, 1);
+        y = luaL_checknumber(L, 2);
+        width = luaL_checknumber(L, 3);
+        height = luaL_checknumber(L, 4);
+        if (x < 0 || y < 0 || width < 0 || height < 0 ||
+            x + width > node->width || y + height > node->height) {
+            return luaL_error(L, "snapshot out of bounds");
+        }
+    } else {
+        return luaL_error(L, "invalid number of arguments");
+    }
+    return image_from_current_framebuffer(
+        L, x, node->height - y - height, width, height, mipmap
+    );
 }
 
 static int luaCreateShader(lua_State *L) {
