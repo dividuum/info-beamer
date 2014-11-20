@@ -1535,8 +1535,8 @@ int main(int argc, char *argv[]) {
     GLenum err = glewInit();
     if (err != GLEW_OK)
         die("cannot initialize glew");
-    if (!glewIsSupported("GL_VERSION_2_0"))
-        die("need opengl 2.0 support\n");
+    if (!glewIsSupported("GL_VERSION_3_0"))
+        die("need opengl 3.0 support\n");
 
     glfwSetWindowTitle(VERSION_STRING);
     glfwSwapInterval(1);
