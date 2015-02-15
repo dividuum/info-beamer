@@ -83,6 +83,8 @@
 #define NODE_INACTIVITY 2.0 // node considered idle after x seconds
 #define NODE_CPU_BLACKLIST 60.0 // seconds a node is blacklisted if it exceeds cpu usage
 
+static int win_w, win_h;
+
 typedef enum { PROFILE_BOOT, PROFILE_UPDATE, PROFILE_EVENT } profiling_bins;
 
 typedef struct node_s {
@@ -384,10 +386,10 @@ static int luaSetup(lua_State *L) {
         return luaL_error(L, "cannot change width or height while rendering");
     int width = (int)luaL_checknumber(L, 1);
     int height = (int)luaL_checknumber(L, 2);
-    if (width < 32 || width > 2048)
-        luaL_argerror(L, 1, "invalid width. must be within [32,2048]");
-    if (height < 32 || height > 2048)
-        luaL_argerror(L, 2, "invalid height. must be within [32,2048]");
+    if (width < 32 || width > 4096)
+        luaL_argerror(L, 1, "invalid width. must be within [32,4096]");
+    if (height < 32 || height > 4096)
+        luaL_argerror(L, 2, "invalid height. must be within [32,4096]");
     node->width = width;
     node->height = height;
     return 0;
@@ -536,8 +538,28 @@ static int luaCreateSnapshot(lua_State *L) {
     if (node->snapshot_quota-- <= 0)
         return luaL_error(L, "too many snapshots");
     node->num_resource_inits++;
-    int mipmap = lua_toboolean(L, 1);
-    return image_from_current_framebuffer(L, node->width, node->height, mipmap);
+    int mipmap = 0;
+    int x = 0;
+    int y = 0;
+    int width = node->width;
+    int height = node->height;
+    if (lua_gettop(L) <= 1) {
+        mipmap = lua_toboolean(L, 1);
+    } else if (lua_gettop(L) == 4) {
+        x = luaL_checknumber(L, 1);
+        y = luaL_checknumber(L, 2);
+        width = luaL_checknumber(L, 3);
+        height = luaL_checknumber(L, 4);
+        if (x < 0 || y < 0 || width < 0 || height < 0 ||
+            x + width > node->width || y + height > node->height) {
+            return luaL_error(L, "snapshot out of bounds");
+        }
+    } else {
+        return luaL_error(L, "invalid number of arguments");
+    }
+    return image_from_current_framebuffer(
+        L, x, node->height - y - height, width, height, mipmap
+    );
 }
 
 static int luaCreateShader(lua_State *L) {
@@ -556,8 +578,7 @@ static int luaCreateVnc(lua_State *L) {
     return vnc_create(L, host, port);
 }
 
-static int luaPrint(lua_State *L) {
-    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+static int luaPushFormattedArgs(lua_State *L) {
     luaL_Buffer b;
     luaL_buffinit(L, &b);
     int n = lua_gettop(L);
@@ -574,7 +595,38 @@ static int luaPrint(lua_State *L) {
     }
     luaL_addchar(&b, '\n');
     luaL_pushresult(&b);
+    return 1;
+}
+
+static int luaPrint(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    luaPushFormattedArgs(L);
     node_printf(node, "%s", lua_tostring(L, -1));
+    return 0;
+}
+
+static int luaGetScreenInfo(lua_State *L) {
+    lua_pushnumber(L, win_w);
+    lua_pushnumber(L, win_h);
+    return 2;
+}
+
+static int luaClientWrite(lua_State *L) {
+    node_t *node = lua_touserdata(L, lua_upvalueindex(1));
+    client_t *client = lua_touserdata(L, 1);
+    lua_remove(L, 1);
+
+    luaPushFormattedArgs(L);
+
+    size_t string_len;
+    const char *string = lua_tolstring(L, -1, &string_len);
+
+    client_t *current_client;
+    DL_FOREACH(node->clients, current_client) {
+        if (current_client == client) {
+            client_write(current_client, string, string_len);
+        }
+    }
     return 0;
 }
 
@@ -722,13 +774,9 @@ static void node_printf(node_t *node, const char *fmt, ...) {
     char buffer[16384];
     va_list ap;
     va_start(ap, fmt);
-    size_t buffer_size = vsnprintf(buffer, sizeof(buffer), fmt, ap);
+    vsnprintf(buffer, sizeof(buffer), fmt, ap);
     va_end(ap);
     fprintf(stderr, GREEN("[%s]")" %s", node->path, buffer);
-    client_t *client;
-    DL_FOREACH(node->clients, client) {
-        client_write(client, buffer, buffer_size);
-    }
 }
 
 static void node_blacklist(node_t *node, double time) {
@@ -848,6 +896,10 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "print", luaPrint);
     lua_register_node_func(node, "set_alias", luaSetAlias);
 
+    lua_register_node_func(node, "client_write", luaClientWrite);
+
+    lua_register_node_func(node, "get_screen_info", luaGetScreenInfo);
+
     lua_register_node_func(node, "render_self", luaRenderSelf);
     lua_register_node_func(node, "render_child", luaRenderChild);
     lua_register_node_func(node, "load_image", luaLoadImage);
@@ -869,6 +921,9 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "glPerspective", luaGlPerspective);
 
     lua_register(node->L, "now", luaNow);
+
+    lua_pushliteral(node->L, VERSION);
+    lua_setglobal(node->L, "VERSION");
 
     lua_pushstring(node->L, path);
     lua_setglobal(node->L, "PATH");
@@ -1112,7 +1167,6 @@ static void check_inotify() {
 
 /*============ GUI ===========*/
 
-static int win_w, win_h;
 static GLFWwindow *window;
 
 static void reshape(GLFWwindow* window, int width, int height) {
@@ -1414,7 +1468,7 @@ static void init_default_texture() {
 
 int main(int argc, char *argv[]) {
     fprintf(stdout, VERSION_STRING " (" INFO_URL ")\n");
-    fprintf(stdout, "Copyright (c) 2014 Florian Wesch <fw@dividuum.de>\n\n");
+    fprintf(stdout, "Copyright (c) 2015 Florian Wesch <fw@dividuum.de>\n\n");
 
     if (argc != 2 || (argc == 2 && !strcmp(argv[1], "-h"))) {
         fprintf(stderr, 
@@ -1509,8 +1563,8 @@ int main(int argc, char *argv[]) {
     GLenum err = glewInit();
     if (err != GLEW_OK)
         die("cannot initialize glew");
-    if (!glewIsSupported("GL_VERSION_2_0"))
-        die("need opengl 2.0 support\n");
+    if (!glewIsSupported("GL_VERSION_3_0"))
+        die("need opengl 3.0 support\n");
 
     if (fullscreen)
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);

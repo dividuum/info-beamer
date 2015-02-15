@@ -67,8 +67,14 @@ function util.videoplayer(name, opt)
         next = function(self)
             return not done
         end;
+        state = function(self)
+            return stream:state()
+        end;
         size = function(self)
             return stream:size()
+        end;
+        dispose = function(self)
+            return stream:dispose()
         end;
     }
 end
