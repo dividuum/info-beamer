@@ -83,6 +83,8 @@
 #define NODE_INACTIVITY 2.0 // node considered idle after x seconds
 #define NODE_CPU_BLACKLIST 60.0 // seconds a node is blacklisted if it exceeds cpu usage
 
+static int win_w, win_h;
+
 typedef enum { PROFILE_BOOT, PROFILE_UPDATE, PROFILE_EVENT } profiling_bins;
 
 typedef struct node_s {
@@ -384,10 +386,10 @@ static int luaSetup(lua_State *L) {
         return luaL_error(L, "cannot change width or height while rendering");
     int width = (int)luaL_checknumber(L, 1);
     int height = (int)luaL_checknumber(L, 2);
-    if (width < 32 || width > 2048)
-        luaL_argerror(L, 1, "invalid width. must be within [32,2048]");
-    if (height < 32 || height > 2048)
-        luaL_argerror(L, 2, "invalid height. must be within [32,2048]");
+    if (width < 32 || width > 4096)
+        luaL_argerror(L, 1, "invalid width. must be within [32,4096]");
+    if (height < 32 || height > 4096)
+        luaL_argerror(L, 2, "invalid height. must be within [32,4096]");
     node->width = width;
     node->height = height;
     return 0;
@@ -601,6 +603,12 @@ static int luaPrint(lua_State *L) {
     luaPushFormattedArgs(L);
     node_printf(node, "%s", lua_tostring(L, -1));
     return 0;
+}
+
+static int luaGetScreenInfo(lua_State *L) {
+    lua_pushnumber(L, win_w);
+    lua_pushnumber(L, win_h);
+    return 2;
 }
 
 static int luaClientWrite(lua_State *L) {
@@ -890,6 +898,8 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
 
     lua_register_node_func(node, "client_write", luaClientWrite);
 
+    lua_register_node_func(node, "get_screen_info", luaGetScreenInfo);
+
     lua_register_node_func(node, "render_self", luaRenderSelf);
     lua_register_node_func(node, "render_child", luaRenderChild);
     lua_register_node_func(node, "load_image", luaLoadImage);
@@ -911,6 +921,9 @@ static void node_init(node_t *node, node_t *parent, const char *path, const char
     lua_register_node_func(node, "glPerspective", luaGlPerspective);
 
     lua_register(node->L, "now", luaNow);
+
+    lua_pushliteral(node->L, VERSION);
+    lua_setglobal(node->L, "VERSION");
 
     lua_pushstring(node->L, path);
     lua_setglobal(node->L, "PATH");
@@ -1153,8 +1166,6 @@ static void check_inotify() {
 }
 
 /*============ GUI ===========*/
-
-static int win_w, win_h;
 
 static void GLFWCALL reshape(int width, int height) {
     win_w = width;
@@ -1453,7 +1464,7 @@ static void init_default_texture() {
 
 int main(int argc, char *argv[]) {
     fprintf(stdout, VERSION_STRING " (" INFO_URL ")\n");
-    fprintf(stdout, "Copyright (c) 2014 Florian Wesch <fw@dividuum.de>\n\n");
+    fprintf(stdout, "Copyright (c) 2015 Florian Wesch <fw@dividuum.de>\n\n");
 
     if (argc != 2 || (argc == 2 && !strcmp(argv[1], "-h"))) {
         fprintf(stderr, 

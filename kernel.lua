@@ -42,7 +42,12 @@ local CONTENTS = {}
 -- "persistent" table for this node. survives reloads
 local N = {}
 
+local function noop()
+end
+
 function create_sandbox()
+    local native_w, native_h = get_screen_info()
+
     local sandbox = {
         error = error;
         assert = assert;
@@ -246,14 +251,24 @@ function create_sandbox()
 
         sys = {
             now = now;
-            set_flag = function(...)
-                kprint("set_flag() call ignored")
+            exit = function()
+                kprint("sys.exit not supported")
+            end;
+            set_flag = noop;
+            client_write = function(...)
+                deprecation_warning(
+                    "client_write",
+                    "sys.client_write is renamed to node.client_write", 
+                    3
+                )
+                return client_write(...)
             end;
             get_env = function(key)
                 return NODE_ENVIRON[key]
             end;
+            get_ext = noop;
             platform = "desktop";
-            client_write = client_write;
+            version = VERSION;
         };
 
         events = {
@@ -313,6 +328,9 @@ function create_sandbox()
 
         node = {
             alias = set_alias;
+            client_write = client_write;
+            reset_error = noop;
+            set_flag = noop;
 
             event = function(event, handler)
                 if not sandbox.events[event] then
@@ -333,6 +351,9 @@ function create_sandbox()
 
         NAME = NAME;
         PATH = PATH;
+
+        NATIVE_WIDTH = native_w;
+        NATIVE_HEIGHT = native_h;
 
         CHILDS = CHILDS;
         CONTENTS = CONTENTS;
