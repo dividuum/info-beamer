@@ -71,8 +71,17 @@ static int font_write(lua_State *L) {
     return 1;
 }
 
+static int font_width(lua_State *L) {
+    font_t *font = checked_font(L, 1);
+    const char *text = luaL_checkstring(L, 2);
+    GLfloat size = luaL_checknumber(L, 3) / 1000.0;
+    lua_pushnumber(L, ftglGetFontAdvance(font->font, text) * size);
+    return 1;
+}
+
 static const luaL_reg font_methods[] = {
     {"write",       font_write},
+    {"width",       font_width},
     {0,0}
 };
 
