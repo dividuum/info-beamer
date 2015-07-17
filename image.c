@@ -20,6 +20,7 @@ typedef struct {
     GLuint fbo;
     int width;
     int height;
+    int flipped;
 } image_t;
 
 LUA_TYPE_DECL(image)
@@ -57,10 +58,17 @@ static int image_draw(lua_State *L) {
     shader_set_gl_color(1.0, 1.0, 1.0, alpha);
 
     glBegin(GL_QUADS); 
+    if (image->flipped) {
         glTexCoord2f(sx1, sy2); glVertex3f(x1, y1, 0);
         glTexCoord2f(sx2, sy2); glVertex3f(x2, y1, 0);
         glTexCoord2f(sx2, sy1); glVertex3f(x2, y2, 0);
         glTexCoord2f(sx1, sy1); glVertex3f(x1, y2, 0);
+    } else {
+        glTexCoord2f(sx1, sy1); glVertex3f(x1, y1, 0);
+        glTexCoord2f(sx2, sy1); glVertex3f(x2, y1, 0);
+        glTexCoord2f(sx2, sy2); glVertex3f(x2, y2, 0);
+        glTexCoord2f(sx1, sy2); glVertex3f(x1, y2, 0);
+    }
     glEnd();
 
     return 0;
@@ -87,12 +95,13 @@ static const luaL_reg image_methods[] = {
 
 /* Lifecycle */
 
-int image_create(lua_State *L, GLuint tex, GLuint fbo, int width, int height) {
+int image_create(lua_State *L, GLuint tex, GLuint fbo, int width, int height, int flipped) {
     image_t *image = push_image(L);
     image->tex = tex;
     image->fbo = fbo;
     image->width = width;
     image->height = height;
+    image->flipped = flipped;
     return 1;
 }
 
@@ -112,7 +121,7 @@ int image_from_current_framebuffer(lua_State *L, int x, int y, int width, int he
     glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, x, y, width, height);
     if (mipmap)
         glGenerateMipmap(GL_TEXTURE_2D);
-    return image_create(L, tex, 0, width, height);
+    return image_create(L, tex, 0, width, height, 1);
 }
 
 int image_from_color(lua_State *L, GLfloat r, GLfloat g, GLfloat b, GLfloat a) {
@@ -128,7 +137,7 @@ int image_from_color(lua_State *L, GLfloat r, GLfloat g, GLfloat b, GLfloat a) {
     unsigned char buf[4] = {r * 255, g * 255, b * 255, a * 255 };
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, buf);
 
-    return image_create(L, tex, 0, 1, 1);
+    return image_create(L, tex, 0, 1, 1, 0);
 }
 
 
@@ -146,9 +155,6 @@ int image_load(lua_State *L, const char *path, const char *name) {
     ILinfo ImageInfo;
     iluGetImageInfo(&ImageInfo);
 
-    if (ImageInfo.Origin == IL_ORIGIN_UPPER_LEFT)
-        iluFlipImage();
- 
     if (!ilConvertImage(IL_RGBA, IL_UNSIGNED_BYTE)) {
         ilDeleteImages(1, &imageID);
         return luaL_error(L, "converting %s failed: %s",
@@ -164,14 +170,14 @@ int image_load(lua_State *L, const char *path, const char *name) {
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
     glTexImage2D(GL_TEXTURE_2D, 0, ilGetInteger(IL_IMAGE_BPP), width, height, 0,
                  ilGetInteger(IL_IMAGE_FORMAT), GL_UNSIGNED_BYTE, ilGetData());
     glGenerateMipmap(GL_TEXTURE_2D);
     ilDeleteImages(1, &imageID);
-    return image_create(L, tex, 0, width, height);
+    return image_create(L, tex, 0, width, height, 0);
 }
 
 static int image_gc(lua_State *L) {
