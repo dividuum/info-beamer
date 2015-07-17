@@ -144,12 +144,13 @@ function util.auto_loader(container, filter)
     return container
 end
 
-function util.resource_loader(resources)
+function util.resource_loader(resources, container)
+    container = container or _G
     local whitelist = {}
     for _, name in ipairs(resources) do
         whitelist[name] = true
     end
-    util.auto_loader(_G, function(name)
+    return util.auto_loader(container, function(name)
         return whitelist[name]
     end)
 end
@@ -536,7 +537,7 @@ function require(modname)
     return package.loaded[modname]
 end
 
-function hosted_init()
+function util.init_hosted()
     local json = require "json"
     local hosted = nil
     local config_json = nil
@@ -578,6 +579,9 @@ function hosted_init()
         node.dispatch("package_update", package_json)
     end)
 end
+
+-- compatibility with older versions
+hosted_init = util.init_hosted
 
 do
     local function red(str)    return "[31m" .. str .. "[0m" end
