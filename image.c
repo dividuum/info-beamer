@@ -48,15 +48,19 @@ static int image_draw(lua_State *L) {
     GLfloat x2 = luaL_checknumber(L, 4);
     GLfloat y2 = luaL_checknumber(L, 5);
     GLfloat alpha = luaL_optnumber(L, 6, 1.0);
+    GLfloat sx1 = luaL_optnumber(L, 7, 0);
+    GLfloat sy1 = luaL_optnumber(L, 8, 0);
+    GLfloat sx2 = luaL_optnumber(L, 9, 1);
+    GLfloat sy2 = luaL_optnumber(L, 10, 1);
 
     glBindTexture(GL_TEXTURE_2D, image->tex);
     shader_set_gl_color(1.0, 1.0, 1.0, alpha);
 
     glBegin(GL_QUADS); 
-        glTexCoord2f(0.0, 1.0); glVertex3f(x1, y1, 0);
-        glTexCoord2f(1.0, 1.0); glVertex3f(x2, y1, 0);
-        glTexCoord2f(1.0, 0.0); glVertex3f(x2, y2, 0);
-        glTexCoord2f(0.0, 0.0); glVertex3f(x1, y2, 0);
+        glTexCoord2f(sx1, sy2); glVertex3f(x1, y1, 0);
+        glTexCoord2f(sx2, sy2); glVertex3f(x2, y1, 0);
+        glTexCoord2f(sx2, sy1); glVertex3f(x2, y2, 0);
+        glTexCoord2f(sx1, sy1); glVertex3f(x1, y2, 0);
     glEnd();
 
     return 0;

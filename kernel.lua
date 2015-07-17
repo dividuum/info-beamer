@@ -31,6 +31,10 @@ local DEFAULT_VERTEX_SHADER = [[
     }
 ]]
 
+local FEATURES = {
+    ["subimage-draw"] = true;
+}
+
 --=============
 -- Sandboxing
 --=============
@@ -266,9 +270,12 @@ function create_sandbox()
             get_env = function(key)
                 return NODE_ENVIRON[key]
             end;
+            provides = function(feature)
+                return FEATURES[feature]
+            end;
             get_ext = noop;
-            platform = "desktop";
-            version = VERSION;
+            PLATFORM = "desktop";
+            VERSION = VERSION;
         };
 
         events = {
@@ -347,6 +354,12 @@ function create_sandbox()
 
             render = function()
             end;
+
+            gc = function ()
+                collectgarbage();
+                collectgarbage();
+            end;
+
         };
 
         NAME = NAME;
