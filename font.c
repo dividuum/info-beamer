@@ -20,6 +20,7 @@ typedef struct {
 LUA_TYPE_DECL(font)
 
 /* Instance methods */
+#define SCALE (72)
 
 static int font_write(lua_State *L) {
     font_t *font = checked_font(L, 1);
@@ -31,7 +32,7 @@ static int font_write(lua_State *L) {
     if (!check_utf8(text))
         return luaL_error(L, "invalid utf8");
 
-    GLfloat size = luaL_checknumber(L, 5) / 1000.0;
+    GLfloat size = luaL_checknumber(L, 5) / SCALE;
 
     int type = lua_type(L, 6);
     if (type == LUA_TNUMBER) {
@@ -62,7 +63,7 @@ static int font_write(lua_State *L) {
 
     glPushMatrix();
         glTranslatef(x, y, 0);
-        glTranslatef(0, size * 800, 0);
+        glTranslatef(0, size * (SCALE * 0.8), 0);
         glScalef(size, -size, 1.0);
         ftglRenderFont(font->font, text, FTGL_RENDER_ALL);
     glPopMatrix();
@@ -74,7 +75,7 @@ static int font_write(lua_State *L) {
 static int font_width(lua_State *L) {
     font_t *font = checked_font(L, 1);
     const char *text = luaL_checkstring(L, 2);
-    GLfloat size = luaL_checknumber(L, 3) / 1000.0;
+    GLfloat size = luaL_checknumber(L, 3) / SCALE;
     lua_pushnumber(L, ftglGetFontAdvance(font->font, text) * size);
     return 1;
 }
@@ -88,12 +89,12 @@ static const luaL_reg font_methods[] = {
 /* Lifecycle */
 
 int font_new(lua_State *L, const char *path, const char *name) {
-    FTGLfont *ftgl_font = ftglCreatePolygonFont(path);
+    FTGLfont *ftgl_font = ftglCreateTextureFont(path);
     if (!ftgl_font)
         return luaL_error(L, "cannot load font file %s", path);
 
     ftglSetFontDisplayList(ftgl_font, 1);
-    ftglSetFontFaceSize(ftgl_font, 1000, 1000);
+    ftglSetFontFaceSize(ftgl_font, SCALE, SCALE);
     ftglSetFontCharMap(ftgl_font, ft_encoding_unicode);
 
     font_t *font = push_font(L);
