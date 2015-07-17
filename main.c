@@ -23,7 +23,7 @@
 #include <GL/glew.h>
 #include <GL/gl.h>
 #include <GL/glext.h>
-#include <GL/glfw.h>
+#include <GLFW/glfw3.h>
 #include <IL/il.h>
 #include <IL/ilu.h>
 #include <libavformat/avformat.h>
@@ -1167,22 +1167,25 @@ static void check_inotify() {
 
 /*============ GUI ===========*/
 
-static void GLFWCALL reshape(int width, int height) {
+static GLFWwindow *window;
+
+static void reshape(GLFWwindow* window, int width, int height) {
     win_w = width;
     win_h = height;
     fprintf(stderr, INFO("resized to %dx%d\n"), width, height);
 }
 
-static void GLFWCALL keypressed(int key, int action) {
-    if (action == GLFW_PRESS) {
-        switch (key) {
-            case GLFW_KEY_SPACE:
-                node_profiler();
-                break;
-            case GLFW_KEY_ESC:
-                running = 0;
-                break;
-        }
+static void keypressed(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    if (action != GLFW_PRESS)
+        return;
+
+    switch (key) {
+        case GLFW_KEY_SPACE:
+            node_profiler();
+            break;
+        case GLFW_KEY_ESCAPE:
+            running = 0;
+            break;
     }
 }
 
@@ -1446,11 +1449,12 @@ static void tick() {
     glClear(GL_COLOR_BUFFER_BIT);
     node_render_self(&root, win_w, win_h);
 
-    glfwSwapBuffers();
+    glfwSwapBuffers(window);
+    glfwPollEvents();
 
     node_tree_gc(&root);
 
-    if (!glfwGetWindowParam(GLFW_OPENED))
+    if (glfwWindowShouldClose(window))
         running = 0;
 }
 
@@ -1523,10 +1527,10 @@ int main(int argc, char *argv[]) {
     struct event tcp_event;
     open_tcp(&tcp_event);
 
-    glfwInit();
-    glfwOpenWindowHint(GLFW_FSAA_SAMPLES, 4);
+    if (!glfwInit())
+        die("cannot initialize glfw");
 
-    int mode = getenv("INFOBEAMER_FULLSCREEN") ? GLFW_FULLSCREEN : GLFW_WINDOW;
+    int fullscreen = getenv("INFOBEAMER_FULLSCREEN") != NULL;
     int width = 1024;
     int height = 768;
 
@@ -1540,8 +1544,21 @@ int main(int argc, char *argv[]) {
 
     fprintf(stderr, INFO("initial size is %dx%d\n"), width, height);
 
-    if(!glfwOpenWindow(width, height, 8,8,8,8, 0,0, mode))
+    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+    if (!fullscreen)
+        monitor = NULL;
+
+    window = glfwCreateWindow(width, height, VERSION_STRING, monitor, NULL);
+    if (!window)
         die("cannot open window");
+
+    glfwSetFramebufferSizeCallback(window, reshape);
+    glfwSetKeyCallback(window, keypressed);
+
+    glfwMakeContextCurrent(window);
+    glfwSwapInterval(1);
+
+    glfwGetFramebufferSize(window, &win_w, &win_h);
 
     GLenum err = glewInit();
     if (err != GLEW_OK)
@@ -1549,13 +1566,8 @@ int main(int argc, char *argv[]) {
     if (!glewIsSupported("GL_VERSION_3_0"))
         die("need opengl 3.0 support\n");
 
-    glfwSetWindowTitle(VERSION_STRING);
-    glfwSwapInterval(1);
-    glfwSetWindowSizeCallback(reshape);
-    glfwSetKeyCallback(keypressed);
-
-    if (mode == GLFW_FULLSCREEN)
-        glfwDisable(GLFW_MOUSE_CURSOR);
+    if (fullscreen)
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     ilInit();
     iluInit();

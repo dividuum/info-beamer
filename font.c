@@ -5,7 +5,6 @@
 #include <unistd.h>
 
 #include <GL/gl.h>
-#include <GL/glfw.h>
 #include <FTGL/ftgl.h>
 #include <lauxlib.h>
 #include <lualib.h>
