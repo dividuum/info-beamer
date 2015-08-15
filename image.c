@@ -13,6 +13,7 @@
 
 #include "framebuffer.h"
 #include "misc.h"
+#include "image.h"
 #include "shader.h"
 
 typedef struct {

@@ -767,7 +767,7 @@ static int node_render_to_image(lua_State *L, node_t *node) {
     glUseProgram(prev_prog);
     glBindFramebuffer(GL_FRAMEBUFFER, prev_fbo);
 
-    return image_create(L, tex, fbo, width, height);
+    return image_create(L, tex, fbo, width, height, 1);
 }
 
 static void node_printf(node_t *node, const char *fmt, ...) {
