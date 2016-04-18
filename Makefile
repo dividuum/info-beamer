@@ -31,7 +31,7 @@ endif
 
 CFLAGS  += -DVERSION='"$(VERSION)"'
 CFLAGS  += $(LUA_CFLAGS) -I/usr/include/freetype2/ -I/usr/include/ffmpeg -std=c99 -Wall
-LDFLAGS += $(LUA_LDFLAGS) -levent -lglfw -lGL -lGLU -lGLEW -lftgl -lIL -lILU -lavformat -lavcodec -lavutil -lswscale -lz -lm -lXi -lX11 -lXxf86vm -lXrandr -lpthread
+LDFLAGS += $(LUA_LDFLAGS) -levent -lglfw -lGL -lGLU -lGLEW -lftgl -lIL -lILU -lavformat -lavcodec -lavutil -lswscale -lz -lm -ldl -lXi -lX11 -lXxf86vm -lXrandr -lXinerama -lXcursor -lpthread
 
 prefix 		?= /usr/local
 exec_prefix ?= $(prefix)
